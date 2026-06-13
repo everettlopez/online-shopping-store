@@ -1,18 +1,18 @@
 from sqlmodel import SQLModel
-from pydantic import EmailStr
+from pydantic import EmailStr, BaseModel
 from datetime import datetime
 
-class UserCreate(SQLModel):
+class UserCreate(BaseModel):
     email: EmailStr
     password: str
     first_name: str
     last_name: str
 
-class UserLogin(SQLModel):
+class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-class UserRead(SQLModel):
+class UserRead(BaseModel):
     user_id: int
     email: EmailStr
     first_name: str

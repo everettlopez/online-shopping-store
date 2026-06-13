@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.db.session import create_db_and_tables
 from app.routes.auth import router as auth_router
+from app.routes.address import router as address_router
 from fastapi.openapi.utils import get_openapi
 
 app = FastAPI()
@@ -13,4 +14,5 @@ def on_startup():
 def root():
     return {"message": "API is running"}
 
-app.include_router(auth_router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(address_router, prefix="/api")

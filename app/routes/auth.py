@@ -12,7 +12,7 @@ from app.schemas.user import UserCreate, UserLogin, UserRead
 from datetime import datetime
 from app.auth.core import CurrentUser
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register")
 def register(user: UserCreate, session: Session = Depends(get_session)):
