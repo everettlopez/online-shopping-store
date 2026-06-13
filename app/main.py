@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.db.session import create_db_and_tables
 from app.routes.auth import router as auth_router
+from fastapi.openapi.utils import get_openapi
 
 app = FastAPI()
 

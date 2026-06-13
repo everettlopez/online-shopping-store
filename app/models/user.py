@@ -9,3 +9,5 @@ class User(SQLModel, table=True):
     first_name: str = Field(nullable=False)
     last_name: str = Field(nullable=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+
+    
