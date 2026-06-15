@@ -50,7 +50,10 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
         key="shop_token",
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none",
+        secure=True,
+        path="/",
+        max_age=60 * 60 * 24 * 7,
     )
 
     return {"access_token": token, "token_type": "bearer"}
@@ -62,6 +65,7 @@ def logout(response: Response):
 
 @router.get("/me", response_model=UserRead)
 def read_current_user(user: CurrentUser):
+    print("DEBUG: /me user =", user)
     return user
 
 @router.delete("/me")

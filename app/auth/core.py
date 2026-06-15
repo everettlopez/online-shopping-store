@@ -40,6 +40,8 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depends(bearer_scheme)):
+    print("DEBUG: cookie_token =", cookie_token)
+    print("DEBUG: bearer_token =", bearer_token)
     if cookie_token:
         return cookie_token
     

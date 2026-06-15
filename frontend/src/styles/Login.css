@@ -1,0 +1,19 @@
+.login-container {
+  padding: 2rem;
+}
+
+.login-container h1 {
+  margin-bottom: 1rem;
+}
+
+.login-container input {
+  display: block;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  width: 250px;
+}
+
+.login-container button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
