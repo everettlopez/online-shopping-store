@@ -6,8 +6,10 @@ from typing import Optional
 
 
 class Address(SQLModel, table=True):
+    __tablename__ = "addresses"
+
     address_id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.user_id")
+    user_id: int = Field(foreign_key="users.user_id")
 
     line1: str
     line2: Optional[str] = None
