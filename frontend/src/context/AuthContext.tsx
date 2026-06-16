@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const tryRestoreSession = async () => {
             try {
             // Only call /me if the cookie exists
-            const hasCookie = document.cookie.includes("shop_token=");
+            const hasCookie = document.cookie.includes("shop_token");
             if (!hasCookie) {
                 setLoading(false);
                 return;
@@ -59,6 +59,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await apiLogout();
         setUser(null);
     };
+
+    console.log("DEBUG: AuthProvider mounted");
 
     return (
         <AuthContext.Provider 
