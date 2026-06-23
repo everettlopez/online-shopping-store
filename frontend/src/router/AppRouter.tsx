@@ -3,25 +3,26 @@ import { useAuth } from "../context/AuthContext";
 
 import Login from "../pages/Login";
 import Register from "../pages/Register";
-// import ProductsPage from "../pages/Products";
+import Landing from "../pages/Landing";
+import ProductsPage from "../pages/Products";
 // import CartPage from "../pages/Cart";
 
 // TODO: Add routes as needed
 
-// function ProtectedRoute({ children }: { children: React.ReactNode }) {
-//     const { isAuthenticated, loading } = useAuth();
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, loading } = useAuth();
 
-//     if (loading) return <p>Loading...</p>;
-//     if(!isAuthenticated) return <Navigate to="/login"/>;
+    if (loading) return <p>Loading...</p>;
+    if(!isAuthenticated) return <Navigate to="/login"/>;
 
-//     return children;
-// }
+    return children;
+}
 
 function PublicOnlyRoute({children}: {children: React.ReactNode }) {
     const { isAuthenticated, loading } = useAuth();
 
     if (loading) return <p>Loading...</p>;
-    if (isAuthenticated) return <Navigate to="/" replace />;
+    if (isAuthenticated) return <Navigate to="/products" replace />;
 
     return children;
 }
@@ -35,6 +36,12 @@ export default function AppRouter() {
         <BrowserRouter>
         <Routes>
             {/* Public Routes */}
+
+            <Route 
+                path="/" 
+                element={<Landing />}
+            />
+
             <Route 
                 path="/login" 
                 element={
@@ -54,14 +61,14 @@ export default function AppRouter() {
             />
 
             {/* Protected Routes */}
-            {/* <Route 
+            <Route 
                 path="/products"
                 element = {
                     <ProtectedRoute>
                         <ProductsPage />
                     </ProtectedRoute> 
                 }
-            /> */}
+            />
 
             {/* TODO: Add Accounts Route for Account Page */}
             {/* <Route 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from datetime import datetime
 from app.db.session import get_session
 from app.models.product import Product
 from app.models.category import Category
@@ -34,8 +35,12 @@ def create_product(
 # GET /products → list all products
 # -----------------------------------------
 @router.get("/", response_model=list[ProductRead])
-def list_products(session: Session = Depends(get_session)):
+def list_products(category: int| None = None, session: Session = Depends(get_session)):
     statement = select(Product)
+
+    if category is not None:
+        statement = statement.where(Product.category_id == category)
+
     return session.exec(statement).all()
 
 
@@ -70,6 +75,8 @@ def update_product(
 
     for key, value in update_data.items():
         setattr(product, key, value)
+
+    product.updated_at = datetime.utcnow();
 
     session.add(product)
     session.commit()

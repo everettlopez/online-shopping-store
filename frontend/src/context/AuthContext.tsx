@@ -26,24 +26,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const tryRestoreSession = async () => {
             try {
-            // Only call /me if the cookie exists
-            const hasCookie = document.cookie.includes("shop_token");
-            if (!hasCookie) {
-                setLoading(false);
-                return;
+                const data = await getCurrentUser();
+                setUser(data);
             }
-
-            const data = await getCurrentUser();
-            setUser(data);
-            } catch {
-            setUser(null);
+            catch {
+                setUser(null);
             } finally {
-            setLoading(false);
+                setLoading(false);
             }
         };
 
         tryRestoreSession();
-        }, []);
+    }, []);
 
 
     const login = async (email: string, password: string) => {

@@ -7,8 +7,12 @@ class ProductCreate(BaseModel):
     name: str
     description: str | None = None
     price: float
-    sku: str
-    stock_quantity: int = 0
+
+    size: str | None = None
+    color: str | None = None
+    image_url: str | None = None
+
+    stock_quantity: int = 1
     is_active: bool = True
 
 class ProductRead(BaseModel):
@@ -17,10 +21,15 @@ class ProductRead(BaseModel):
     name: str
     description: str | None
     price: float
-    sku: str
+
+    size: str | None = None
+    color: str | None = None
+    image_url: str | None = None
+
     stock_quantity: int
     is_active: bool
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -30,6 +39,11 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     price: float | None = None
-    sku: str | None = None
+
+    size: str | None = None
+    color: str | None = None
+    image_url: str | None = None
+
     stock_quantity: int | None = None
     is_active: bool | None = None
+

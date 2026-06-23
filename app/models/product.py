@@ -12,8 +12,13 @@ class Product(SQLModel, table=True):
     name: str
     description: str | None = None
     price: float
-    sku: str
-    stock_quantity: int = 0
+
+    size: str | None = None
+    color: str | None = None
+    image_url: str | None = None
+
+    stock_quantity: int = 1
     is_active: bool = True
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
