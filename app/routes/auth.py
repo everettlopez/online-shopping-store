@@ -60,8 +60,16 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie("shop_token")
-    return {"message": "Logged out successfully"}
+    response.delete_cookie(
+        key="shop_token",
+        path="/",
+        httponly=True,
+        samesite="none",
+        secure=True
+    )
+    return {"message": "Logged out"}
+
+
 
 @router.get("/me", response_model=UserRead)
 def read_current_user(user: CurrentUser):

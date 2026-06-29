@@ -25,10 +25,11 @@ export const login = async (data: LoginData) => {
 };
 
 // Logout a user (delete cookie)
-export const logout = async() => {
-    const response = await axiosClient.post("/auth/logout");
-    return response.data;
+export const logout = async () => {
+  const response = await axiosClient.post("/auth/logout", {}, { withCredentials: true });
+  return response.data;
 };
+
 
 export const getCurrentUser = async() => {
     const response = await axiosClient.get("/auth/me");
