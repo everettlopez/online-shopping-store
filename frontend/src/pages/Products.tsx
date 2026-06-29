@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+
 import { useSearchParams, Link  } from "react-router-dom";
+
+import { useNavigate } from "react-router-dom";
+import ProductModal from "../components/ProductModal";
 
 console.log("DEBUG: Landing page component loaded");
 
@@ -17,19 +21,77 @@ type Product = {
     is_active: boolean;
 };
 
+type Category = {
+    category_id: number;
+    name: string;
+    description?: string;
+}
 
 export default function Products() {
-
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const category = searchParams.get("category") || "all";
+    const { user } = useAuth();
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+    function openEditModal(product: Product) {
+        setSelectedProduct(product);
+        setIsModalOpen(true);
+    }
+
+    function updateFilter(key: string, value: string | null) {
+        const params = new URLSearchParams(window.location.search);
+
+        if (value === null) {
+            params.delete(key);
+        } else {
+            params.set(key, value);
+        }
+
+        navigate(`/products?${params.toString()}`);
+    };
+
+    function isPriceActive(range: string) {
+        const { min, max } = priceMap[range];
+        return (
+            (min ? String(min) === price_min : !price_min) &&
+            (max ? String(max) === price_max : !price_max)
+        );
+    }
+
+
+    const category = searchParams.get("category");
+    const size = searchParams.get("size");
+    const color = searchParams.get("color");
+    const price_min = searchParams.get("price_min");
+    const price_max = searchParams.get("price_max");
+
+
+
     const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+
+    const priceMap: Record<string, { min?: number; max?: number }> = {
+        "Under $25": { max: 25 },
+        "$25 – $50": { min: 25, max: 50 },
+        "$50 – $100": { min: 50, max: 100 },
+        "$100 – $200": { min: 100, max: 200 },
+        "$200+": { min: 200 },
+    };
+
 
     useEffect(() => {
         const load = async () => {
-            const url =
-                category === "all"
-                    ? "/api/products"
-                    : `/api/products?category=${category}`;
+            const params = new URLSearchParams();
+
+            if (category && category !== "all") params.set("category", category);
+            if (size) params.set("size", size);
+            if (color) params.set("color", color);
+            if (price_min) params.set("price_min", price_min);
+            if (price_max) params.set("price_max", price_max);
+
+            const url = `/api/products?${params.toString()}`;
 
             const res = await fetch(url);
             const data = await res.json();
@@ -37,13 +99,40 @@ export default function Products() {
         };
 
         load();
-    }, [category]);
+    }, [category, size, color, price_min, price_max]);
+
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            const res = await fetch("/api/categories");
+            const data = await res.json();
+            setCategories(data);
+        };
+
+        loadCategories();
+    }, []);
+
+    const currentCategory = categories.find(
+        (c) => c.category_id === Number(category)
+    );
 
 
     return (
         <>
         {/* Header */}
         <div className="flex flex-col justify-center items-center gap-4 p-5">
+
+            {/* Right-side icons */}
+            <div className="absolute right-5 top-5 flex items-center gap-6 text-2xl">
+                <Link to="/account" className="hover:text-gray-600 transition">
+                    <i className="fa-regular fa-user"></i>
+                </Link>
+
+                <Link to="/cart" className="hover:text-gray-600 transition">
+                    <i className="fa-solid fa-bag-shopping"></i>
+                </Link>
+            </div>
+
             <a href="/"><h1 className="text-6xl">KILLJOY</h1></a>
 
             <nav className="flex gap-12">
@@ -56,25 +145,160 @@ export default function Products() {
                 <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELERY</p></Link>
             </nav>
         </div>
-        
-        {/* Main Content */}
-        <div className="p-10">
-            <h2 className="text-2xl font-bold mb-6">Products</h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                {products.map((p) => (
-                    <div key={p.product_id} className="border p-4 rounded-lg shadow">
-                        <img src={p.image_url} alt={p.name} className="w-full h-48 object-cover rounded" />
-                        <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
-                        <p className="text-gray-600">${p.price}</p>
-                        <p className="text-sm text-gray-500">Size: {p.size}</p>
-                        <p className="text-sm text-gray-500">Color: {p.color}</p>
+        {/* Cateogry Section Title */}
+        <div className="flex flex-col justify-center items-center gap-4 p-5">
+            <h2 className="text-3xl font-normal tracking-widest">
+                {currentCategory ? currentCategory.name : "ALL PRODUCTS"}
+            </h2>
+        </div>
+
+        <div className="flex gap-6">
+
+            {/* Filter Section */}
+            <div className="flex flex-col p-5 gap-6">
+
+                {/* SIZE – debug version */}
+                <div className="flex flex-col space-y-2">
+                    <p className="text-sm font-semibold">SIZE</p>
+
+                    <div className="flex gap-2">
+                        {["XS", "S", "M", "L", "XL"].map((size) => (
+                        <button
+                            key={size}
+                            onClick={() =>
+                            updateFilter("size", size === searchParams.get("size") ? null : size)
+                            }
+                            className={
+                            "inline-flex items-center justify-center h-10 w-10 border p-0 text-sm " +
+                            (searchParams.get("size") === size
+                                ? "bg-black text-white border-black"
+                                : "border-gray-300 hover:bg-gray-100")
+                            }
+                        >
+                            {size}
+                        </button>
+                        ))}
                     </div>
-                ))}
+                </div>
+
+
+
+
+                {/* COLOR */}
+                <div className="flex flex-col gap-3">
+                    <p className="text-xl tracking-wider">COLOR</p>
+
+                    <details className="w-full">
+                        <summary className="cursor-pointer border border-gray-300 px-4 py-3 tracking-wide">
+                            Select Color
+                        </summary>
+
+                        <div className="flex flex-col border border-gray-300 border-t-0">
+                            {["Black", "White", "Red", "Blue", "Green"].map((color) => (
+                                <button
+                                    key={color}
+                                    onClick={() =>
+                                        updateFilter("color", color === searchParams.get("color") ? null : color)
+                                    }
+                                    className={
+                                        "w-full text-left px-4 py-3 tracking-wide " +
+                                        (searchParams.get("color") === color
+                                            ? "bg-black text-white"
+                                            : "hover:bg-gray-100")
+                                    }
+                                >
+                                    {color}
+                                </button>
+                            ))}
+                        </div>
+                    </details>
+                </div>
+
+                {/* PRICE */}
+                <div className="flex flex-col gap-3">
+                    <p className="text-xl tracking-wider">PRICE</p>
+
+                    <details className="w-full">
+                        <summary className="cursor-pointer border border-gray-300 px-4 py-3 tracking-wide">
+                            Select Price Range
+                        </summary>
+
+                        <div className="flex flex-col border border-gray-300 border-t-0">
+                            {["Under $25", "$25 – $50", "$50 – $100", "$100 – $200", "$200+"].map((range) => (
+                                <button
+                                    key={range}
+                                    onClick={() => {
+                                        const { min, max } = priceMap[range];
+
+                                        if (isPriceActive(range)) {
+                                            updateFilter("price_min", null);
+                                            updateFilter("price_max", null);
+                                        } else {
+                                            updateFilter("price_min", min ? String(min) : null);
+                                            updateFilter("price_max", max ? String(max) : null);
+                                        }
+                                    }}
+                                    className={
+                                        "w-full text-left px-4 py-3 tracking-wide " +
+                                        (isPriceActive(range)
+                                            ? "bg-black text-white"
+                                            : "hover:bg-gray-100")
+                                    }
+                                >
+                                    {range}
+                                </button>
+                            ))}
+                        </div>
+                    </details>
+                </div>
+
+            </div>
+
+            {/* Product Content */}
+            <div className="p-10">
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                    {products.map((p) => (
+                        <div key={p.product_id} className="border p-4 rounded-lg shadow">
+                            <img src={p.image_url} alt={p.name} className="w-full h-48 object-cover rounded" />
+                            <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
+                            <p className="text-gray-600">${p.price}</p>
+                            <p className="text-sm text-gray-500">Size: {p.size}</p>
+                            <p className="text-sm text-gray-500">Color: {p.color}</p>
+
+                            {user?.is_admin === true ? (
+                                <button
+                                    onClick={() => openEditModal(p)}
+                                    className="mt-4 w-full bg-blue-600 text-white py-2 rounded-full text-sm tracking-wide 
+                                            transition-all duration-200 hover:bg-blue-700"
+                                >
+                                    Edit Product
+                                </button>
+                            ) : (
+                                <button
+                                    className="mt-4 w-full bg-black text-white py-2 rounded-full text-sm tracking-wide 
+                                            transition-all duration-200 hover:bg-gray-800"
+                                >
+                                    Add to Cart
+                                </button>
+                            )}
+
+
+                            
+                        </div>
+                    ))}
+                </div>
+
             </div>
 
         </div>
-        
+
+        <ProductModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            product={selectedProduct}
+            />
         </>
     );
 }

@@ -35,11 +35,28 @@ def create_product(
 # GET /products → list all products
 # -----------------------------------------
 @router.get("/", response_model=list[ProductRead])
-def list_products(category: int| None = None, session: Session = Depends(get_session)):
+def list_products(category: int| None = None, 
+                  size: str | None = None,
+                  color: str | None = None,
+                  price_min: float | None = None, 
+                  price_max: float | None = None,
+                  session: Session = Depends(get_session)):
     statement = select(Product)
 
     if category is not None:
         statement = statement.where(Product.category_id == category)
+
+    if size is not None:
+        statement = statement.where(Product.size == size)
+
+    if color is not None:
+        statement = statement.where(Product.color == color)
+
+    if price_min is not None:
+        statement = statement.where(Product.price >= price_min)
+
+    if price_max is not None:
+        statement = statement.where(Product.price <= price_max)
 
     return session.exec(statement).all()
 

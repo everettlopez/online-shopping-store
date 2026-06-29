@@ -7,6 +7,7 @@ interface User {
     first_name: string;
     last_name: string;
     is_admin: boolean;
+    created_at: string;
 }
 
 interface AuthContextType {
@@ -15,6 +16,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,6 +56,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(null);
     };
 
+    const refreshUser = async () => {
+        try {
+            const data = await getCurrentUser();
+            setUser(data);
+        } catch {
+            setUser(null);
+        }
+    };
+
+
     console.log("DEBUG: AuthProvider mounted");
 
     return (
@@ -64,6 +76,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 isAuthenticated: !!user,
                 login,
                 logout,
+                refreshUser,
             }}>
                 {children}
             </AuthContext.Provider>
