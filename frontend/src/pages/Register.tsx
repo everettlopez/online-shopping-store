@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axiosClient from "../api/axiosClient";
-import { useNavigate } from  "react-router-dom";
+import { useNavigate, Link } from  "react-router-dom";
 
 console.log("DEBUG: Register component loaded");
 
@@ -79,7 +79,8 @@ function Register() {
                             </div>
                         </div>
 
-                        <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Register</button>
+                        <button type="submit" className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Register</button>
+                        <Link to="/login" className="flex justify-center items-center ">Already Have An Account? Sign In</Link>
                     </div>
                 </form>
             </div>

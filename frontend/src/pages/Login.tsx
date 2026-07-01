@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 
 console.log("DEBUG: Login component loaded");
 
@@ -55,6 +56,13 @@ function Login() {
                         </div>
 
                         <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Login</button>
+                        <Link
+                            to="/register"
+                            className="flex justify-center items-center px-5 py-2 rounded-full border hover:bg-gray-100 transition"
+                            >
+                            Create new account
+                            </Link>
+
                     </div>
                 </form>
             </div>

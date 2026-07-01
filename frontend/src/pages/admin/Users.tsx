@@ -94,9 +94,11 @@ export default function AdminUsers() {
             {new Date(user.created_at).toLocaleString()}
             </div>
             <div className="text-center">{user.email}</div>
+
+            {/* Actions Buttons */}
             <div className="flex justify-center gap-2">
-            <button onClick={() => handleEditUser(user)}>Edit</button>
-            <button onClick={() => handleDeleteUser(user)}>Delete</button>
+                <button onClick={() => handleEditUser(user)} className="border rounded-[10px] px-8 py-1 hover:bg-gray-300">Update</button>
+                <button onClick={() => handleDeleteUser(user)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
             </div>
         </div>
         ))}
