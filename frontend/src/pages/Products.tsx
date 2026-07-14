@@ -27,6 +27,14 @@ type Category = {
     description?: string;
 }
 
+type ProductResponse = {
+    metadata: {
+        count: number;
+        sort?: string | null;
+    };
+    products: Product[];
+}
+
 export default function Products() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -67,6 +75,12 @@ export default function Products() {
     const price_min = searchParams.get("price_min");
     const price_max = searchParams.get("price_max");
 
+    const [metadata, setMetadata] = useState<{ count: number; sort?: string | null }>({
+        count: 0,
+        sort: null
+    });
+
+
 
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -94,8 +108,9 @@ export default function Products() {
             const url = `/api/products?${params.toString()}`;
 
             const res = await fetch(url);
-            const data = await res.json();
-            setProducts(data);
+            const data: ProductResponse = await res.json();
+            setProducts(data.products);
+            setMetadata(data.metadata);
         };
 
         load();
@@ -106,7 +121,7 @@ export default function Products() {
         const loadCategories = async () => {
             const res = await fetch("/api/categories");
             const data = await res.json();
-            setCategories(data);
+            setCategories(data.categories);
         };
 
         loadCategories();
@@ -152,6 +167,8 @@ export default function Products() {
                 {currentCategory ? currentCategory.name : "ALL PRODUCTS"}
             </h2>
         </div>
+
+        <div className="flex text-center justify-center text-lg tracking-wider text-gray-400 border py-4">{metadata.count} PRODUCTS</div>
 
         <div className="flex gap-6">
 

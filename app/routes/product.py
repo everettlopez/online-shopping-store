@@ -4,8 +4,9 @@ from datetime import datetime
 from app.db.session import get_session
 from app.models.product import Product
 from app.models.category import Category
-from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
+from app.schemas.product import ProductCreate, ProductRead, ProductUpdate, ProductResponse, Metadata as ProductMetadata
 from app.auth.dependencies import admin_required
+from app.database.products import database_get_products
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -34,18 +35,19 @@ def create_product(
 # -----------------------------------------
 # GET /products → list all products
 # -----------------------------------------
-@router.get("/", response_model=list[ProductRead])
-def list_products(category: int| None = None, 
-                  size: str | None = None,
-                  color: str | None = None,
-                  price_min: float | None = None, 
-                  price_max: float | None = None,
-                  session: Session = Depends(get_session)):
+@router.get("/", response_model=ProductResponse)
+def list_products(session: Session = Depends(get_session), category: int | None = None,
+    size: str | None = None,
+    color: str | None = None,
+    price_min: float | None = None,
+    price_max: float | None = None,
+    sort: str | None = None):
+
     statement = select(Product)
 
     if category is not None:
         statement = statement.where(Product.category_id == category)
-
+    
     if size is not None:
         statement = statement.where(Product.size == size)
 
@@ -54,11 +56,18 @@ def list_products(category: int| None = None,
 
     if price_min is not None:
         statement = statement.where(Product.price >= price_min)
-
+    
     if price_max is not None:
         statement = statement.where(Product.price <= price_max)
 
-    return session.exec(statement).all()
+
+    filtered_products = session.exec(statement).all()
+
+    sorted_products = database_get_products(session=session, sort=sort)
+
+    products_read = [ProductRead.model_validate(p.__dict__) for p in filtered_products]
+
+    return ProductResponse(metadata = ProductMetadata(count = len(products_read), sort = sort), products = products_read)
 
 
 # -----------------------------------------

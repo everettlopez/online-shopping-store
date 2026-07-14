@@ -28,6 +28,11 @@ export default function AdminProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  const [metadata, setMetadata] = useState<{ count: number; sort?: string | null }>({
+        count: 0,
+        sort: null
+    });
+
   function openCreateModal() {
     setSelectedProduct(null);
     setIsModalOpen(true);
@@ -44,7 +49,8 @@ export default function AdminProductsPage() {
       try {
         const res = await fetch("/api/products");
         const data = await res.json();
-        setProducts(data);
+        setProducts(data.products);
+        setMetadata(data.metadata);
       } catch (err) {
         console.error("Failed to load products", err);
       } finally {
@@ -78,6 +84,9 @@ export default function AdminProductsPage() {
           </Link>
         </nav>
       </div>
+
+      <div className="flex text-center justify-center text-lg tracking-wider text-gray-400 border py-4">{metadata.count} PRODUCTS</div>
+
 
       {/* Product Grid */}
       <div className="p-10">

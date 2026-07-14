@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 from datetime import datetime
 
+class Metadata(BaseModel):
+    count: int
+    sort: str | None = None
 
 class ProductCreate(BaseModel):
     category_id: int
@@ -47,3 +50,6 @@ class ProductUpdate(BaseModel):
     stock_quantity: int | None = None
     is_active: bool | None = None
 
+class ProductResponse(BaseModel):
+    metadata: Metadata
+    products: list[ProductRead]

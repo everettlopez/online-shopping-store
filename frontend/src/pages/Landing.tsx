@@ -15,6 +15,14 @@ type Product = {
   stock_quantity?: number;
 };
 
+type ProductResponse = {
+    metadata: {
+        count: number;
+        sort?: string | null;
+    };
+    products: Product[];
+};
+
 
 
 function Landing() {
@@ -25,8 +33,8 @@ function Landing() {
     useEffect(() => {
         async function fetchNewArrivals() {
             const res = await fetch("/api/products?category=1");
-            const data: Product[] = await res.json();
-            setNewArrivals(data);
+            const data: ProductResponse = await res.json();
+            setNewArrivals(data.products);
         }
 
         fetchNewArrivals();
