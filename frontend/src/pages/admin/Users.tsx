@@ -38,8 +38,10 @@ export default function AdminUsers() {
             return;
         }
 
-        const data: User[] = await res.json();
-        setUsers(data);
+        const data = await res.json();
+        console.log("ADMIN USER RESPONSE: ", data)
+        setUsers(data.users);
+        
         } catch (err) {
         console.error("Error fetching users:", err);
         }
