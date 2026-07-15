@@ -11,7 +11,16 @@ from app.routes.category import router as category_router
 from app.routes.admin import router as admin_router
 from fastapi.openapi.utils import get_openapi
 
+from fastapi.staticfiles import StaticFiles
+
+import os
+
 app = FastAPI()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # -----------------------------
 # CORS FIX (this is what you need)

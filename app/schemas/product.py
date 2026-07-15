@@ -33,6 +33,7 @@ class ProductRead(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    images: list[str] | None = None
 
     class Config:
         from_attributes = True

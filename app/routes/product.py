@@ -9,6 +9,21 @@ from app.schemas.product import ProductCreate, ProductRead, ProductUpdate, Produ
 from app.auth.dependencies import admin_required
 from app.database.products import database_get_products
 
+import os
+
+# Get the directory of this file: app/routes/product.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Go up one folder: app/
+APP_DIR = os.path.dirname(BASE_DIR)
+
+# Point to: app/uploads
+UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
+
+# Make sure the folder exists
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
@@ -16,7 +31,7 @@ router = APIRouter(prefix="/products", tags=["Products"])
 # POST /products → create a new product
 # -----------------------------------------
 @router.post("/", response_model=ProductRead, dependencies=[Depends(admin_required)])
-def create_product(
+async def create_product(
     category_id: int = Form(...),
     name: str = Form(...),
     description: str = Form(""),
@@ -26,13 +41,31 @@ def create_product(
     image_url: str = Form(""),
     stock_quantity: int = Form(0),
     is_active: bool = Form(True),
-    image: UploadFile | None = File(None),
+    images_files: list[UploadFile] = File(None),
+    images_urls: str = Form("[]"),
     session: Session = Depends(get_session)
 ):
     # Validate category exists
     category = session.get(Category, category_id)
     if not category:
         raise HTTPException(status_code=400, detail="Invalid category")
+    
+    # Save uploaded files
+    saved_files = []
+    if images_files:
+        for file in images_files:
+            filepath = os.path.join(UPLOAD_DIR, file.filename)
+
+            with open(filepath, "wb") as f:
+                f.write(await file.read())
+
+            saved_files.append(f"uploads/{file.filename}")   # relative path for frontend
+
+
+    import json
+    url_list = json.loads(images_urls)
+
+    all_images = saved_files + url_list
 
     product = Product(
         category_id=category_id,
@@ -44,6 +77,7 @@ def create_product(
         image_url=image_url,
         stock_quantity=stock_quantity,
         is_active=is_active,
+        images=all_images,
     )
     
     session.add(product)
@@ -108,7 +142,7 @@ def get_product(product_id: int, session: Session = Depends(get_session)):
 # PUT /products/{product_id} → update
 # -----------------------------------------
 @router.put("/{product_id}", response_model=ProductRead, dependencies=[Depends(admin_required)])
-def update_product(
+async def update_product(
     product_id: int,
     name: str = Form(None),
     category_id: int | None = Form(None),
@@ -119,14 +153,18 @@ def update_product(
     image_url: str = Form(None),
     stock_quantity: int = Form(None),
     is_active: bool = Form(None),
-    image: UploadFile | None = File(None),
+
+    # ⭐ Add these
+    images_files: list[UploadFile] = File(None),
+    images_urls: str = Form("[]"),
+
     session: Session = Depends(get_session)
 ):
     product = session.get(Product, product_id)
-
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Update simple fields
     if name is not None: product.name = name
     if description is not None: product.description = description
     if price is not None: product.price = price
@@ -135,21 +173,35 @@ def update_product(
     if image_url is not None: product.image_url = image_url
     if stock_quantity is not None: product.stock_quantity = stock_quantity
     if is_active is not None: product.is_active = is_active
+    if category_id is not None: product.category_id = category_id
 
-    if category_id is not None:
-        product.category_id = category_id
+    # ⭐ Save uploaded files
+    saved_files = []
+    if images_files:
+        for file in images_files:
+            filepath = os.path.join(UPLOAD_DIR, file.filename)
+
+            with open(filepath, "wb") as f:
+                f.write(await file.read())
+
+            saved_files.append(f"uploads/{file.filename}")   # relative path for frontend
 
 
-    if image is not None:
-        product.image_url = f"/uploads/{image.filename}"
+    # ⭐ Merge URL images
+    import json
+    url_list = json.loads(images_urls)
 
-    product.updated_at = datetime.utcnow();
+    # ⭐ Merge old + new
+    product.images = (product.images or []) + saved_files + url_list
+
+    product.updated_at = datetime.utcnow()
 
     session.add(product)
     session.commit()
     session.refresh(product)
 
     return product
+
 
 
 # -----------------------------------------

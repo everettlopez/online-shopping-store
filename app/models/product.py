@@ -1,6 +1,8 @@
 from __future__ import annotations
 from sqlmodel import SQLModel, Field
 from datetime import datetime
+from sqlalchemy import Column, JSON
+
 
 class Product(SQLModel, table=True):
     __tablename__ = "products"
@@ -16,6 +18,9 @@ class Product(SQLModel, table=True):
     size: str | None = None
     color: str | None = None
     image_url: str | None = None
+
+    images: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+
 
     stock_quantity: int = 1
     is_active: bool = True

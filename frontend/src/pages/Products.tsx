@@ -44,16 +44,17 @@ export default function Products() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [detailProduct, setDetailProduct] = useState<Product | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
     function openDetail(product: Product) {
-    setSelectedProduct(product);
-    setIsDetailOpen(true);
+        setDetailProduct(product);
+        setIsDetailOpen(true);
     }
 
     function closeDetail() {
-    setSelectedProduct(null);
-    setIsDetailOpen(false);
+        setIsDetailOpen(isDetailOpen);
+        setDetailProduct(null);
     }
 
 
@@ -346,7 +347,7 @@ export default function Products() {
         <ProductDetailModal
             isOpen={isDetailOpen}
             onClose={closeDetail}
-            product={selectedProduct}
+            product={detailProduct}
             />
 
         </>

@@ -51,10 +51,17 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     color: "",
     image_url: "",
     image_file: null as File | null,
+
+    image_files: [] as File[],   // ⭐ multiple files
+    images: [] as string[],
+    imagesString: "",
   });
 
   // PREFILL WHEN EDITING
   useEffect(() => {
+
+    if(!isOpen) return;
+
     if (product) {
       setForm({
         name: product.name,
@@ -64,6 +71,11 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
         color: product.color || "",
         image_url: product.image_url || "",
         image_file: null,
+
+        image_files: [],    
+        images: product.images || [],
+        imagesString: product.images?.join(", ") || "",
+
       });
     } else {
       setForm({
@@ -74,14 +86,32 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
         color: "",
         image_url: "",
         image_file: null,
+        
+        image_files: [],                    
+        images: [],
+        imagesString: "",
       });
     }
-  }, [product]);
+  }, [product, isOpen]);
 
   // IMAGE PREVIEW
-  const previewImage = form.image_file
-    ? URL.createObjectURL(form.image_file)
-    : form.image_url;
+  const previewImage = isEditing
+  ? (
+      form.images.length > 0
+        ? (form.images[0].startsWith("uploads/")
+            ? `http://127.0.0.1:8000/${form.images[0]}`
+            : form.images[0])
+        : form.image_url
+    )
+  : (
+      form.image_file
+        ? URL.createObjectURL(form.image_file)
+        : form.image_files.length > 0
+          ? URL.createObjectURL(form.image_files[0])
+          : form.image_url
+    );
+
+
 
   // HANDLE FILE UPLOAD
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,6 +125,24 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
     const formData = new FormData();
 
+    const urlImages = form.imagesString
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    formData.append("images_urls", JSON.stringify(urlImages));
+
+    // ⭐ Multiple uploaded files
+    form.image_files.forEach((file) => {
+      formData.append("images_files", file);
+    });
+
+    if (form.image_file) {
+      formData.append("image", form.image_file);
+    } else {
+      formData.append("image_url", form.image_url);
+    }
+
     formData.append("name", form.name);
     formData.append("category_id", form.category_id.toString());
     formData.append("price", form.price);
@@ -104,12 +152,10 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     formData.append("stock_quantity", "0");      // keep simple
     formData.append("is_active", "true");        // keep simple
 
+    form.image_files.forEach((file) => {
+      formData.append("images_files", file);   // ⭐ MUST be "images"
+    });
 
-    if (form.image_file) {
-      formData.append("image", form.image_file);
-    } else {
-      formData.append("image_url", form.image_url);
-    }
 
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing
@@ -141,16 +187,50 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
           {isEditing ? "EDIT PRODUCT" : "CREATE NEW PRODUCT"}
         </h2>
 
-        <div className="flex flex-row gap-4">
-          {/* ⭐ IMAGE PREVIEW (IMAGE PREVIEWS) (auto-shrinks, never breaks modal) */}
-          {previewImage && (
-            <img
-              src={previewImage}
-              alt="Preview"
-              className="w-fit max-h-60 object-cover rounded mb-4"
-            />
-          )}
+        <div className="flex flex-row gap-6">
 
+          {/* LEFT COLUMN */}
+          <div className="flex flex-col items-start gap-3">
+
+            {previewImage && (
+              <img
+                src={previewImage}
+                alt="Preview"
+                className="w-fit max-h-60 object-cover rounded mb-2"
+              />
+            )}
+
+            {form.image_files.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {form.image_files.map((file, i) => (
+                  <img
+                    key={i}
+                    src={URL.createObjectURL(file)}
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                ))}
+              </div>
+            )}
+
+            {form.images.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {form.images.map((img, i) => (
+                  <img
+                    key={i}
+                    src={
+                      img.startsWith("uploads/")
+                        ? `http://127.0.0.1:8000/${img}`
+                        : img
+                    }
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                ))}
+              </div>
+            )}
+
+          </div>
+
+          {/* RIGHT COLUMN — FORM */}
           {/* FORM */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
@@ -238,9 +318,14 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
             <input
               type="file"
               accept="image/*"
-              onChange={handleFileChange}
+              multiple
+              onChange={(e) => {
+                const newFiles = Array.from(e.target.files || []);
+                setForm({ ...form, image_files: [...form.image_files, ...newFiles] });
+              }}
               className="border p-2 rounded"
             />
+
 
             <button
               type="submit"
@@ -249,7 +334,9 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
               {isEditing ? "Save Changes" : "Create Product"}
             </button>
           </form>
+
         </div>
+
 
         <button
           onClick={onClose}

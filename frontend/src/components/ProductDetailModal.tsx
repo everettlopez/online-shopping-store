@@ -46,14 +46,26 @@ export default function ProductDetailModal({ isOpen, onClose, product }: Props) 
 
         {/* Thumbnail Gallery */}
         <div className="flex gap-3 mb-6">
-          {product.images?.map((img:string, i: number) => (
-            <img
-              key={i}
-              src={img}
-              onClick={() => setMainImage(img)}
-              className="w-20 h-20 object-cover rounded cursor-pointer border hover:border-black transition"
-            />
-          ))}
+          {/* Thumbnail Gallery */}
+          {product.images && product.images.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {product.images.map((img, i) => {
+                const src = img.startsWith("uploads/")
+                  ? `http://127.0.0.1:8000/${img}`
+                  : img;
+
+                return (
+                  <img
+                    key={i}
+                    src={src}
+                    onClick={() => setMainImage(src)}
+                    className="w-20 h-20 object-cover rounded border cursor-pointer hover:border-black transition"
+                  />
+                );
+              })}
+            </div>
+          )}
+
         </div>
 
         {/* Product Info */}

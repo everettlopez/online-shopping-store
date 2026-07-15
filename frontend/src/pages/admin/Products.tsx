@@ -16,6 +16,8 @@ export interface Product {
   image_url?: string;
   stock_quantity: number;
   is_active: boolean;
+
+  images?: string[];
 }
 
 export default function AdminProductsPage() {
