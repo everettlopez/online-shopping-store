@@ -74,7 +74,7 @@ export default function AccountPage() {
       </header>
 
       {/* MAIN CONTENT */}
-      <div className="max-w-3xl mx-auto p-10">
+      <div className="max-w-2xl mx-auto p-10">
 
         {/* Title */}
         <h1 className="text-5xl font-light text-center mb-12 tracking-tight">
@@ -86,8 +86,17 @@ export default function AccountPage() {
           <h2 className="text-xl font-medium mb-6 tracking-tight">Profile</h2>
 
           <div className="space-y-2 text-gray-700">
-            <p><strong>Name:</strong> {user?.first_name} {user?.last_name}</p>
-            <p><strong>Email:</strong> {user?.email}</p>
+
+            <div className="flex flex-col border rounded-[10px] p-2">
+              <p className="text-sm text-gray-400">Name</p>
+              <p className="text-lg">{user?.first_name} {user?.last_name}</p>
+            </div>
+
+            <div className="flex flex-col border rounded-[10px] p-2">
+              <p className="text-sm text-gray-400">Email</p>
+              <p className="text-lg">{user?.email}</p>
+            </div>
+
             <p>
               <strong>Member since:</strong>{" "}
               {user?.created_at

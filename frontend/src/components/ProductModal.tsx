@@ -7,14 +7,44 @@ interface Props {
   product: Product | null;
 }
 
+type Category = {
+  category_id: number;
+  name: string;
+  description?: string | null;
+};
+
+
 export default function ProductModal({ isOpen, onClose, product }: Props) {
-  if (!isOpen) return null;
+  if (!isOpen)
+  {
+    console.log("PRODUCT MODAL CLOSED: ", isOpen);
+    return null;
+  }
 
   const isEditing = product !== null;
+  const [categories, setCategories] = useState<Category[]>([]);
+
+
+  useEffect(() => {
+    async function loadCategories() {
+      const res = await fetch("http://127.0.0.1:8000/api/categories", {
+        credentials: "include",
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      setCategories(data.categories as Category[]);
+    }
+
+    loadCategories();
+  }, []);
+
 
   // FORM STATE
   const [form, setForm] = useState({
     name: "",
+    category_id: 0,
     price: "",
     size: "",
     color: "",
@@ -27,6 +57,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     if (product) {
       setForm({
         name: product.name,
+        category_id: product.category_id,
         price: String(product.price),
         size: product.size || "",
         color: product.color || "",
@@ -36,6 +67,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     } else {
       setForm({
         name: "",
+        category_id: 0,
         price: "",
         size: "",
         color: "",
@@ -60,11 +92,19 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    const token = localStorage.getItem("token");
+
     const formData = new FormData();
+
     formData.append("name", form.name);
+    formData.append("category_id", form.category_id.toString());
     formData.append("price", form.price);
     formData.append("size", form.size);
     formData.append("color", form.color);
+    formData.append("description", "");          // keep simple
+    formData.append("stock_quantity", "0");      // keep simple
+    formData.append("is_active", "true");        // keep simple
+
 
     if (form.image_file) {
       formData.append("image", form.image_file);
@@ -74,11 +114,12 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing
-      ? `/api/products/${product!.product_id}`
-      : "/api/products";
+      ? `http://127.0.0.1:8000/api/products/${product!.product_id}`
+      : "http://127.0.0.1:8000/api/products";
 
     const res = await fetch(url, {
       method,
+      credentials: "include",
       body: formData,
     });
 
@@ -116,7 +157,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
             <div className="border border-solid flex flex-col rounded-[10px] p-2">
 
-              <label htmlFor="productName"className="text-gray-400 text-sm">Product Name</label>
+              <label htmlFor="productName" className="text-gray-400 text-sm">Product Name</label>
               <input
                 id="productName"
                 type="text"
@@ -124,6 +165,30 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="rounded py-2 focus:outline-none focus:ring-0 focus:border-none"
               />
+            </div>
+
+            <div className="border border-solid flex flex-col rounded-[10px] p-2">
+              <label className="text-gray-400 text-sm">Category</label>
+
+              <select
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: Number(e.target.value) })}
+                className="
+                  rounded-[8px]
+                  py-2
+                  bg-white
+                  text-gray-700
+                  focus:outline-none"
+              >
+                <option value={0} disabled>Select a category</option>
+                {categories.map(cat => (
+                  <option key={cat.category_id} value={cat.category_id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+
+
             </div>
 
             <div className="border border-solid flex flex-col rounded-[10px] p-2">

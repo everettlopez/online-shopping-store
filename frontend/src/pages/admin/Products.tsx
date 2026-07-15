@@ -111,6 +111,8 @@ export default function AdminProductsPage() {
                 className="w-full h-48 object-cover rounded"
               />
 
+              
+
               <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
               <p className="text-gray-600">${p.price}</p>
               <p className="text-sm text-gray-500">Size: {p.size}</p>

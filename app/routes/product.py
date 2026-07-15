@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Form, File, UploadFile
 from sqlmodel import Session, select
 from datetime import datetime
 from app.db.session import get_session
@@ -16,15 +17,35 @@ router = APIRouter(prefix="/products", tags=["Products"])
 # -----------------------------------------
 @router.post("/", response_model=ProductRead, dependencies=[Depends(admin_required)])
 def create_product(
-    data: ProductCreate,
+    category_id: int = Form(...),
+    name: str = Form(...),
+    description: str = Form(""),
+    price: float = Form(...),
+    size: str = Form(""),
+    color: str = Form(""),
+    image_url: str = Form(""),
+    stock_quantity: int = Form(0),
+    is_active: bool = Form(True),
+    image: UploadFile | None = File(None),
     session: Session = Depends(get_session)
 ):
     # Validate category exists
-    category = session.get(Category, data.category_id)
+    category = session.get(Category, category_id)
     if not category:
         raise HTTPException(status_code=400, detail="Invalid category")
 
-    product = Product(**data.dict())
+    product = Product(
+        category_id=category_id,
+        name=name,
+        description=description,
+        price=price,
+        size=size,
+        color=color,
+        image_url=image_url,
+        stock_quantity=stock_quantity,
+        is_active=is_active,
+    )
+    
     session.add(product)
     session.commit()
     session.refresh(product)
@@ -89,7 +110,16 @@ def get_product(product_id: int, session: Session = Depends(get_session)):
 @router.put("/{product_id}", response_model=ProductRead, dependencies=[Depends(admin_required)])
 def update_product(
     product_id: int,
-    data: ProductUpdate,
+    name: str = Form(None),
+    category_id: int | None = Form(None),
+    description: str = Form(None),
+    price: float = Form(None),
+    size: str = Form(None),
+    color: str = Form(None),
+    image_url: str = Form(None),
+    stock_quantity: int = Form(None),
+    is_active: bool = Form(None),
+    image: UploadFile | None = File(None),
     session: Session = Depends(get_session)
 ):
     product = session.get(Product, product_id)
@@ -97,10 +127,21 @@ def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    update_data = data.dict(exclude_unset=True)
+    if name is not None: product.name = name
+    if description is not None: product.description = description
+    if price is not None: product.price = price
+    if size is not None: product.size = size
+    if color is not None: product.color = color
+    if image_url is not None: product.image_url = image_url
+    if stock_quantity is not None: product.stock_quantity = stock_quantity
+    if is_active is not None: product.is_active = is_active
 
-    for key, value in update_data.items():
-        setattr(product, key, value)
+    if category_id is not None:
+        product.category_id = category_id
+
+
+    if image is not None:
+        product.image_url = f"/uploads/{image.filename}"
 
     product.updated_at = datetime.utcnow();
 

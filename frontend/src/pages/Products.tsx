@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
-import { useSearchParams, Link  } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 
 import { useNavigate } from "react-router-dom";
 import ProductModal from "../components/ProductModal";
@@ -159,6 +159,16 @@ export default function Products() {
                 <Link to="/products?category=5"><p className="text-base font-normal tracking-widest">ACCESSORIES</p></Link>
                 <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELERY</p></Link>
             </nav>
+        </div>
+
+        <div className="flex text-center items-center gap-3 px-10 py-4 text-gray-400 ">
+            <Link to="/" className="text-sm tracking-wider">HOME</Link>
+            <span>/</span>
+            <Link to="/products" className="text-sm tracking-wider">PRODUCTS</Link>
+            <span>/</span>
+            <Link to={`/products?category=${currentCategory ? currentCategory.category_id : ""}`} className="text-sm tracking-wider">
+                {currentCategory ? currentCategory.name : "ALL PRODUCTS"}
+            </Link>
         </div>
 
         {/* Cateogry Section Title */}
