@@ -5,6 +5,7 @@ import { useSearchParams, Link } from "react-router-dom";
 
 import { useNavigate } from "react-router-dom";
 import ProductModal from "../components/ProductModal";
+import ProductDetailModal from "../components/ProductDetailModal";
 
 console.log("DEBUG: Landing page component loaded");
 
@@ -41,7 +42,22 @@ export default function Products() {
     const { user } = useAuth();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+    function openDetail(product: Product) {
+    setSelectedProduct(product);
+    setIsDetailOpen(true);
+    }
+
+    function closeDetail() {
+    setSelectedProduct(null);
+    setIsDetailOpen(false);
+    }
+
+
+    
 
     function openEditModal(product: Product) {
         setSelectedProduct(product);
@@ -287,7 +303,7 @@ export default function Products() {
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                     {products.map((p) => (
-                        <div key={p.product_id} className="border p-4 rounded-lg shadow">
+                        <div key={p.product_id} className="border p-4 rounded-lg shadow cursor-pointer hover:shadow-xl transition" onClick={() => openDetail(p)}>
                             <img src={p.image_url} alt={p.name} className="w-full h-48 object-cover rounded" />
                             <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
                             <p className="text-gray-600">${p.price}</p>
@@ -326,6 +342,13 @@ export default function Products() {
             onClose={() => setIsModalOpen(false)}
             product={selectedProduct}
             />
+
+        <ProductDetailModal
+            isOpen={isDetailOpen}
+            onClose={closeDetail}
+            product={selectedProduct}
+            />
+
         </>
     );
 }

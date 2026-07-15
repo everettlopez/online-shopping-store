@@ -1,3 +1,4 @@
+// This file should have been AdminProductModal
 import { useState, useEffect } from "react";
 import type { Product } from "../pages/admin/Products";
 
@@ -91,8 +92,6 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
   // SUBMIT HANDLER
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    const token = localStorage.getItem("token");
 
     const formData = new FormData();
 
