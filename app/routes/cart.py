@@ -3,8 +3,7 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from app.auth.core import CurrentUser
 
-from app.models.cart import Cart
-from app.models.cart_item import CartItem
+from app.models.cart import Cart, CartItem
 from app.schemas.cart import CartRead
 from app.schemas.cart_item import CartItemCreate, CartItemRead, CartItemUpdate
 
@@ -12,8 +11,8 @@ router = APIRouter(prefix="/cart", tags=["Cart"])
 
 # Helper: Get or create cart for user
 def get_or_create_cart(user_id: int, session: Session) -> Cart:
-    statement = select(Cart).where(Cart.user_id == user_id)
-    cart = session.exec(statement).first()
+
+    cart = session.exec(select(Cart).where(Cart.user_id == user_id)).first()
 
     if not cart:
         cart = Cart(user_id=user_id)
@@ -26,14 +25,22 @@ def get_or_create_cart(user_id: int, session: Session) -> Cart:
 @router.get("/", response_model=CartRead)
 def get_cart(user: CurrentUser, session: Session = Depends(get_session)):
     cart = get_or_create_cart(user.user_id, session)
-    return cart
+
+    items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
+
+    return CartRead(
+        cart_id=cart.cart_id,
+        user_id=cart.user_id,
+        created_at=cart.created_at,
+        updated_at=cart.updated_at,
+        items=items
+    )
 
 @router.get("/items", response_model=list[CartItemRead])
 def get_cart_items(user: CurrentUser, session: Session = Depends(get_session)):
     cart = get_or_create_cart(user.user_id, session)
 
-    statement = select(CartItem).where(CartItem.cart_id == cart.cart_id)
-    items = session.exec(statement).all()
+    items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
 
     return items
 
