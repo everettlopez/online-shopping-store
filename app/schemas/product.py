@@ -25,6 +25,7 @@ class ProductRead(BaseModel):
     description: str | None
     price: float
 
+
     size: str | None = None
     color: str | None = None
     image_url: str | None = None

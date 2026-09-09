@@ -6,6 +6,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import ProductModal from "../components/ProductModal";
 import ProductDetailModal from "../components/ProductDetailModal";
+import axiosClient from "../api/axiosClient";
 
 console.log("DEBUG: Landing page component loaded");
 
@@ -18,6 +19,7 @@ type Product = {
     size?: string;
     color?: string;
     image_url?: string;
+    images?: string[];
     stock_quantity: number;
     is_active: boolean;
 };
@@ -36,6 +38,19 @@ type ProductResponse = {
     products: Product[];
 }
 
+interface CartItem {
+    cart_item_id: number;
+    product_id: number;
+    quantity: number;
+    product: Product | null;
+}
+
+interface Cart {
+    cart_id: number;
+    user_id: number;
+    items: CartItem[];
+}
+
 export default function Products() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -46,6 +61,8 @@ export default function Products() {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [detailProduct, setDetailProduct] = useState<Product | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+    const [cart, setCart] = useState<Cart | null>(null);
 
     function openDetail(product: Product) {
         setDetailProduct(product);
@@ -147,6 +164,54 @@ export default function Products() {
     const currentCategory = categories.find(
         (c) => c.category_id === Number(category)
     );
+
+    const { isAuthenticated } = useAuth();
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setCart(null);
+            setLoading(false);
+            return;
+        }
+
+        const fetchCart = async () => {
+            try {
+                const res = await axiosClient.get("/cart", {withCredentials: true});
+                setCart(res.data);
+            } catch (err){
+                console.error("Failed to load cart:", err);
+                setCart(null)
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCart();
+
+    }, [isAuthenticated]);
+
+    async function handleAddToCart(product: Product)
+    {
+        try
+        {
+            const response = await axiosClient.post("/cart/items", {
+                product_id: product.product_id,
+                quantity: 1
+            }, {withCredentials: true});
+
+            const newItem: CartItem = response.data;
+
+            setCart((prev) => ({
+                ...prev!,
+                items: [...prev!.items, newItem]
+            }));
+        }
+        catch (err)
+        {
+            console.error("Failed to add item: ", err);
+        }
+    }
 
 
     return (
@@ -321,6 +386,7 @@ export default function Products() {
                                 </button>
                             ) : (
                                 <button
+                                    onClick={() => handleAddToCart(p)}
                                     className="mt-4 w-full bg-black text-white py-2 rounded-full text-sm tracking-wide 
                                             transition-all duration-200 hover:bg-gray-800"
                                 >
