@@ -38,8 +38,10 @@ export default function AdminUsers() {
             return;
         }
 
-        const data: User[] = await res.json();
-        setUsers(data);
+        const data = await res.json();
+        console.log("ADMIN USER RESPONSE: ", data)
+        setUsers(data.users);
+        
         } catch (err) {
         console.error("Error fetching users:", err);
         }
@@ -74,7 +76,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Users Section */}
-        <div className="p-6 border rounded-lg bg-white shadow-sm flex flex-col gap-4">
+        <div className="py-4 border rounded-lg bg-white shadow-sm flex flex-col divide-y">
 
         {/* Header */}
         <div className="grid grid-cols-5 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">

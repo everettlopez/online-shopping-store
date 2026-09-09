@@ -16,6 +16,8 @@ export interface Product {
   image_url?: string;
   stock_quantity: number;
   is_active: boolean;
+
+  images?: string[];
 }
 
 export default function AdminProductsPage() {
@@ -27,6 +29,11 @@ export default function AdminProductsPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const [metadata, setMetadata] = useState<{ count: number; sort?: string | null }>({
+        count: 0,
+        sort: null
+    });
 
   function openCreateModal() {
     setSelectedProduct(null);
@@ -44,7 +51,8 @@ export default function AdminProductsPage() {
       try {
         const res = await fetch("/api/products");
         const data = await res.json();
-        setProducts(data);
+        setProducts(data.products);
+        setMetadata(data.metadata);
       } catch (err) {
         console.error("Failed to load products", err);
       } finally {
@@ -79,6 +87,9 @@ export default function AdminProductsPage() {
         </nav>
       </div>
 
+      <div className="flex text-center justify-center text-lg tracking-wider text-gray-400 border py-4">{metadata.count} PRODUCTS</div>
+
+
       {/* Product Grid */}
       <div className="p-10">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
@@ -101,6 +112,8 @@ export default function AdminProductsPage() {
                 alt={p.name}
                 className="w-full h-48 object-cover rounded"
               />
+
+              
 
               <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
               <p className="text-gray-600">${p.price}</p>

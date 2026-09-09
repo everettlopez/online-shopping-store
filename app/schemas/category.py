@@ -1,5 +1,10 @@
 from pydantic import BaseModel
 
+class Metadata(BaseModel):
+    count: int
+    sort: str | None = None
+
+
 class CategoryCreate(BaseModel):
     name: str
     description: str | None = None
@@ -15,3 +20,7 @@ class CategoryRead(BaseModel):
 class CategoryUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+
+class CategoryResponse(BaseModel):
+    metadata: Metadata
+    categories: list[CategoryRead]

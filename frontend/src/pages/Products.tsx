@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
-import { useSearchParams, Link  } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 
 import { useNavigate } from "react-router-dom";
 import ProductModal from "../components/ProductModal";
+import ProductDetailModal from "../components/ProductDetailModal";
+import axiosClient from "../api/axiosClient";
 
 console.log("DEBUG: Landing page component loaded");
 
@@ -17,6 +19,7 @@ type Product = {
     size?: string;
     color?: string;
     image_url?: string;
+    images?: string[];
     stock_quantity: number;
     is_active: boolean;
 };
@@ -27,13 +30,52 @@ type Category = {
     description?: string;
 }
 
+type ProductResponse = {
+    metadata: {
+        count: number;
+        sort?: string | null;
+    };
+    products: Product[];
+}
+
+interface CartItem {
+    cart_item_id: number;
+    product_id: number;
+    quantity: number;
+    product: Product | null;
+}
+
+interface Cart {
+    cart_id: number;
+    user_id: number;
+    items: CartItem[];
+}
+
 export default function Products() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { user } = useAuth();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+    const [cart, setCart] = useState<Cart | null>(null);
+
+    function openDetail(product: Product) {
+        setDetailProduct(product);
+        setIsDetailOpen(true);
+    }
+
+    function closeDetail() {
+        setIsDetailOpen(isDetailOpen);
+        setDetailProduct(null);
+    }
+
+
+    
 
     function openEditModal(product: Product) {
         setSelectedProduct(product);
@@ -67,6 +109,12 @@ export default function Products() {
     const price_min = searchParams.get("price_min");
     const price_max = searchParams.get("price_max");
 
+    const [metadata, setMetadata] = useState<{ count: number; sort?: string | null }>({
+        count: 0,
+        sort: null
+    });
+
+
 
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -94,8 +142,9 @@ export default function Products() {
             const url = `/api/products?${params.toString()}`;
 
             const res = await fetch(url);
-            const data = await res.json();
-            setProducts(data);
+            const data: ProductResponse = await res.json();
+            setProducts(data.products);
+            setMetadata(data.metadata);
         };
 
         load();
@@ -106,7 +155,7 @@ export default function Products() {
         const loadCategories = async () => {
             const res = await fetch("/api/categories");
             const data = await res.json();
-            setCategories(data);
+            setCategories(data.categories);
         };
 
         loadCategories();
@@ -115,6 +164,54 @@ export default function Products() {
     const currentCategory = categories.find(
         (c) => c.category_id === Number(category)
     );
+
+    const { isAuthenticated } = useAuth();
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setCart(null);
+            setLoading(false);
+            return;
+        }
+
+        const fetchCart = async () => {
+            try {
+                const res = await axiosClient.get("/cart", {withCredentials: true});
+                setCart(res.data);
+            } catch (err){
+                console.error("Failed to load cart:", err);
+                setCart(null)
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCart();
+
+    }, [isAuthenticated]);
+
+    async function handleAddToCart(product: Product)
+    {
+        try
+        {
+            const response = await axiosClient.post("/cart/items", {
+                product_id: product.product_id,
+                quantity: 1
+            }, {withCredentials: true});
+
+            const newItem: CartItem = response.data;
+
+            setCart((prev) => ({
+                ...prev!,
+                items: [...prev!.items, newItem]
+            }));
+        }
+        catch (err)
+        {
+            console.error("Failed to add item: ", err);
+        }
+    }
 
 
     return (
@@ -146,12 +243,24 @@ export default function Products() {
             </nav>
         </div>
 
+        <div className="flex text-center items-center gap-3 px-10 py-4 text-gray-400 ">
+            <Link to="/" className="text-sm tracking-wider">HOME</Link>
+            <span>/</span>
+            <Link to="/products" className="text-sm tracking-wider">PRODUCTS</Link>
+            <span>/</span>
+            <Link to={`/products?category=${currentCategory ? currentCategory.category_id : ""}`} className="text-sm tracking-wider">
+                {currentCategory ? currentCategory.name : "ALL PRODUCTS"}
+            </Link>
+        </div>
+
         {/* Cateogry Section Title */}
         <div className="flex flex-col justify-center items-center gap-4 p-5">
             <h2 className="text-3xl font-normal tracking-widest">
                 {currentCategory ? currentCategory.name : "ALL PRODUCTS"}
             </h2>
         </div>
+
+        <div className="flex text-center justify-center text-lg tracking-wider text-gray-400 border py-4">{metadata.count} PRODUCTS</div>
 
         <div className="flex gap-6">
 
@@ -260,7 +369,7 @@ export default function Products() {
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                     {products.map((p) => (
-                        <div key={p.product_id} className="border p-4 rounded-lg shadow">
+                        <div key={p.product_id} className="border p-4 rounded-lg shadow cursor-pointer hover:shadow-xl transition" onClick={() => openDetail(p)}>
                             <img src={p.image_url} alt={p.name} className="w-full h-48 object-cover rounded" />
                             <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
                             <p className="text-gray-600">${p.price}</p>
@@ -276,12 +385,9 @@ export default function Products() {
                                     Edit Product
                                 </button>
                             ) : (
-                                <button
-                                    className="mt-4 w-full bg-black text-white py-2 rounded-full text-sm tracking-wide 
-                                            transition-all duration-200 hover:bg-gray-800"
-                                >
-                                    Add to Cart
-                                </button>
+                                <div>
+                                </div>
+                                
                             )}
 
 
@@ -299,6 +405,16 @@ export default function Products() {
             onClose={() => setIsModalOpen(false)}
             product={selectedProduct}
             />
+
+        <ProductDetailModal
+            isOpen={isDetailOpen}
+            onClose={closeDetail}
+            product={detailProduct}
+            cart={cart}
+            setCart={setCart}
+            handleAddToCart={handleAddToCart}
+            />
+
         </>
     );
 }

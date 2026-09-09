@@ -23,8 +23,9 @@ export default function AdminCategories() {
                     return;
                 }
 
-                const data: Category[] = await res.json();
-                setCategories(data);
+                const data = await res.json();
+                console.log("ADMIN CATEGORY RESPONSE: ", data)
+                setCategories(data.categories);
 
             }
             catch (err) {

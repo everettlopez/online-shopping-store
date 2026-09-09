@@ -4,10 +4,13 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.category import Category
 from app.schemas.category import (
+    Metadata as CategoryMetadata,
+    CategoryResponse,
     CategoryCreate,
     CategoryRead,
     CategoryUpdate
 )
+from app.database.category import database_get_categories
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -30,11 +33,16 @@ def create_category(
 # -----------------------------------------
 # GET /categories → list all categories
 # -----------------------------------------
-@router.get("/", response_model=list[CategoryRead])
-def list_categories(session: Session = Depends(get_session)):
-    statement = select(Category)
-    return session.exec(statement).all()
+@router.get("/", response_model=CategoryResponse)
+def list_categories(session: Session = Depends(get_session), sort: str | None = None):
+    categories = database_get_categories(session, sort)
 
+    category_reads = [CategoryRead.model_validate(c.__dict__) for c in categories]
+
+    return CategoryResponse(
+        metadata = CategoryMetadata(count = len(categories), sort = sort),
+        categories = category_reads
+    )
 
 # -----------------------------------------
 # GET /categories/{category_id} → get one

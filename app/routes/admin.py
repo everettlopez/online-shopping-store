@@ -3,12 +3,15 @@ from sqlmodel import Session, select
 
 from app.db.session import get_session
 from app.auth.dependencies import admin_required
+
 from app.models.user import User
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, UserResponse, Metadata as UserMetadata
 from app.models.product import Product
 from app.models.category import Category
 from app.schemas.category import CategoryCreate
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
+
+from app.database.users import database_get_users
 
 
 
@@ -36,7 +39,14 @@ def update_product(product_id: int, product: ProductUpdate):
 def create_category(category: CategoryCreate):
     return {"message": "Category created"}
 
-@router.get("/users", response_model=list[UserRead])
-def get_all_users(session: Session = Depends(get_session)):
-    users = session.exec(select(User)).all()
-    return users
+@router.get("/users", response_model=UserResponse)
+def get_all_users(session: Session = Depends(get_session), sort: str | None = None):
+    users = database_get_users(session, sort)
+
+    user_reads = [UserRead.model_validate(u.__dict__) for u in users]
+
+
+    return UserResponse(
+        metadata = UserMetadata(count=len(users), sort=sort),
+        users = user_reads
+    )

@@ -10,7 +10,7 @@ import AccountPage from "../pages/Account";
 import AdminProducts from "../pages/admin/Products";
 import AdminUsers from "../pages/admin/Users";
 import AdminCategories from "../pages/admin/Categories";
-// import CartPage from "../pages/Cart";
+import CartPage from "../pages/Cart";
 
 // TODO: Add routes as needed
 
@@ -136,13 +136,13 @@ export default function AppRouter() {
 
 
             {/* TODO: Add Accounts Route for Account Page */}
-            {/* <Route 
+            <Route 
                 path="/cart"
                 element = {
                     <ProtectedRoute>
                         <CartPage />
                     </ProtectedRoute>
-                }/> */}
+                }/>
 
         </Routes>
         </BrowserRouter>
