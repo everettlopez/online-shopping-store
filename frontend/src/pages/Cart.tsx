@@ -64,6 +64,22 @@ export default function Cart() {
     if (loading) return <p>Loading cart...</p>;
     if(!cart) return <p>No cart found.</p>;
 
+    async function handleRemoveCartItem(item_id: number)
+    {
+        try
+        {
+            await axiosClient.delete(`/cart/items/${item_id}`, {
+                withCredentials: true,
+            });
+
+            setCart((prev) => prev ? {...prev, items: prev.items.filter((i) => i.cart_item_id !== item_id)} : prev);
+        }
+        catch (err)
+        {
+            console.error("Failed to remove item: ", err);
+        }
+    }
+
     return (
         <>
         {/* Header */}
@@ -108,15 +124,25 @@ export default function Cart() {
 
             <div className="flex flex-col p-3 gap-2">
                 
-                <div className="flex flex-col justify-center items-center border mx-auto"><p>PRODUCT</p></div>
                 {cart.items.map((item) => {
+                    const mainImage = item.product?.image_url || item.product?.images?.[0];
+
                     return (
                         <div 
                             key={item.cart_item_id} 
-                            className="flex flex-col justify-center items-center border mx-auto p-5 rounded-[10px]">
+                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-70">
+                                
+                                <img src={mainImage} className="w-40 h-40 object-cover"/>
 
-                                <h2>{item.product?.name}</h2>
-                                <p>{item.product?.price}</p>
+                                <div className="flex flex-col">
+                                    <h2 className="w-60 text-xl">{item.product?.name}</h2>
+                                    <p>{item.product?.size}</p>
+                                    <p>${item.product?.price}</p>
+
+                                    <button 
+                                        onClick={() => handleRemoveCartItem(item.cart_item_id)}
+                                        className="flex w-fit hover:bg-gray-400">Remove</button>
+                                </div>
                         </div>
                     );
                 })}

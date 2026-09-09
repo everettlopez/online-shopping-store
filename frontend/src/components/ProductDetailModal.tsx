@@ -1,29 +1,56 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axiosClient from "../api/axiosClient";
 
-export interface Product {
-  product_id: number;
-  description: string;
-  name: string;
-  price: number;
-  size: string;
-  color: string;
-  image_url: string;
+import { useAuth } from "../context/AuthContext";
 
-  // ⭐ Add this:
-  images?: string[];
-}
+type Product = {
+    product_id: number;
+    category_id: number;
+    name: string;
+    description?: string;
+    price: number;
+    size?: string;
+    color?: string;
+    image_url?: string;
+    images?: string[];
+    stock_quantity: number;
+    is_active: boolean;
+};
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
+  cart: Cart | null;
+  setCart: React.Dispatch<React.SetStateAction<Cart | null>>;
+  handleAddToCart: (product: Product) => Promise<void>;
+}
+
+interface CartItem {
+    cart_item_id: number;
+    product_id: number;
+    quantity: number;
+    product: Product | null;
+}
+
+interface Cart {
+    cart_id: number;
+    user_id: number;
+    items: CartItem[];
 }
 
 
-export default function ProductDetailModal({ isOpen, onClose, product }: Props) {
-  if (!isOpen || !product) return null;
+export default function ProductDetailModal({ isOpen, onClose, product, cart, setCart, handleAddToCart}: Props) {
 
-  const [mainImage, setMainImage] = useState(product.image_url);
+  const [mainImage, setMainImage] = useState(product?.image_url);
+
+  useEffect(() => {
+    if (product) {
+      setMainImage(product.image_url);
+    }
+  }, [product]);
+
+  if (!isOpen || !product) return null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
@@ -86,7 +113,9 @@ export default function ProductDetailModal({ isOpen, onClose, product }: Props) 
         </div>
 
         {/* Add to Cart */}
-        <button className="bg-black text-white py-3 rounded-full w-full hover:bg-gray-800 transition">
+        <button 
+          onClick={() => handleAddToCart(product)}
+          className="bg-black text-white py-3 rounded-full w-full hover:bg-gray-800 transition">
           Add to Cart
         </button>
       </div>

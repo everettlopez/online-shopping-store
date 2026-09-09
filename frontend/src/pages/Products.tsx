@@ -385,13 +385,9 @@ export default function Products() {
                                     Edit Product
                                 </button>
                             ) : (
-                                <button
-                                    onClick={() => handleAddToCart(p)}
-                                    className="mt-4 w-full bg-black text-white py-2 rounded-full text-sm tracking-wide 
-                                            transition-all duration-200 hover:bg-gray-800"
-                                >
-                                    Add to Cart
-                                </button>
+                                <div>
+                                </div>
+                                
                             )}
 
 
@@ -414,6 +410,9 @@ export default function Products() {
             isOpen={isDetailOpen}
             onClose={closeDetail}
             product={detailProduct}
+            cart={cart}
+            setCart={setCart}
+            handleAddToCart={handleAddToCart}
             />
 
         </>
