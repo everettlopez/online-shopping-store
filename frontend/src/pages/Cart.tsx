@@ -3,6 +3,7 @@ import axiosClient from "../api/axiosClient";
 import { useAuth } from "../context/AuthContext";
 
 import { useSearchParams, Link } from "react-router-dom";
+import AddressModal from "../components/AddressModal";
 
 interface Product {
   product_id: number;
@@ -37,6 +38,20 @@ export default function Cart() {
 
     const [cart, setCart] = useState<Cart | null>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Address Modal
+    const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+    const [addresses, setAddresses] = useState([]);
+
+    async function fetchAddresses() {
+        try {
+            const res = await axiosClient.get("/addresses", { withCredentials: true });
+            setAddresses(res.data);
+        } catch (err) {
+            console.error("Failed to load addresses:", err);
+        }
+    }
+
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -58,6 +73,7 @@ export default function Cart() {
         };
 
         fetchCart();
+        fetchAddresses();
 
     }, [isAuthenticated]);
 
@@ -163,8 +179,14 @@ export default function Cart() {
             </div>
 
             <button 
+                onClick={() => setIsAddressModalOpen(true)}
                 className="py-2 px-3 bg-gray-300 mx-auto rounded-[10px] text-lg">Checkout</button>
         </div>
+
+        <AddressModal
+            isOpen={isAddressModalOpen}
+            onClose={() => setIsAddressModalOpen(false)}
+            onSaved={fetchAddresses}/>
         </>
     );
 }

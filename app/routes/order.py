@@ -5,16 +5,18 @@ from app.models.user import User
 from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser
-from app.schemas.order import OrderCreate, OrderRead
-from app.models.order import Order
+from app.schemas.order import OrderRead, OrderItemRead
+from app.schemas.order_item import OrderItemUpdate, OrderItemCreate
+from app.models.order import Order, OrderItem
+from sqlalchemy.orm import selectinload
 
-from app.models.order_item import OrderItem
-from app.schemas.order_item import OrderItemRead, OrderItemUpdate
+from app.models.product import Product
+
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 @router.post("/", response_model=OrderRead)
-def create_order(data: OrderCreate, user: CurrentUser, session: Session = Depends(get_session)):
+def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = Depends(get_session)):
 
     # Validate shipping address
     shipping = session.get(Address, data.shipping_address_id)
@@ -44,10 +46,50 @@ def create_order(data: OrderCreate, user: CurrentUser, session: Session = Depend
 
     return order
 
-@router.get("/", response_model = list[OrderRead])
+@router.get("/", response_model=list[OrderRead])
 def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
-    statement = select(Order).where(Order.user_id == user.user_id)
-    return session.exec(statement).all()
+    # Get all orders for the user
+    orders = session.exec(
+        select(Order).where(Order.user_id == user.user_id)
+    ).all()
+
+    enriched_orders = []
+
+    for order in orders:
+        # Get items for this order
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.order_id)
+        ).all()
+
+        enriched_items = []
+
+        for item in items:
+            # Fetch product for each item
+            product = session.exec(
+                select(Product).where(Product.product_id == item.product_id)
+            ).first()
+
+            enriched_items.append(OrderItemRead(
+                order_item_id=item.order_item_id,
+                order_id=item.order_id,
+                quantity=item.quantity,
+                product=product
+            ))
+
+        # Build final enriched order
+        enriched_orders.append(OrderRead(
+            order_id=order.order_id,
+            order_number=order.order_number,
+            status=order.status,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+            order_date=order.order_date,
+            total_amount=order.total_amount,
+            items=enriched_items
+        ))
+
+    return enriched_orders
+
 
 @router.get("/{order_id}", response_model=OrderRead)
 def get_order(order_id: int, user: CurrentUser, session: Session = Depends(get_session)):
