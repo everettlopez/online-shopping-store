@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select, delete
 
 from app.db.session import get_session
 from app.auth.dependencies import admin_required
@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.user import UserRead, UserResponse, Metadata as UserMetadata
 from app.models.product import Product
 from app.models.category import Category
+from app.models.cart import Cart, CartItem
 from app.schemas.category import CategoryCreate
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
 
@@ -50,3 +51,18 @@ def get_all_users(session: Session = Depends(get_session), sort: str | None = No
         metadata = UserMetadata(count=len(users), sort=sort),
         users = user_reads
     )
+
+@router.delete("/users/{user_id}", dependencies=[Depends(admin_required)])
+def delete_user(user_id: int, session: Session = Depends(get_session)):
+
+    # Delete associated cart items first
+    session.exec(delete(CartItem).where(CartItem.cart_id.in_(
+        session.exec(select(CartItem.cart_id).where(Cart.user_id == user_id)).all()
+    )))
+
+    session.exec(delete(Cart).where(Cart.user_id == user_id))
+
+    session.exec(delete(User).where(User.user_id == user_id))
+
+    session.commit()
+    return {"message": "User Deleted"}

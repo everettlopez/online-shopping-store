@@ -16,11 +16,22 @@ type Category = {
 
 
 export default function ProductModal({ isOpen, onClose, product }: Props) {
+
   if (!isOpen)
   {
     console.log("PRODUCT MODAL CLOSED: ", isOpen);
     return null;
   }
+
+  const [mainImage, setMainImage] = useState(product?.image_url);
+
+  useEffect(() => {
+    if(product)
+    {
+      setMainImage(product.image_url);
+    }
+  }, [product]);
+  
 
   const isEditing = product !== null;
   const [categories, setCategories] = useState<Category[]>([]);
@@ -194,7 +205,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
             {previewImage && (
               <img
-                src={previewImage}
+                src={mainImage}
                 alt="Preview"
                 className="w-fit max-h-60 object-cover rounded mb-2"
               />

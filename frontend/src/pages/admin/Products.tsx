@@ -20,6 +20,7 @@ export interface Product {
   images?: string[];
 }
 
+
 export default function AdminProductsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -44,6 +45,8 @@ export default function AdminProductsPage() {
     setSelectedProduct(product);
     setIsModalOpen(true);
   }
+
+  
 
 
   useEffect(() => {

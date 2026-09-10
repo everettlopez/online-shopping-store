@@ -64,6 +64,11 @@ export default function Cart() {
     if (loading) return <p>Loading cart...</p>;
     if(!cart) return <p>No cart found.</p>;
 
+    const cartTotal = cart.items.reduce((sum, item) => {
+        const price = item.product?.price ?? 0;
+        return sum + price * item.quantity;
+    }, 0);
+
     async function handleRemoveCartItem(item_id: number)
     {
         try
@@ -137,7 +142,7 @@ export default function Cart() {
                                 <div className="flex flex-col">
                                     <h2 className="w-60 text-xl">{item.product?.name}</h2>
                                     <p>{item.product?.size}</p>
-                                    <p>${item.product?.price}</p>
+                                    <p>${item.product?.price.toFixed(2)}</p>
 
                                     <button 
                                         onClick={() => handleRemoveCartItem(item.cart_item_id)}
@@ -145,10 +150,21 @@ export default function Cart() {
                                 </div>
                         </div>
                     );
-                })}
+                })};
+
             </div>
+
         </div>
 
+        <div className="flex flex-col mx-auto justify-center p-6 gap-6">
+            <div className="flex justify-center gap-20 text-lg">
+                <p>Total:</p>
+                <p>${cartTotal.toFixed(2)}</p>
+            </div>
+
+            <button 
+                className="py-2 px-3 bg-gray-300 mx-auto rounded-[10px] text-lg">Checkout</button>
+        </div>
         </>
     );
 }

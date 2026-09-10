@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
+import backIcon from "../assets/backIcon.svg";
 
 console.log("DEBUG: Login component loaded");
 
@@ -29,7 +30,14 @@ function Login() {
         <>
         {/* Login Frame */}
         <div className="min-h-screen flex justify-center items-center bg-gray-100">
-
+            <div className="relative">
+                <div className="absolute right-full top-0 mr-6 p-5">
+                <Link to="/" className="flex items-center gap-2">
+                    <img src={backIcon} className="h-6 w-6"/>
+                    <p className="text-lg tracking-wider">BACK</p>
+                </Link>
+            </div>
+            
             <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow">
                 <h1 className="text-4xl">Sign In</h1>
 
@@ -65,6 +73,7 @@ function Login() {
 
                     </div>
                 </form>
+            </div>
             </div>
         </div>
         </>

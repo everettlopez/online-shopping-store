@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";   // ← FIXED: Link imported
 import { useEffect, useState } from "react";
+import axiosClient from "../../api/axiosClient";
 
 
 export default function AdminUsers() {
@@ -17,11 +18,6 @@ export default function AdminUsers() {
     const handleEditUser = (user: User) => {
         console.log("Edit user:", user);
     // later: open modal / navigate to edit page
-    };
-
-    const handleDeleteUser = (user: User) => {
-        console.log("Delete user:", user);
-    // later: call API, then update state
     };
 
     const [users, setUsers] = useState<User[]>([]);
@@ -50,7 +46,21 @@ export default function AdminUsers() {
     fetchUsers();
     }, []);
 
+    async function handleDeleteUser(user_id: number)
+    {
+        try
+        {
+            await axiosClient.delete(`/admin/users/${user_id}`, {
+                withCredentials: true,
+            });
 
+            setUsers(prev => prev.filter(u => u.user_id !== user_id));
+        }
+        catch (err)
+        {
+            console.error("Failed to delete user: ", err);
+        }
+    }
 
 
     return (
@@ -100,7 +110,7 @@ export default function AdminUsers() {
             {/* Actions Buttons */}
             <div className="flex justify-center gap-2">
                 <button onClick={() => handleEditUser(user)} className="border rounded-[10px] px-8 py-1 hover:bg-gray-300">Update</button>
-                <button onClick={() => handleDeleteUser(user)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
+                <button onClick={() => handleDeleteUser(user.user_id)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
             </div>
         </div>
         ))}
