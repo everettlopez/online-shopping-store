@@ -11,6 +11,7 @@ import AdminProducts from "../pages/admin/Products";
 import AdminUsers from "../pages/admin/Users";
 import AdminCategories from "../pages/admin/Categories";
 import CartPage from "../pages/Cart";
+import CheckoutPage from "../pages/Checkout";
 
 // TODO: Add routes as needed
 
@@ -141,6 +142,14 @@ export default function AppRouter() {
                 element = {
                     <ProtectedRoute>
                         <CartPage />
+                    </ProtectedRoute>
+                }/>
+
+            <Route 
+                path="/checkout"
+                element= {
+                    <ProtectedRoute>
+                        <CheckoutPage />
                     </ProtectedRoute>
                 }/>
 
