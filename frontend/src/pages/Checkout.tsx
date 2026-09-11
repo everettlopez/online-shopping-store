@@ -9,26 +9,24 @@ export default function Checkout() {
 
   async function handlePlaceOrder() {
     try {
-        const response = await axiosClient.post("/payments/create-payment-intent", {
+        const response = await axiosClient.post("/payments/create-checkout-session", {
         total_amount: cartTotal,
         shipping_address_id: shippingAddress.address_id,
         billing_address_id: billingAddress.address_id
         });
 
-        const clientSecret = response.data.clientSecret;
+        const checkoutUrl = response.data.checkoutUrl;
 
         navigate("/payments", {
         state: {
-            clientSecret,
-            cart,
-            shippingAddress,
-            billingAddress
+            checkoutUrl
         }
         });
     } catch (err) {
-        console.error("Failed to start payment:", err);
+        console.error("Failed to start checkout:", err);
     }
     }
+
 
 
 
