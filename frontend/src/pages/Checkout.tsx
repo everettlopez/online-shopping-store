@@ -1,10 +1,36 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchParams, Link } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
+import axiosClient from "../api/axiosClient";
 
 export default function Checkout() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  async function handlePlaceOrder() {
+    try {
+        const response = await axiosClient.post("/payments/create-payment-intent", {
+        total_amount: cartTotal,
+        shipping_address_id: shippingAddress.address_id,
+        billing_address_id: billingAddress.address_id
+        });
+
+        const clientSecret = response.data.clientSecret;
+
+        navigate("/payments", {
+        state: {
+            clientSecret,
+            cart,
+            shippingAddress,
+            billingAddress
+        }
+        });
+    } catch (err) {
+        console.error("Failed to start payment:", err);
+    }
+    }
+
+
 
   const { shippingAddress, billingAddress, cart } = location.state || {};
 
@@ -86,7 +112,9 @@ export default function Checkout() {
                         <p>${cartTotal.toFixed(2)}</p>
                     </div>
 
-                    <button className="border py-2 px-5 rounded-[10px] hover:bg-gray-300">Place Order</button>
+                    <button 
+                        onClick={handlePlaceOrder}
+                        className="border py-2 px-5 rounded-[10px] hover:bg-gray-300">Place Order</button>
                 </div>
             </div>
         </div>
