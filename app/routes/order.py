@@ -5,16 +5,18 @@ from app.models.user import User
 from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser
-from app.schemas.order import OrderCreate, OrderRead
-from app.models.order import Order
+from app.schemas.order import OrderRead, OrderItemRead
+from app.schemas.order_item import OrderItemUpdate, OrderItemCreate
+from app.models.order import Order, OrderItem
+from sqlalchemy.orm import selectinload
 
-from app.models.order_item import OrderItem
-from app.schemas.order_item import OrderItemRead, OrderItemUpdate
+from app.models.product import Product
+
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 @router.post("/", response_model=OrderRead)
-def create_order(data: OrderCreate, user: CurrentUser, session: Session = Depends(get_session)):
+def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = Depends(get_session)):
 
     # Validate shipping address
     shipping = session.get(Address, data.shipping_address_id)
@@ -44,19 +46,110 @@ def create_order(data: OrderCreate, user: CurrentUser, session: Session = Depend
 
     return order
 
-@router.get("/", response_model = list[OrderRead])
+@router.get("/", response_model=list[OrderRead])
 def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
-    statement = select(Order).where(Order.user_id == user.user_id)
-    return session.exec(statement).all()
+    # Get all orders for the user
+    orders = session.exec(
+        select(Order).where(Order.user_id == user.user_id)
+    ).all()
+
+    enriched_orders = []
+
+    for order in orders:
+        # Load addresses for this order
+        shipping = session.get(Address, order.shipping_address_id)
+        billing = session.get(Address, order.billing_address_id)
+
+        # Load items for this order
+        items = session.exec(
+            select(OrderItem).where(OrderItem.order_id == order.order_id)
+        ).all()
+
+        enriched_items = []
+        for item in items:
+            product = session.get(Product, item.product_id)
+            enriched_items.append(OrderItemRead(
+                order_item_id=item.order_item_id,
+                order_id=item.order_id,
+                quantity=item.quantity,
+                product=product
+            ))
+
+        # Build final enriched order
+        enriched_orders.append(OrderRead(
+            order_id=order.order_id,
+            user_id=order.user_id,
+            first_name=order.first_name,
+            last_name=order.last_name,
+            order_number=order.order_number,
+            status=order.status,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+            order_date=order.order_date,
+            total_amount=order.total_amount,
+
+            # ⭐ ADD THESE
+            payment_intent_id=order.payment_intent_id,
+            stripe_session_id=order.stripe_session_id,
+            payment_method_type=order.payment_method_type,
+            card_brand=order.card_brand,
+            card_last4=order.card_last4,
+            payment_status=order.payment_status,
+            receipt_url=order.receipt_url,
+
+            shipping_address=shipping,
+            billing_address=billing,
+            items=enriched_items
+        ))
+
+
+    return enriched_orders
+
+
 
 @router.get("/{order_id}", response_model=OrderRead)
 def get_order(order_id: int, user: CurrentUser, session: Session = Depends(get_session)):
+    # 1. Load order
     order = session.get(Order, order_id)
 
     if not order or order.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    return order
+    shipping = session.get(Address, order.shipping_address_id)
+    billing = session.get(Address, order.billing_address_id)
+
+    # 2. Load order items
+    order_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.order_id)
+    ).all()
+
+    enriched_items = []
+
+    # 3. Load product for each item
+    for oi in order_items:
+        product = session.get(Product, oi.product_id)
+
+        enriched_items.append(OrderItemRead(
+            order_item_id=oi.order_item_id,
+            order_id=oi.order_id,
+            product=product,
+            quantity=oi.quantity
+        ))
+
+    # 4. Return full order response
+    return OrderRead(
+        order_id=order.order_id,
+        order_number=order.order_number,
+        status=order.status,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        order_date=order.order_date,
+        total_amount=order.total_amount,
+        shipping_address=shipping,
+        billing_address=billing,
+        items=enriched_items
+    )
+
 
 @router.put("/{order_id}/status")
 def update_order_status(order_id: int, status: str, session: Session = Depends(get_session)):
@@ -79,10 +172,33 @@ def delete_order(order_id: int, user: CurrentUser, session: Session = Depends(ge
     if not order or order.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # 1. Load order items
+    order_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id == order.order_id)
+    ).all()
+
+    # 2. Restore product stock
+    for item in order_items:
+        product = session.get(Product, item.product_id)
+        if product:
+            product.stock_quantity += item.quantity
+            session.add(product)
+
+    # 3. Delete order items
+    for item in order_items:
+        session.delete(item)
+
+    session.flush()
+
+    # 4. Delete order
     session.delete(order)
+
+    # 5. Commit
     session.commit()
 
-    return {"message": "Order deleted"}
+    return {"message": "Order deleted and stock restored"}
+
+
 
 # ---------------------------------------------------------
 # GET /orders/{order_id}/items → list all items in an order

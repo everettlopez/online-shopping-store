@@ -22,10 +22,27 @@ def create_address(data: AddressCreate, user: CurrentUser, session: Session = De
 
     return address
 
+@router.get("/all", response_model=list[AddressRead])
+def get_all_addresses(user: CurrentUser, session: Session = Depends(get_session)):
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admins Only")
+    return session.exec(select(Address)).all()
+
 @router.get("/", response_model=list[AddressRead])
-def get_addresses(user: CurrentUser, session: Session = Depends(get_session)):
+def get_addresses(
+    user: CurrentUser,
+    address_type: str | None = None,
+    session: Session = Depends(get_session)
+):
     statement = select(Address).where(Address.user_id == user.user_id)
+
+    if address_type == "shipping":
+        statement = statement.where(Address.address_type == "shipping")
+    elif address_type == "billing":
+        statement = statement.where(Address.address_type == "billing")
+
     return session.exec(statement).all()
+
 
 @router.put("/{address_id}", response_model=AddressRead)
 def update_address(

@@ -12,6 +12,7 @@ class AddressCreate(BaseModel):
 
 class AddressRead(BaseModel):
     address_id: int
+    user_id: int
     line1: str
     line2: Optional[str]
     city: str

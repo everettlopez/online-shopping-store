@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { useAuth } from "../context/AuthContext";
 
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate} from "react-router-dom";
+import AddressModal from "../components/AddressModal";
 
 interface Product {
   product_id: number;
@@ -16,6 +17,20 @@ interface Product {
   stock_quantity: number;
   is_active: boolean;
 }
+
+interface Address {
+  address_id: number;
+  user_id: number;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  county?: string;
+  address_type: string;
+  created_at: string; // or Date if you convert it
+}
+
 
 
 interface CartItem {
@@ -34,9 +49,29 @@ interface Cart {
 export default function Cart() {
 
     const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
 
     const [cart, setCart] = useState<Cart | null>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Address Modal
+    const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+    const [shippingAddresses, setShippingAddresses] = useState<Address[]>([]);
+    const [billingAddresses, setBillingAddresses] = useState<Address[]>([]);
+
+    async function fetchAddresses() {
+        try {
+            const shippingRes = await axiosClient.get("/addresses?address_type=shipping");
+            const billingRes = await axiosClient.get("/addresses?address_type=billing");
+
+            setShippingAddresses(shippingRes.data);
+            setBillingAddresses(billingRes.data);
+        } catch (err) {
+            console.error("Failed to load addresses:", err);
+        }
+    }
+
+
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -58,6 +93,7 @@ export default function Cart() {
         };
 
         fetchCart();
+        fetchAddresses();
 
     }, [isAuthenticated]);
 
@@ -157,14 +193,38 @@ export default function Cart() {
         </div>
 
         <div className="flex flex-col mx-auto justify-center p-6 gap-6">
-            <div className="flex justify-center gap-20 text-lg">
-                <p>Total:</p>
-                <p>${cartTotal.toFixed(2)}</p>
-            </div>
 
-            <button 
-                className="py-2 px-3 bg-gray-300 mx-auto rounded-[10px] text-lg">Checkout</button>
+
+        {/* Cart Total */}
+        <div className="flex justify-center gap-20 text-lg">
+            <p>Total:</p>
+            <p>${cartTotal.toFixed(2)}</p>
         </div>
+
+        {/* Checkout Button */}
+        <button
+            onClick={() => {setIsAddressModalOpen(true)}}
+            className="py-2 px-3 bg-black text-white mx-auto rounded-[10px] text-lg"
+        >
+            Checkout
+        </button>
+        </div>
+
+
+        <AddressModal
+            isOpen={isAddressModalOpen}
+            onClose={() => setIsAddressModalOpen(false)}
+            onSaved={({ shipping, billing }) => {
+                navigate("/checkout", {
+                state: { shippingAddress: shipping, billingAddress: billing, cart }
+                });
+            }}
+            shippingAddresses={shippingAddresses}
+            billingAddresses={billingAddresses}
+            />
+
+
+
         </>
     );
 }
