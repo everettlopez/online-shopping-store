@@ -14,6 +14,7 @@ import CartPage from "../pages/Cart";
 import CheckoutPage from "../pages/Checkout";
 import PaymentsPage from "../pages/Payments";
 import OrderSuccessPage from "../pages/OrderSuccess";
+import OrdersPage from "../pages/Orders";
 
 // TODO: Add routes as needed
 
@@ -168,6 +169,14 @@ export default function AppRouter() {
                 element={
                     <ProtectedRoute>
                         <OrderSuccessPage />
+                    </ProtectedRoute>
+                }/>
+
+            <Route 
+                path="/orders"
+                element={
+                    <ProtectedRoute>
+                        <OrdersPage />
                     </ProtectedRoute>
                 }/>
 

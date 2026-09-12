@@ -80,9 +80,9 @@ export default function OrderSuccess() {
 
   return (
     <>
-    <div className="flex flex-col justify-center items-center min-h-screen min-w-screen p-5">
+    <div className="flex flex-col justify-center items-center min-h-screen min-w-screen p-5 bg-gray-100">
 
-      <div className="border flex flex-col justify-center p-8 rounded-[10px] gap-8 w-[500px]">
+      <div className="border flex flex-col justify-center p-8 rounded-[10px] gap-8 w-[500px] bg-white">
         <h1 className="text-4xl tracking-wider text-center">THANK YOU FOR YOUR PURCHASE</h1>
 
         {/* Order Information */}
