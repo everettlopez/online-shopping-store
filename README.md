@@ -1,21 +1,14 @@
 # Online Shopping Application 
 A full-stack, database-driven online shopping platform designed to demonstrate modern web development practices, scalable architecture, and production-style engineering. This project is currently in active development, with core modules already implemented and additional features planned. 
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Tech Stack](#tech-stack)
+3. [Development Setup](#development-setup)
+4. [Author](#author)
+
 ## Overview
 This application models a real‑world e‑commerce workflow, including product browsing, dynamic filtering, user authentication, and administrative management. The system is built with a modular architecture that supports future expansion into checkout, payments, analytics, and user‑centric features.
-
-## Current Features
-### Completed 
-- **Dynamic Product Filtering** - Users can filter products by category, price, tags, and availability. Filters are mapped to efficient backend queries to ensure fast response times.
-- **Admin User Management** - Administrative users can create, update, and manage platform users through secure backend routes and a dedicated UI.
-- **Authentication and Authorization** - JWT‑based authentication with role‑based access control for both users and administrators.
-- **Modular API Architecture** - Separation of concerns using controller, service, and repository layers.
-- **Responsive Frontend** - Built with reusable components and clean state management patterns.
-
-### In Progress 
-- Shopping cart and checkout workflow
-- Order dashboard and user dashboard backend wiring
-- Payment gateway integratioin (Stripe)
 
 ## Tech Stack
 ### Frontend
