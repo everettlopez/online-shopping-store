@@ -263,6 +263,10 @@ def checkout(
             quantity=oi.quantity
         ))
 
+    shipping_address = session.get(Address, order.shipping_address_id)
+    billing_address = session.get(Address, order.billing_address_id)
+
+
     return OrderRead(
         order_id=order.order_id,
         order_number=order.order_number,
@@ -271,5 +275,7 @@ def checkout(
         updated_at=order.updated_at,
         order_date=order.order_date,
         total_amount=order.total_amount,
+        shipping_address=shipping_address,   
+        billing_address=billing_address,
         items=enriched_items
     )

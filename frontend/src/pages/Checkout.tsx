@@ -16,12 +16,13 @@ export default function Checkout() {
         });
 
         const checkoutUrl = response.data.checkoutUrl;
+        localStorage.setItem("shipping_address_id", shippingAddress.address_id);
+        localStorage.setItem("billing_address_id", billingAddress.address_id);
+        localStorage.setItem("total_amount", cartTotal.toString());
 
-        navigate("/payments", {
-        state: {
-            checkoutUrl
-        }
-        });
+
+        window.location.href = checkoutUrl;
+
     } catch (err) {
         console.error("Failed to start checkout:", err);
     }

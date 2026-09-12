@@ -9,6 +9,10 @@ class Order(SQLModel, table=True):
     order_id: int | None = Field(default = None, primary_key = True)
     user_id: int = Field(foreign_key = "users.user_id")
 
+    first_name: str | None = Field(default=None)
+    last_name: str | None = Field(default=None)
+
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -19,6 +23,15 @@ class Order(SQLModel, table=True):
     status: str = Field(default="pending")  # pending, paid, shipped, cancelled
     order_date: datetime = Field(default_factory=datetime.utcnow)
     total_amount: float
+
+    payment_intent_id: str | None = Field(default=None, index=True)
+    stripe_session_id: str | None = Field(default=None, index=True)
+
+    payment_method_type: str | None = Field(default=None)
+    card_brand: str | None = Field(default=None)
+    card_last4: str | None = Field(default=None)
+    payment_status: str | None = Field(default=None)
+    receipt_url: str | None = Field(default=None)
 
 
 

@@ -11,18 +11,33 @@ class OrderItemRead(BaseModel):
     quantity: int
 
     class Config:
-            from_attributes = True
+        from_attributes = True
 
 
 class OrderRead(BaseModel):
     order_id: int
+    user_id: int
+
+    first_name: str
+    last_name: str
     order_number: str
     status: str
     created_at: datetime
     updated_at: datetime
     order_date: datetime
     total_amount: float
-    shipping_address: AddressRead      
+
+    payment_intent_id: str | None = None
+    stripe_session_id: str | None = None
+
+    # ⭐ NEW payment fields
+    payment_method_type: str | None = None
+    card_brand: str | None = None
+    card_last4: str | None = None
+    payment_status: str | None = None
+    receipt_url: str | None = None
+
+    shipping_address: AddressRead
     billing_address: AddressRead
     items: List[OrderItemRead] = []
 
