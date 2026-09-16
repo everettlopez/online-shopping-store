@@ -253,7 +253,7 @@ async def stripe_webhook(request: Request, session: Session = Depends(get_sessio
             order.card_last4 = pd["card_last4"]
             order.payment_status = pd["payment_status"]
             order.receipt_url = pd["receipt_url"]
-            order.status = "paid"
+            order.status = "placed"
 
             session.add(order)
             session.commit()
@@ -281,7 +281,7 @@ async def stripe_webhook(request: Request, session: Session = Depends(get_sessio
             order.card_last4 = pm["card"]["last4"]
             order.payment_status = charge["status"]
             order.receipt_url = charge["receipt_url"]
-            order.status = "paid"
+            order.status = "placed"
 
             session.add(order)
             session.commit()

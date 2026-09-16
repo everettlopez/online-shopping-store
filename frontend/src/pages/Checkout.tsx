@@ -1,11 +1,10 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import { useSearchParams, Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 import axiosClient from "../api/axiosClient";
 
 export default function Checkout() {
   const location = useLocation();
-  const navigate = useNavigate();
 
   async function handlePlaceOrder() {
     try {

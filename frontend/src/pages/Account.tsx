@@ -74,102 +74,126 @@ export default function AccountPage() {
       </header>
 
       {/* MAIN CONTENT */}
-      <div className="max-w-2xl mx-auto p-10">
+      <div className="w-full p-8 flex bg-white gap-10">
 
-        {/* Title */}
-        <h1 className="text-5xl font-light text-center mb-12 tracking-tight">
-          your account.
-        </h1>
+        {/* Account / User Navigation */}
+        <div className="flex flex-col h-screen p-10 gap-4">
 
-        {/* Profile Card */}
-        <div className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200">
-          <h2 className="text-xl font-medium mb-6 tracking-tight">Profile</h2>
-
-          <div className="space-y-2 text-gray-700">
-
-            <div className="flex flex-col border rounded-[10px] p-2">
-              <p className="text-sm text-gray-400">Name</p>
-              <p className="text-lg">{user?.first_name} {user?.last_name}</p>
+            <div className="flex flex-col items-end">
+                <Link to="/account" className="text-xl tracking-widest">ACCOUNT</Link>
+                <Link to="/" className="tracking-wider">SETTINGS</Link>
+                {user?.is_admin === true ? (
+                        <Link to="/admin">ADMIN</Link>
+                    ) : (
+                        <div>
+                        </div>
+                    )}
             </div>
 
-            <div className="flex flex-col border rounded-[10px] p-2">
-              <p className="text-sm text-gray-400">Email</p>
-              <p className="text-lg">{user?.email}</p>
+            <div className="flex flex-col items-end">
+                <Link to="/orders" className="text-xl tracking-widest">ORDERS</Link>
+                <Link to="" className="tracking-wider">TRACK</Link>
+                <Link to="" className="tracking-wider">HISTORY</Link>
             </div>
 
-            <p>
-              <strong>Member since:</strong>{" "}
-              {user?.created_at
-                ? new Date(user.created_at).toLocaleDateString()
-                : "—"}
-            </p>
-          </div>
-
-          {/* Logout Button */}
-          <button
-            onClick={logout}
-            className="mt-6 text-sm text-gray-500 underline hover:text-black transition"
-          >
-            Log out
-          </button>
         </div>
 
-        {/* Update Email */}
-        <form
-          onSubmit={handleEmailUpdate}
-          className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
-        >
-          <h2 className="text-xl font-medium mb-6 tracking-tight">Update Email</h2>
+        <div className="flex flex-col justify-center w-screen">
+          {/* Title */}
+          <h1 className="text-5xl font-light text-center mb-12 tracking-tight">
+            your account.
+          </h1>
 
-          <input
-            type="email"
-            placeholder="New email"
-            className="border p-3 rounded w-full mb-4"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-          />
+          {/* Profile Card */}
+          <div className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200">
+            <h2 className="text-xl font-medium mb-6 tracking-tight">Profile</h2>
 
-          <button className="bg-black text-white px-6 py-2 rounded-full">
-            Update Email
-          </button>
-        </form>
+            <div className="space-y-2 text-gray-700">
 
-        {/* Update Password */}
-        <form
-          onSubmit={handlePasswordUpdate}
-          className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
-        >
-          <h2 className="text-xl font-medium mb-6 tracking-tight">Update Password</h2>
+              <div className="flex flex-col border rounded-[10px] p-2">
+                <p className="text-sm text-gray-400">Name</p>
+                <p className="text-lg">{user?.first_name} {user?.last_name}</p>
+              </div>
 
-          <input
-            type="password"
-            placeholder="Old password"
-            className="border p-3 rounded w-full mb-4"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-          />
+              <div className="flex flex-col border rounded-[10px] p-2">
+                <p className="text-sm text-gray-400">Email</p>
+                <p className="text-lg">{user?.email}</p>
+              </div>
 
-          <input
-            type="password"
-            placeholder="New password"
-            className="border p-3 rounded w-full mb-4"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
+              <p>
+                <strong>Member since:</strong>{" "}
+                {user?.created_at
+                  ? new Date(user.created_at).toLocaleDateString()
+                  : "—"}
+              </p>
+            </div>
 
-          <button className="bg-black text-white px-6 py-2 rounded-full">
-            Update Password
-          </button>
-        </form>
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              className="mt-6 text-sm text-gray-500 underline hover:text-black transition"
+            >
+              Log out
+            </button>
+          </div>
 
-        {/* Delete Account */}
-        <div className="bg-white shadow-sm p-8 rounded-2xl text-center border border-gray-200">
-          <button
-            onClick={handleDeleteAccount}
-            className="bg-red-600 text-white px-6 py-2 rounded-full"
+          {/* Update Email */}
+          <form
+            onSubmit={handleEmailUpdate}
+            className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
           >
-            Delete Account
-          </button>
+            <h2 className="text-xl font-medium mb-6 tracking-tight">Update Email</h2>
+
+            <input
+              type="email"
+              placeholder="New email"
+              className="border p-3 rounded w-full mb-4"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+            />
+
+            <button className="bg-black text-white px-6 py-2 rounded-full">
+              Update Email
+            </button>
+          </form>
+
+          {/* Update Password */}
+          <form
+            onSubmit={handlePasswordUpdate}
+            className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
+          >
+            <h2 className="text-xl font-medium mb-6 tracking-tight">Update Password</h2>
+
+            <input
+              type="password"
+              placeholder="Old password"
+              className="border p-3 rounded w-full mb-4"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+            />
+
+            <input
+              type="password"
+              placeholder="New password"
+              className="border p-3 rounded w-full mb-4"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+
+            <button className="bg-black text-white px-6 py-2 rounded-full">
+              Update Password
+            </button>
+          </form>
+
+          {/* Delete Account */}
+          <div className="bg-white shadow-sm p-8 rounded-2xl text-center border border-gray-200">
+            <button
+              onClick={handleDeleteAccount}
+              className="bg-red-600 text-white px-6 py-2 rounded-full"
+            >
+              Delete Account
+            </button>
+          </div>
         </div>
 
       </div>
