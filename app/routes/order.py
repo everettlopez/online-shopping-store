@@ -101,6 +101,9 @@ def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
 
             shipping_address=shipping,
             billing_address=billing,
+            tracking_number=order.tracking_number,
+            tracking_carrier=order.tracking_carrier,
+            tracking_url=order.tracking_url,
             items=enriched_items
         ))
 
@@ -163,12 +166,14 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
 
             shipping_address=shipping,
             billing_address=billing,
+            tracking_number=order.tracking_number,
+            tracking_carrier=order.tracking_carrier,
+            tracking_url=order.tracking_url,
             items=enriched_items
         ))
 
 
     return enriched_orders
-
 
 @router.get("/{order_number}", response_model=OrderRead)
 def get_order(order_number: str, user: CurrentUser, session: Session = Depends(get_session)):
@@ -216,9 +221,11 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
         receipt_url=order.receipt_url,
         shipping_address=shipping,
         billing_address=billing,
+        tracking_number=order.tracking_number,
+        tracking_carrier=order.tracking_carrier,
+        tracking_url=order.tracking_url,
         items=enriched_items
     )
-
 
 @router.put("/{order_id}/status")
 def update_order_status(order_id: int, status: str, session: Session = Depends(get_session)):
@@ -233,6 +240,28 @@ def update_order_status(order_id: int, status: str, session: Session = Depends(g
     session.refresh(order)
 
     return {"message": "Order status updated"}
+
+@router.put("/{order_id}/tracking")
+def update_tracking_information(order_id: int, tracking_number: str, tracking_carrier: str, tracking_url: str, session: Session = Depends(get_session)):
+
+    order = session.get(Order, order_id)
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    order.tracking_number=tracking_number
+    order.tracking_carrier=tracking_carrier
+    order.tracking_url=tracking_url
+
+    order.status = "shipped"
+    order.updated_at = datetime.now()
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+
+    return {"message": "Order tracking updated"}
 
 @router.delete("/{order_id}")
 def delete_order(order_id: int, user: CurrentUser, session: Session = Depends(get_session)):

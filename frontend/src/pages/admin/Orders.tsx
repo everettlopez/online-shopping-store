@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
 import ConfirmDeleteOrderModal from "../../components/admin/orders/ConfirmDeleteOrderModal";
 
-import { Chip, FormControl, InputLabel, MenuItem, Select } from "@mui/material";
+import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
 
 import Box from '@mui/material/Box';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
@@ -17,6 +17,8 @@ import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
 import TextField from '@mui/material/TextField';
+
+import Stepper from '@mui/material/Stepper';
 
 export type Address = {
   address_id: number;
@@ -76,6 +78,10 @@ export type Order = {
   shipping_address: Address;
   billing_address: Address;
 
+  tracking_number: string | null,
+  tracking_carrier: string | null,
+  tracking_url: string | null,
+
   items: OrderItem[];
 };
 
@@ -87,6 +93,9 @@ type StatusColor =
   | "default"
   | "primary"
   | "secondary";
+
+type OrderStatus = "placed" | "processing" | "shipped" | "delivered";
+
 
 const getStatusChipProps = (status: string): {
     color: StatusColor;
@@ -158,6 +167,23 @@ const getStatusChipProps = (status: string): {
 export default function AdminOrders() 
 {
 
+  function formatDateTime(dt: string) {
+    const d = new Date(dt);
+
+    const month = d.toLocaleString("en-US", { month: "short" }) + ".";
+    const day = d.getDate();
+    const year = d.getFullYear();
+
+    const time = d.toLocaleString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).replace(" ", ""); // remove space before AM/PM
+
+    return `${month} ${day}, ${year} - ${time}`;
+  }
+
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   function openDeleteModal() {
@@ -173,11 +199,34 @@ export default function AdminOrders()
     closeDeleteModal();
   }
 
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [trackingCarrier, setTrackingCarrier] = useState("");
+  const [trackingUrl, setTrackingUrl] = useState("");
 
 
   const [rows, setRows] = useState([]);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [fullOrders, setFullOrders] = useState<Order[]>([]);
+
+  const steps = ["Placed", "Processing", "Shipped", "Delivered"];
+  const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
+  const nextStatusMap: Record<OrderStatus, string> = {
+    placed: "processing",
+    processing: "shipped",
+    shipped: "delivered",
+    delivered: "completed"
+  };
+
+  const backStatusMap: Record<OrderStatus, string> = {
+    placed: "placed",
+    processing: "placed",
+    shipped: "processing",
+    delivered: "shipped"
+  } as const;
+
+  const selectedOrder = fullOrders.find(o => o.order_id === expandedRow);
+
+
 
   // --- COLUMNS ---
   const columns = [
@@ -210,33 +259,191 @@ export default function AdminOrders()
 
   const [selectedStatus, setSelectedStatus] = useState("");
 
-  function handleStatusStateChange(e: any) {
-    setSelectedStatus(e.target.value);
+
+  function OrderStepper({order}) {
+    const activeStep = stepIndexMap[order.status as OrderStatus];
+
+    return (
+      <div className="p-8">
+        <Stepper activeStep={activeStep} alternativeLabel>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel className="flex flex-col">{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+      </div>
+    );
   }
 
-  function handleCancel() {
-    setSelectedStatus(""); // revert selection
+  function OrderStepContent({ order }) {
+    switch (order.status) {
+      case "placed":
+        return (
+          <div className="p-8 flex flex-col gap-5">
+            <div className="flex flex-col">
+              <p className="text-2xl tracking-wider">ORDER HAS BEEN PLACED</p>
+              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="tracking-wider">In order to continue with the ordering process, we must ensure the items in the order are available and ready to be processed.</p>
+            </div>
+
+            <div className="w-full flex justify-between">
+              <button onClick={() => goToNextStep(order)} className="bg-green-300 px-5 py-1 rounded-full">Next</button>
+            </div>
+          </div>
+        );
+
+      case "processing":
+        return (
+          <div className="p-8 flex flex-col gap-5">
+            <div className="flex flex-col">
+              <p className="text-2xl tracking-wider">PROCESSING ORDER</p>
+              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="tracking-wider">We must now update our current order with the proper tracking information such as <strong>tracking number</strong>, <strong>shipping carrier</strong>, as well as <strong>tracking url</strong> for easy tracking.</p>
+            </div>
+
+            <div className="p-4 border rounded-[10px] flex flex-col items-center gap-4">
+              <p className="text-lg tracking-wider flex justify-start w-full">ADD TRACKING INFORMATION</p>
+              <div className="flex items-center w-full gap-4">
+
+                <TextField
+                  id="tracking_number"
+                  required
+                  value={trackingNumber}
+                  label="Tracking Number"
+                  sx={{ width: "450px" }}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                />
+
+                <FormControl sx={{ width: "200px" }}>
+                  <InputLabel id="tracking_carrier_label">Carrier</InputLabel>
+
+                  <Select
+                    labelId="tracking_carrier_label"
+                    id="tracking_carrier"
+                    label="Shipping Carrier"
+                    required
+                    value={trackingCarrier}
+                    onChange={(e) => setTrackingCarrier(e.target.value)}
+                  >
+                    <MenuItem value="USPS">USPS</MenuItem>
+                    <MenuItem value="UPS">UPS</MenuItem>
+                    <MenuItem value="FedEx">FedEx</MenuItem>
+                    <MenuItem value="DHL">DHL</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <TextField id="tracking_url" required label="Tracking URL" className="w-full" value={trackingUrl} onChange={(e) => setTrackingUrl(e.target.value)}/>
+              </div>
+
+            </div>
+
+            <div className="w-full flex justify-between">
+              <button onClick={() => goToPreviousStep(order)} className="border px-5 py-1 rounded-full hover:bg-gray-100">Back</button>
+              <button className="bg-green-300 px-5 py-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-0" disabled={!trackingNumber || !trackingCarrier || !trackingUrl} onClick={handleAddTracking}>Add Tracking</button>
+            </div>
+          </div>
+        );
+
+      case "shipped":
+        return (
+          <>
+          <div className="p-8 flex flex-col gap-5">
+            <div className="flex flex-col">
+              <p className="text-2xl tracking-wider">ORDER SHIPPED</p>
+              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="tracking-wider">Tracking Number: {order.tracking_number}</p>
+              <p className="tracking-wider">Shipping Carrier: {order.tracking_carrier}</p>
+              <div className="flex gap-2">
+                <p className="tracking-wider">Tracking URL:</p>
+                <a href={order.tracking_url} className="tracking-wider">{order.tracking_url}</a>
+              </div>
+            </div>
+
+            <div className="flex w-full justify-between">
+              <button onClick={() => goToPreviousStep(order)} className="border px-5 py-1 rounded-full hover:bg-gray-100">Back</button>
+              <button onClick={() => goToNextStep(order)} className="bg-green-300 px-5 py-1 rounded-full hover:border-0 hover:bg-green-400">Confirm Delivery</button>
+            </div>
+          </div>
+          </>
+        );
+
+      case "delivered":
+        return (
+          <div className="p-8 flex flex-col gap-5">
+            <div className="flex flex-col">
+              <p className="text-2xl tracking-wider">ORDER SHIPPED</p>
+              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
   }
 
-  async function handleOrderStatusChange() {
+  async function goToNextStep(order) {
+    const next = nextStatusMap[order.status as OrderStatus];
+    if (!next) return; // no next step
+
+    setSelectedStatus(next);
+    await handleOrderStatusChange(next);
+  }
+
+  async function goToPreviousStep(order) {
+    const prev = backStatusMap[order.status as OrderStatus];
+    if (!prev) return;
+    await handleOrderStatusChange(prev);
+  }
+
+  async function handleAddTracking() {
     if (!expandedRow) return;
-    try 
+
+    try
     {
-      await axiosClient.put(`/orders/${expandedRow}/status`, null, {
-        params: {
-          status: selectedStatus
+      await axiosClient.put( `/orders/${expandedRow}/tracking`, null, // no body
+        {
+          params: {
+            tracking_number: trackingNumber,
+            tracking_carrier: trackingCarrier,
+            tracking_url: trackingUrl
+          }
         }
+      );
+      fetchOrders();
+      console.log("Tracking saved and order marked as shipped");
+    }
+    catch (err)
+    {
+      console.error("Failed to add tracking to order: ", err);
+    }
+  }
+
+  function handleCancelTracking() {
+    // however you hide/close the form
+    setTrackingNumber("");
+    setTrackingCarrier("");
+    setTrackingUrl("");
+  }
+
+  async function handleOrderStatusChange(newStatus: string) {
+    if (!expandedRow) return;
+
+    try {
+      await axiosClient.put(`/orders/${expandedRow}/status`, null, {
+        params: { status: newStatus }
       });
 
       await fetchOrders();
       handleCancel();
-      console.log("Updated order:", expandedRow, "to", selectedStatus);
-    }
-    catch (err)
-    {
+      console.log("Updated order:", expandedRow, "to", newStatus);
+    } catch (err) {
       console.error("Failed to update order status: ", err);
     }
   }
+
 
   async function fetchOrders() {
     try {
@@ -301,9 +508,6 @@ export default function AdminOrders()
 
   return (
     <>
-    {/* Confirm Delete Modal */}
-
-
     {/* Header */}
     <div className="relative flex flex-col max-w-screen justify-center items-center gap-4 p-5">
 
@@ -318,8 +522,6 @@ export default function AdminOrders()
             <Link to="/admin/orders"><p className="text-base font-normal tracking-widest">ORDERS</p></Link>
         </nav>
     </div>
-
-  
 
       <div className="flex flex-col max-h-screen max-w-screen p-10 gap-4">
 
@@ -402,6 +604,13 @@ export default function AdminOrders()
                       </div>
                     </div>
 
+                    {order.status !== "completed" && (
+                      <div className="flex flex-col gap-2 border rounded-[10px]">
+                        <OrderStepper order={selectedOrder} />
+                        <OrderStepContent order={selectedOrder} />
+                      </div>
+                    )}
+
                     {/* Order Items */}
                     <div className="flex flex-col justify-center items-center p-8 gap-5 border rounded-[10px]">
 
@@ -431,86 +640,6 @@ export default function AdminOrders()
 
                     </div>
 
-                    {/* Order Functions (i.e. Edit Status) */}
-                    <div className="flex flex-col py-4 gap-5">
-
-                      {/* Update Order Status Form */}
-                      <form className="border py-2 px-5 rounded-[10px] flex gap-3 items-center justify-between">
-                        
-                        <div className="flex items-center gap-6">
-                          <p className="text-lg tracking-wider">UPDATE ORDER STATUS: </p>
-
-                          <div className="flex gap-8 justify-evenly py-4">
-
-                            <div className={`flex gap-2 items-center border px-5 rounded ${selectedStatus === "placed" ? "bg-gray-200" : "bg-white"}`}>
-                              <label htmlFor="placed" className="tracking-wider">Placed</label>
-                              <input id="placed" name="orderStatus" type="radio" checked={selectedStatus === "placed"} onChange={handleStatusStateChange} value="placed" className="checked:bg-green-500 checked:border-green-500"></input>
-                            </div>
-
-                            <div className={`flex gap-2 items-center border px-5 rounded ${selectedStatus === "processing" ? "bg-gray-200" : "bg-white"}`}>
-                              <label htmlFor="processing" className="tracking-wider">Processing</label>
-                              <input id="processing" name="orderStatus" type="radio" checked={selectedStatus === "processing"} onChange={handleStatusStateChange} value="processing"></input>
-                            </div>
-
-                            <div className={`flex gap-2 items-center border px-5 rounded ${selectedStatus === "shipped" ? "bg-gray-200" : "bg-white"}`}>
-                              <label htmlFor="shipped" className="tracking-wider">Shipped</label>
-                              <input id="shipped" name="orderStatus" type="radio" checked={selectedStatus === "shipped"} onChange={handleStatusStateChange} value="shipped"></input>
-                            </div>
-
-                            <div className={`flex gap-2 items-center border px-5 rounded ${selectedStatus === "delivered" ? "bg-gray-200" : "bg-white"}`}>
-                              <label htmlFor="delivered" className="tracking-wider">Delivered</label>
-                              <input id="delivered" name="orderStatus" type="radio" checked={selectedStatus === "delivered"} onChange={handleStatusStateChange} value="delivered"></input>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 justify-end">
-                          <button className="border px-5 py-1 rounded-full hover:bg-gray-100 hover:border-0" type="button" onClick={handleCancel}>Cancel</button>
-                          <button 
-                            type="button" disabled={!selectedStatus} onClick={handleOrderStatusChange} className="bg-green-300 px-5 py-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-0">Save</button>
-                        </div>
-                      </form>
-
-                      {/* Update Tracking Information (Status == Processing) */}
-                      {order.status == "processing" && (
-                        <div className="p-4 border rounded-[10px] flex flex-col items-center gap-4">
-                          <p className="text-lg tracking-wider flex justify-start w-full">ADD TRACKING INFORMATION</p>
-                          <div className="flex items-center w-full gap-4">
-
-                            <TextField
-                              id="tracking_number"
-                              required
-                              label="Tracking Number"
-                              sx={{ width: "450px" }}
-                            />
-
-                            <FormControl sx={{ width: "200px" }}>
-                              <InputLabel id="tracking_carrier_label">Carrier</InputLabel>
-
-                              <Select
-                                labelId="tracking_carrier_label"
-                                id="tracking_carrier"
-                                label="Shipping Carrier"
-                                required
-                              >
-                                <MenuItem value="USPS">USPS</MenuItem>
-                                <MenuItem value="UPS">UPS</MenuItem>
-                                <MenuItem value="FedEx">FedEx</MenuItem>
-                                <MenuItem value="DHL">DHL</MenuItem>
-                              </Select>
-                            </FormControl>
-
-                            <TextField id="tracking_url" required label="Tracking URL" className="w-full"/>
-                          </div>
-
-                          <div className="flex gap-4 justify-end w-full">
-                            <button className="border px-5 py-1 rounded-full hover:bg-gray-100 hover:border-0">Cancel</button>
-                            <button disabled className="bg-green-300 px-5 py-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-0">Add Tracking</button>
-                          </div>
-                        </div>
-
-                      )}
-                    </div>
 
 
                     <div className="flex justify-between">

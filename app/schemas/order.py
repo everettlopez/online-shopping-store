@@ -30,12 +30,15 @@ class OrderRead(BaseModel):
     payment_intent_id: str | None = None
     stripe_session_id: str | None = None
 
-    # ⭐ NEW payment fields
     payment_method_type: str | None = None
     card_brand: str | None = None
     card_last4: str | None = None
     payment_status: str | None = None
     receipt_url: str | None = None
+
+    tracking_number: str | None = None
+    tracking_carrier: str | None = None
+    tracking_url: str | None = None
 
     shipping_address: AddressRead
     billing_address: AddressRead
