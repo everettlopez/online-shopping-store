@@ -312,7 +312,11 @@ export default function Orders()
                                     </AccordionSummary>
 
                                     <AccordionDetails>
-                                        <div className="flex gap-2 justify-evenly">
+                                        {order.status !== "completed" && (
+                                            <OrderStepper order={order}/>
+                                        )}
+
+                                        <div className="flex gap-2 justify-evenly py-6">
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Placed By</p>
                                                 <p className="text-lg">{order.first_name} {order.last_name}</p>
@@ -356,10 +360,6 @@ export default function Orders()
 
                                             </div>
                                         </div>
-
-                                        {order.status !== "completed" && (
-                                            <OrderStepper order={order}/>
-                                        )}
 
                                         {order.status !== "placed" && order.status !=="processing" && (
                                             <div className="flex flex-col">
@@ -480,6 +480,7 @@ export default function Orders()
                         );
                     })}
                 </div>
+                
 
             </div>
 

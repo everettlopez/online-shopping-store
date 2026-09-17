@@ -264,117 +264,116 @@ export default function OrderDetails() {
 
             <div className="flex flex-col w-screen h-fit gap-5 bg-gray-100 p-8">
                 
-                <div className="flex flex-col border p-8 rounded-[10px] gap-5 bg-white">
-                    {/* Order Header */}
-                    <div className="flex gap-5 items-center">
-                        <h1 className="text-3xl tracking-wider">ORDER: #{currentOrder.order_number.toUpperCase()}</h1>
-                        <Chip size="small" color={chipProps.color} icon={chipProps.icon} label={chipProps.label} />
-                    </div>
+              <div className="flex flex-col border p-8 rounded-[10px] gap-5 bg-white">
+                  {/* Order Header */}
+                  <div className="flex gap-5 items-center">
+                      <h1 className="text-3xl tracking-wider">ORDER: #{currentOrder.order_number.toUpperCase()}</h1>
+                      <Chip size="small" color={chipProps.color} icon={chipProps.icon} label={chipProps.label} />
+                  </div>
 
-                    {currentOrder.status !== "completed" && (
-                        <OrderStepper order={currentOrder}/>
-                    )}
+                  {currentOrder.status !== "completed" && (
+                      <OrderStepper order={currentOrder}/>
+                  )}
 
-                    {/* Order Information */}
-                    <div className="flex justify-evenly py-4">
+                  {/* Order Information */}
+                  <div className="flex justify-evenly py-4">
 
-                        {/* User Information */}
-                        <div className="flex flex-col">
-                            <p className="text-sm text-gray-400">Placed By</p>
-                            <p className="text-lg">{currentOrder.first_name} {currentOrder.last_name}</p>
-                            <p>
-                            {new Date(currentOrder.order_date).toLocaleDateString("en-US", {
-                                month: "long",
-                                day: "numeric",
-                                year: "numeric",
-                            })}
-                            </p>
-                        </div>
+                      {/* User Information */}
+                      <div className="flex flex-col">
+                          <p className="text-sm text-gray-400">Placed By</p>
+                          <p className="text-lg">{currentOrder.first_name} {currentOrder.last_name}</p>
+                          <p>
+                          {new Date(currentOrder.order_date).toLocaleDateString("en-US", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                          })}
+                          </p>
+                      </div>
 
-                        <div className="border"/>
-                        
-                        {/* Shipping */}
-                        <div className="flex flex-col">
-                            <p className="text-sm text-gray-400">Shipping</p>
-                            <p>{currentOrder.shipping_address.line1}</p>
-                            <p>{currentOrder.shipping_address.city}, {currentOrder.shipping_address.state} {currentOrder.shipping_address.postal_code}</p>
-                        </div>
+                      <div className="border"/>
+                      
+                      {/* Shipping */}
+                      <div className="flex flex-col">
+                          <p className="text-sm text-gray-400">Shipping</p>
+                          <p>{currentOrder.shipping_address.line1}</p>
+                          <p>{currentOrder.shipping_address.city}, {currentOrder.shipping_address.state} {currentOrder.shipping_address.postal_code}</p>
+                      </div>
 
-                        <div className="border"/>
+                      <div className="border"/>
 
-                        {/* Billing */}
-                        <div className="flex flex-col">
-                            <p className="text-sm text-gray-400">Billing</p>
-                            <p>{currentOrder.billing_address.line1}</p>
-                            <p>{currentOrder.billing_address.city}, {currentOrder.billing_address.state} {currentOrder.billing_address.postal_code}</p>
-                        </div>
+                      {/* Billing */}
+                      <div className="flex flex-col">
+                          <p className="text-sm text-gray-400">Billing</p>
+                          <p>{currentOrder.billing_address.line1}</p>
+                          <p>{currentOrder.billing_address.city}, {currentOrder.billing_address.state} {currentOrder.billing_address.postal_code}</p>
+                      </div>
 
-                        <div className="border"/>
+                      <div className="border"/>
 
-                        {/* Payment */}
-                        <div className="flex flex-col">
-                            <p className="text-sm text-gray-400">Payment</p>
-                            <p>
-                            ${currentOrder.total_amount.toFixed(2)} with {currentOrder?.payment_method_type
-                                ? currentOrder.payment_method_type.charAt(0).toUpperCase() +
-                                currentOrder.payment_method_type.slice(1)
-                                : ""}
-                            </p>
-                            <p>{currentOrder.card_brand?.toUpperCase()} ending in ****{currentOrder.card_last4}</p>
+                      {/* Payment */}
+                      <div className="flex flex-col">
+                          <p className="text-sm text-gray-400">Payment</p>
+                          <p>
+                          ${currentOrder.total_amount.toFixed(2)} with {currentOrder?.payment_method_type
+                              ? currentOrder.payment_method_type.charAt(0).toUpperCase() +
+                              currentOrder.payment_method_type.slice(1)
+                              : ""}
+                          </p>
+                          <p>{currentOrder.card_brand?.toUpperCase()} ending in ****{currentOrder.card_last4}</p>
 
-                        </div>
-                    </div>
+                      </div>
+                  </div>
 
-                    {(currentOrder.status === "shipped" || currentOrder.status === "delivered") && (
-                        <>
-                        <div className="flex flex-col border gap-2 p-5 rounded-[10px]">
-                            <p className="text-lg tracking-wider">TRACKING INFORMATION</p>
-                            <div className="flex flex-col">
-                                <p>Tracking #: {currentOrder.tracking_number?.toUpperCase()}</p>
-                                <p>Shipping Carrier: {currentOrder.tracking_carrier}</p>
-                                <div className="flex gap-2">
-                                    <p>Tracking URL:</p>
-                                    <a href={safeUrl} className="text-gray-400">{currentOrder.tracking_url}</a>
-                                </div>
-                            </div>
-                        </div>
-                        </>
-                    )}
+                  {(currentOrder.status === "shipped" || currentOrder.status === "delivered") && (
+                      <>
+                      <div className="flex flex-col border gap-2 p-5 rounded-[10px]">
+                          <p className="text-lg tracking-wider">TRACKING INFORMATION</p>
+                          <div className="flex flex-col">
+                              <p>Tracking #: {currentOrder.tracking_number?.toUpperCase()}</p>
+                              <p>Shipping Carrier: {currentOrder.tracking_carrier}</p>
+                              <div className="flex gap-2">
+                                  <p>Tracking URL:</p>
+                                  <a href={safeUrl} className="text-gray-400">{currentOrder.tracking_url}</a>
+                              </div>
+                          </div>
+                      </div>
+                      </>
+                  )}
 
-                    <div className="flex flex-col gap-2 py-3">
-                        {/* Order Items */}
-                        {currentOrder.items.map((item) => {
-                            const mainImage = item.product?.image_url;
-                            return (
-                                <>
-                                {/* Order Item Card */}
-                                <div className="border p-4 flex justify-between bg-white rounded-[10px]">
-                                    
-                                    <div className="flex gap-2">
-                                        <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
-                                        
-                                        <div className="flex flex-col">
-                                            <p className="text-lg">{item.product.name}</p>
-                                            <p>Size: {item.product.size}</p>
-                                            <p>Qty: {item.quantity}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <p className="pr-3 tracking-wider">{item.quantity} x ${item.product.price.toFixed(2)}</p>
-                                </div>
-                                </>
-                            );
-                        })}
-                    </div>
+                  <div className="flex flex-col gap-2 py-3">
+                      {/* Order Items */}
+                      {currentOrder.items.map((item) => {
+                          const mainImage = item.product?.image_url;
+                          return (
+                              <>
+                              {/* Order Item Card */}
+                              <div className="border p-4 flex justify-between bg-white rounded-[10px]">
+                                  
+                                  <div className="flex gap-2">
+                                      <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
+                                      
+                                      <div className="flex flex-col">
+                                          <p className="text-lg">{item.product.name}</p>
+                                          <p>Size: {item.product.size}</p>
+                                          <p>Qty: {item.quantity}</p>
+                                      </div>
+                                  </div>
+                                  
+                                  <p className="pr-3 tracking-wider">{item.quantity} x ${item.product.price.toFixed(2)}</p>
+                              </div>
+                              </>
+                          );
+                      })}
+                  </div>
 
-                    <div className="flex justify-evenly p-4">
-                        <p>Total: </p>
-                        <p>${currentOrder.total_amount.toFixed(2)}</p>
-                    </div>
+                  <div className="flex justify-evenly p-4">
+                      <p>Total: </p>
+                      <p>${currentOrder.total_amount.toFixed(2)}</p>
+                  </div>
 
-                    <a href={currentOrder.receipt_url ?? "#"} target="_blank" rel="noopener noreferrer" className="flex justify-center border w-fit mx-auto px-5 text-lg py-2 rounded-[10px]">View Receipt</a>
-                </div>
-
+                  <a href={currentOrder.receipt_url ?? "#"} target="_blank" rel="noopener noreferrer" className="flex justify-center border w-fit mx-auto px-5 text-lg py-2 rounded-[10px]">View Receipt</a>
+              </div>
                 
             </div>
 
