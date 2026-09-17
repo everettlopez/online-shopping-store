@@ -33,6 +33,10 @@ class Order(SQLModel, table=True):
     payment_status: str | None = Field(default=None)
     receipt_url: str | None = Field(default=None)
 
+    tracking_number: str | None = Field(default=None)
+    tracking_carrier: str | None = Field(default=None)
+    tracking_url: str | None = Field(default=None)
+
 
 
 class OrderItem(SQLModel, table=True):

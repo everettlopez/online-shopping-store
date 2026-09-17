@@ -25,9 +25,9 @@ function Admin() {
             {/* Navigation */}
             <nav className="flex gap-12">
                 <Link to="/admin/products"><p className="text-base font-normal tracking-widest">PRODUCTS</p></Link>
-                <Link to="/"><p className="text-base font-normal tracking-widest">CATEGORIES</p></Link>
-                <Link to="/"><p className="text-base font-normal tracking-widest">USERS</p></Link>
-                <Link to="/"><p className="text-base font-normal tracking-widest">ORDERS</p></Link>
+                <Link to="/admin/categories"><p className="text-base font-normal tracking-widest">CATEGORIES</p></Link>
+                <Link to="/admin/users"><p className="text-base font-normal tracking-widest">USERS</p></Link>
+                <Link to="/admin/orders"><p className="text-base font-normal tracking-widest">ORDERS</p></Link>
             </nav>
         </div>
 
