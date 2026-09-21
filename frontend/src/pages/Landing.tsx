@@ -30,16 +30,6 @@ function Landing() {
     const [newArrivals, setNewArrivals] = useState<Product[]>([]);
 
 
-    useEffect(() => {
-        async function fetchNewArrivals() {
-            const res = await fetch("/api/products?category=1");
-            const data: ProductResponse = await res.json();
-            setNewArrivals(data.products);
-        }
-
-        fetchNewArrivals();
-        }, []);
-
 
 
 
@@ -103,21 +93,7 @@ function Landing() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10 mt-10 max-w-7xl mx-auto">
                 {/* Map your products here */}
-                {newArrivals.map((p) => (
-                <div 
-                    key={p.product_id} 
-                    className="flex flex-col items-center bg-white rounded-xl shadow hover:shadow-xl transition p-4"
-                >
-                    <img 
-                    src={p.image_url} 
-                    alt={p.name} 
-                    className="w-full h-64 object-cover rounded-lg"
-                    />
-
-                    <h3 className="mt-4 text-lg font-semibold">{p.name}</h3>
-                    <p className="text-gray-600">${p.price}</p>
-                </div>
-                ))}
+                
             </div>
         </div>
 

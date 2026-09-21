@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from app.schemas.category import CategoryRead
 
 class Metadata(BaseModel):
     count: int
@@ -7,28 +8,28 @@ class Metadata(BaseModel):
 
 class ProductCreate(BaseModel):
     category_id: int
-    name: str
+    title: str
     description: str | None = None
     price: float
 
     size: str | None = None
     color: str | None = None
-    image_url: str | None = None
+    thumbnail: str | None = None
 
     stock_quantity: int = 1
     is_active: bool = True
 
 class ProductRead(BaseModel):
     product_id: int
-    category_id: int
-    name: str
+    category: CategoryRead
+    title: str
     description: str | None
     price: float
 
 
     size: str | None = None
     color: str | None = None
-    image_url: str | None = None
+    thumbnail: str | None = None
 
     stock_quantity: int
     is_active: bool

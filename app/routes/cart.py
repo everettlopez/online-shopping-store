@@ -6,6 +6,7 @@ import uuid
 
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
+from app.schemas.product import ProductRead
 from app.schemas.cart import CartRead, CartItemRead
 from app.schemas.cart_item import CartItemCreate, CartItemUpdate
 
@@ -13,6 +14,7 @@ from app.schemas.checkout import CheckoutRequest
 from app.schemas.order import OrderRead, OrderItemRead
 from app.models.order import Order, OrderItem
 from app.models.address import Address
+from app.models.category import Category
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
 
@@ -33,19 +35,46 @@ def get_or_create_cart(user_id: int, session: Session) -> Cart:
 def get_cart(user: CurrentUser, session: Session = Depends(get_session)):
     cart = get_or_create_cart(user.user_id, session)
 
-    items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
+    items = session.exec(
+        select(CartItem).where(CartItem.cart_id == cart.cart_id)
+    ).all()
 
     enriched_items = []
 
     for item in items:
-        product = session.exec(select(Product).where(Product.product_id == item.product_id)).first()
+        product = session.exec(
+            select(Product).where(Product.product_id == item.product_id)
+        ).first()
 
-        enriched_items.append(CartItemRead(
-            cart_item_id=item.cart_item_id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            product=product
-        ))
+        # Load category (same pattern as product routes)
+        category = session.exec(
+            select(Category).where(Category.category_id == product.category_id)
+        ).first()
+
+        enriched_product = ProductRead(
+            product_id=product.product_id,
+            category=category,
+            title=product.title,
+            description=product.description,
+            price=product.price,
+            size=product.size,
+            color=product.color,
+            thumbnail=product.thumbnail,
+            stock_quantity=product.stock_quantity,
+            is_active=product.is_active,
+            created_at=product.created_at,
+            updated_at=product.updated_at,
+            images=product.images
+        )
+
+        enriched_items.append(
+            CartItemRead(
+                cart_item_id=item.cart_item_id,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                product=enriched_product
+            )
+        )
 
     return CartRead(
         cart_id=cart.cart_id,
@@ -54,6 +83,7 @@ def get_cart(user: CurrentUser, session: Session = Depends(get_session)):
         updated_at=cart.updated_at,
         items=enriched_items
     )
+
 
 @router.get("/items", response_model=list[CartItemRead])
 def get_cart_items(user: CurrentUser, session: Session = Depends(get_session)):
@@ -65,55 +95,68 @@ def get_cart_items(user: CurrentUser, session: Session = Depends(get_session)):
 
 @router.post("/items", response_model=CartItemRead)
 def add_item_to_cart(
-    data: CartItemCreate,
     user: CurrentUser,
+    product_id: int,
     session: Session = Depends(get_session)
 ):
-    cart = get_or_create_cart(user.user_id, session)
 
-    # Check if item already exists → update quantity instead
-    statement = select(CartItem).where(
-        CartItem.cart_id == cart.cart_id,
-        CartItem.product_id == data.product_id
-    )
+    # Get user's cart
+    cart = session.exec(
+        select(Cart).where(Cart.user_id == user.user_id)
+    ).first()
 
-    existing_item = session.exec(statement).first()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart not found")
 
-    if existing_item:
-        existing_item.quantity += data.quantity
-        session.add(existing_item)
-        session.commit()
-        session.refresh(existing_item)
+    # Get product
+    product = session.exec(
+        select(Product).where(Product.product_id == product_id)
+    ).first()
 
-        product = session.exec(select(Product).where(Product.product_id == existing_item.product_id)).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-        return CartItemRead(
-            cart_item_id=existing_item.cart_item_id,
-            product_id=existing_item.product_id,
-            quantity=existing_item.quantity,
-            product=product
-        )
+    # Get category (same pattern as product routes)
+    category = session.exec(
+        select(Category).where(Category.category_id == product.category_id)
+    ).first()
 
-    # Create new cart item
-    item = CartItem(
+    # Create cart item
+    cart_item = CartItem(
         cart_id=cart.cart_id,
-        product_id=data.product_id,
-        quantity=data.quantity
+        product_id=product.product_id,
+        quantity=1
     )
 
-    session.add(item)
+    session.add(cart_item)
     session.commit()
-    session.refresh(item)
+    session.refresh(cart_item)
 
-    product = session.exec(select(Product).where(Product.product_id == item.product_id)).first()
-    
-
-    return CartItemRead(
-        cart_item_id=item.cart_item_id,
-        product_id=item.product_id,
-        quantity=item.quantity,
-        product=product
+    # Build ProductRead exactly like product routes
+    enriched_product = ProductRead(
+        product_id=product.product_id,
+        category=category,
+        title=product.title,
+        description=product.description,
+        price=product.price,
+        size=product.size,
+        color=product.color,
+        thumbnail=product.thumbnail,
+        stock_quantity=product.stock_quantity,
+        is_active=product.is_active,
+        created_at=product.created_at,
+        updated_at=product.updated_at,
+        images=product.images
     )
+
+    # Return CartItemRead
+    return CartItemRead(
+        cart_item_id=cart_item.cart_item_id,
+        product_id=cart_item.product_id,
+        quantity=cart_item.quantity,
+        product=enriched_product
+    )
+    
 
 @router.put("/items/{item_id}", response_model=CartItemRead)
 def update_cart_item(

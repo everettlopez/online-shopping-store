@@ -7,12 +7,12 @@ import AddressModal from "../components/AddressModal";
 
 interface Product {
   product_id: number;
-  name: string;
+  title: string;
   description?: string;
   price: number;
   size?: string;
   color?: string;
-  image_url?: string;
+  thumbnail?: string;
   images?: string[];
   stock_quantity: number;
   is_active: boolean;
@@ -166,7 +166,7 @@ export default function Cart() {
             <div className="flex flex-col p-3 gap-2">
                 
                 {cart.items.map((item) => {
-                    const mainImage = item.product?.image_url || item.product?.images?.[0];
+                    const mainImage = item.product?.thumbnail || item.product?.images?.[0];
 
                     return (
                         <div 
@@ -176,7 +176,7 @@ export default function Cart() {
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
 
                                 <div className="flex flex-col">
-                                    <h2 className="w-60 text-xl">{item.product?.name}</h2>
+                                    <h2 className="w-60 text-xl">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
                                     <p>${item.product?.price.toFixed(2)}</p>
 
