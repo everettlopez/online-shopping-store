@@ -33,14 +33,31 @@ interface Cart {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  product: Product;
+  product: Product | null;
   cart: Cart | null;
 }
 
 
-export default function ProductDetailModal({isOpen, onClose, product}: Props) 
+export default function ProductDetailModal({isOpen, onClose, product, cart}: Props) 
 {
   if (!isOpen) return null;
+
+  const [alreadyAdded, setAlreadyAdded] = useState(false);
+
+  useEffect(() => {
+    if (!cart || !product) return;
+
+    let found = false;
+    for (let i = 0; i < cart.items.length; i++) {
+      if (cart.items[i].product_id === product.product_id) {
+        found = true;
+        break;
+      }
+    }
+
+    console.log("manual found:", found);
+    setAlreadyAdded(found);
+  }, [cart, product]);
 
   async function handleAddToCart()
   {
@@ -78,7 +95,8 @@ export default function ProductDetailModal({isOpen, onClose, product}: Props)
 
           {/* Cart Button*/}
           <div className="flex h-full items-end justify-center p-2">
-            <button onClick={() => handleAddToCart()} className="border px-5 py-1 rounded-full transition-all duration-1000 ease-in-out hover:bg-gray-200">Add to cart</button>
+            {alreadyAdded ? (
+              <><button disabled className="border px-5 py-1 rounded-full bg-gray-100">Added to Cart</button></>) : (<><button onClick={() => {handleAddToCart(); setAlreadyAdded(true);}} className="border px-5 py-1 rounded-full transition-all duration-1000 hover:bg-gray-100">Add to Cart</button></>)}
           </div>
         </div>
         
