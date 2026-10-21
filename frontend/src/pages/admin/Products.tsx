@@ -246,6 +246,10 @@ export default function AdminProductsPage() {
                     <MenuItem disabled value="0">Select a size</MenuItem>
                     <MenuItem value="1SZ">1SZ</MenuItem>
                     <MenuItem value="XS">XS</MenuItem>
+                    <MenuItem value="S">S</MenuItem>
+                    <MenuItem value="M">M</MenuItem>
+                    <MenuItem value="L">L</MenuItem>
+                    <MenuItem value="XL">XL</MenuItem>
                   </Select>
                 </FormGroup>
 
