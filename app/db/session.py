@@ -33,6 +33,11 @@ def create_db_and_tables():
 
     SQLModel.metadata.create_all(bind=engine)
 
+    from app.database.category import database_seed_categories
+
+    with SQLModelSession(engine) as session:
+        database_seed_categories(session)
+
 def get_session() -> Generator:
     with SQLModelSession(engine) as session:
         yield session

@@ -230,7 +230,7 @@ export default function AdminProductsPage() {
                     <MenuItem value={3}>Men</MenuItem>
                     <MenuItem value={4}>Brands</MenuItem>
                     <MenuItem value={5}>Accessories</MenuItem>
-                    <MenuItem value={6}>Jewlery</MenuItem>
+                    <MenuItem value={6}>Jewelry</MenuItem>
                   </Select>
                 </FormGroup>
 

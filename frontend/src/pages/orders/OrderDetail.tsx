@@ -232,7 +232,7 @@ export default function OrderDetails() {
                 <Link to="/products?category=3"><p className="text-base font-normal tracking-widest">MEN</p></Link>
                 <Link to="/products?category=4"><p className="text-base font-normal tracking-widest">BRANDS</p></Link>
                 <Link to="/products?category=5"><p className="text-base font-normal tracking-widest">ACCESSORIES</p></Link>
-                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELERY</p></Link>
+                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELRY</p></Link>
             </nav>
         </div>
 
