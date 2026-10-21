@@ -64,6 +64,7 @@ function Login() {
                         </div>
 
                         <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Login</button>
+                        {message && <p className="text-center text-sm">{message}</p>}
                         <Link
                             to="/register"
                             className="flex justify-center items-center px-5 py-2 rounded-full border hover:bg-gray-100 transition"

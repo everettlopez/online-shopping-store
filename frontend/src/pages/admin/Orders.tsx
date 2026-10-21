@@ -224,7 +224,6 @@ export default function AdminOrders()
     delivered: "shipped"
   } as const;
 
-  const selectedOrder = fullOrders.find(o => o.order_id === expandedRow);
 
 
 
@@ -257,10 +256,9 @@ export default function AdminOrders()
     )}
   ];
 
-  const [selectedStatus, setSelectedStatus] = useState("");
 
 
-  function OrderStepper({order}) {
+  function OrderStepper({ order }: { order: Order }) {
     const activeStep = stepIndexMap[order.status as OrderStatus];
 
     return (
@@ -276,7 +274,7 @@ export default function AdminOrders()
     );
   }
 
-  function OrderStepContent({ order }) {
+  function OrderStepContent({ order }: { order: Order }) {
     switch (order.status) {
       case "placed":
         return (
@@ -358,7 +356,7 @@ export default function AdminOrders()
               <p className="tracking-wider">Shipping Carrier: {order.tracking_carrier}</p>
               <div className="flex gap-2">
                 <p className="tracking-wider">Tracking URL:</p>
-                <a href={order.tracking_url} className="tracking-wider">{order.tracking_url}</a>
+                <a href={order.tracking_url ?? undefined} className="tracking-wider">{order.tracking_url}</a>
               </div>
             </div>
 
@@ -384,15 +382,14 @@ export default function AdminOrders()
     }
   }
 
-  async function goToNextStep(order) {
+  async function goToNextStep(order: Order) {
     const next = nextStatusMap[order.status as OrderStatus];
     if (!next) return; // no next step
 
-    setSelectedStatus(next);
     await handleOrderStatusChange(next);
   }
 
-  async function goToPreviousStep(order) {
+  async function goToPreviousStep(order: Order) {
     const prev = backStatusMap[order.status as OrderStatus];
     if (!prev) return;
     await handleOrderStatusChange(prev);
@@ -437,7 +434,7 @@ export default function AdminOrders()
       });
 
       await fetchOrders();
-      handleCancel();
+      handleCancelTracking();
       console.log("Updated order:", expandedRow, "to", newStatus);
     } catch (err) {
       console.error("Failed to update order status: ", err);
@@ -606,8 +603,8 @@ export default function AdminOrders()
 
                     {order.status !== "completed" && (
                       <div className="flex flex-col gap-2 border rounded-[10px]">
-                        <OrderStepper order={selectedOrder} />
-                        <OrderStepContent order={selectedOrder} />
+                        <OrderStepper order={order} />
+                        <OrderStepContent order={order} />
                       </div>
                     )}
 

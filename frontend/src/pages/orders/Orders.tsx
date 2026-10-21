@@ -8,9 +8,8 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
+import { Chip, Step, StepLabel } from "@mui/material";
 
-import Box from '@mui/material/Box';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
@@ -18,7 +17,6 @@ import DoneRoundedIcon from '@mui/icons-material/DoneRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
-import TextField from '@mui/material/TextField';
 
 import Stepper from '@mui/material/Stepper';
 
@@ -171,8 +169,6 @@ export default function Orders()
 
     const { user } = useAuth();
 
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
     const steps = ["Placed", "Processing", "Shipped", "Delivered"];
     const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
@@ -189,9 +185,7 @@ export default function Orders()
 
                 setPendingOrders(active);
                 setOrderHistory(history);
-                setCurrentOrder(active[0] || null);
 
-                setOrders(data);
 
             }
             catch (err)

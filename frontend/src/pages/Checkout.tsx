@@ -3,6 +3,20 @@ import { Link } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 import axiosClient from "../api/axiosClient";
 
+interface CheckoutProduct {
+  title: string;
+  price: number;
+  size?: string;
+  thumbnail?: string;
+  images?: string[];
+}
+
+interface CheckoutCartItem {
+  cart_item_id: number;
+  quantity: number;
+  product: CheckoutProduct | null;
+}
+
 export default function Checkout() {
   const location = useLocation();
 
@@ -32,8 +46,8 @@ export default function Checkout() {
 
   const { shippingAddress, billingAddress, cart } = location.state || {};
 
-  const cartTotal = cart.items.reduce((sum, item) => {
-    return sum + item.quantity * item.product.price;
+  const cartTotal = cart.items.reduce((sum: number, item: CheckoutCartItem) => {
+    return sum + item.quantity * (item.product?.price ?? 0);
   }, 0);
 
   return (
@@ -77,8 +91,8 @@ export default function Checkout() {
         <div className="flex flex-col">
             
             <div className="flex flex-col p-3 gap-2">
-                {cart.items.map((item) => {
-                    const mainImage = item.product?.image_url || item.product?.images?.[0];
+                {cart.items.map((item: CheckoutCartItem) => {
+                    const mainImage = item.product?.thumbnail || item.product?.images?.[0];
 
                     return (
                         <div 
@@ -88,7 +102,7 @@ export default function Checkout() {
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
 
                                 <div className="flex flex-col">
-                                    <h2 className="w-60 text-xl">{item.product?.name}</h2>
+                                    <h2 className="w-60 text-xl">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
                                     <p>${item.product?.price.toFixed(2)}</p>
                                 </div>

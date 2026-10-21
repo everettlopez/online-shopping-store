@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
 
-import { useAuth } from "../../context/AuthContext";
 
 type Product = {
     product_id: number;
@@ -61,6 +60,8 @@ export default function ProductDetailModal({isOpen, onClose, product, cart}: Pro
 
   async function handleAddToCart()
   {
+    if (!product) return;
+
     try 
     {
       const response = await axiosClient.post(`/cart/items?product_id=${product.product_id}`);

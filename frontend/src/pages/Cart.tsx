@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { useAuth } from "../context/AuthContext";
 
-import { useSearchParams, Link, useNavigate} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AddressModal from "../components/AddressModal";
 
 interface Product {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
 import { Link } from "react-router-dom";   // ← FIXED: Link imported
-import { useAuth } from "../../context/AuthContext";
 import { DataGrid } from "@mui/x-data-grid";
 import AdminProductEditModal from "../../components/admin/products/AdminProductEditModal";
 import { FormControlLabel, FormGroup, InputLabel, MenuItem, Select, TextField } from "@mui/material";
@@ -9,22 +8,6 @@ import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 import NumberField from "../../components/NumberField";
 import Switch from '@mui/material/Switch';
 
-
-export interface Product {
-  product_id: number;
-  category_id: number;
-
-  title: string;  // Updated
-  description?: string;
-  price: number;
-  size?: string;
-  color?: string;
-  thumbnail?: string;   // Updated
-  stock_quantity: number;
-  is_active: boolean;
-
-  images?: string[];
-}
 
 export interface CategoryRead {
   category_id: number;
@@ -53,11 +36,8 @@ export interface ProductRead {
 
 
 export default function AdminProductsPage() {
-  const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [products, setProducts] = useState<ProductRead[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRead | null>(null);
   const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
 
 
@@ -67,7 +47,7 @@ export default function AdminProductsPage() {
   const [category, setCategory] = useState(0);
   const [size, setSize] = useState("0");
   const [color, setColor] = useState("0");
-  const [price, setPrice] = useState(null);
+  const [price, setPrice] = useState<number | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
 
@@ -77,7 +57,7 @@ export default function AdminProductsPage() {
     {field: "id", headerName: "Product ID", width: 100, resizable: false,},
     {field: "active", headerName: "Active", width: 100, resizable: false},
     {field: "category", headerName: "Category", width: 100, resizable: false,},
-    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params) => (
+    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params: any) => (
       <img src={params.value} alt="thumbnail" className="h-10 w-10 object-cover"/>
     ),},
     {field: "name", headerName: "Name", width: 300, resizable: false,},
@@ -87,7 +67,6 @@ export default function AdminProductsPage() {
       <button className="text-blue-600 underline"
         onClick={() => {
           const fullProduct = products.find(p => p.product_id === params.row.id);
-          setExpandedRow(params.row.id);
           setSelectedProduct(fullProduct || null);
           setIsProductDetailModalOpen(true);
         }}>
@@ -172,7 +151,6 @@ export default function AdminProductsPage() {
     }
   }
 
-  const eligibleProduct = title && price && category;
 
 
   return (
@@ -319,7 +297,6 @@ export default function AdminProductsPage() {
         product={selectedProduct}
         onClose={() => {
           setIsProductDetailModalOpen(false);
-          setExpandedRow(null);
           setSelectedProduct(null);
           fetchProducts();
         }}

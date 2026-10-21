@@ -1,9 +1,9 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
 import axiosClient from "../../api/axiosClient";
 import { useAuth } from "../../context/AuthContext";
 
-import Box from '@mui/material/Box';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
@@ -11,9 +11,8 @@ import DoneRoundedIcon from '@mui/icons-material/DoneRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
-import TextField from '@mui/material/TextField';
 import Stepper from '@mui/material/Stepper';
-import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
+import { Chip, Step, StepLabel } from "@mui/material";
 
 export type Address = {
   address_id: number;

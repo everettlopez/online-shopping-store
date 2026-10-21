@@ -1,33 +1,8 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import heroBg from "../assets/pexels-arturoaez225-13662505.jpg";
 import model_1 from "../assets/model_1.jpg";
 
-console.log("DEBUG: Landing page component loaded");
-
-type Product = {
-  product_id: number;
-  name: string;
-  price: number;
-  image_url: string;
-  description?: string;
-  category_id?: number;
-  stock_quantity?: number;
-};
-
-type ProductResponse = {
-    metadata: {
-        count: number;
-        sort?: string | null;
-    };
-    products: Product[];
-};
-
-
-
 function Landing() {
-
-    const [newArrivals, setNewArrivals] = useState<Product[]>([]);
 
 
 

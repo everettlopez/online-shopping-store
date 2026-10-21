@@ -5,7 +5,7 @@ interface Props
     onConfirm: () => void;
 }
 
-export default function ConfirmDeleteProductAdmin({ isOpen, onClose, onConfirm })
+export default function ConfirmDeleteProductAdmin({ isOpen, onClose, onConfirm }: Props)
 {
     if (!isOpen) return null;
 

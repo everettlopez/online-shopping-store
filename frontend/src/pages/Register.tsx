@@ -89,6 +89,7 @@ function Register() {
                         </div>
 
                         <button type="submit" className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Register</button>
+                        {message && <p className="text-center text-sm">{message}</p>}
                         <Link to="/login" className="flex justify-center items-center ">Already Have An Account? Sign In</Link>
                     </div>
                 </form>
