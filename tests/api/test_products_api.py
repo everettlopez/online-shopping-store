@@ -105,6 +105,46 @@ def test_update_product_fields(admin_client, make_category, make_product):
     assert body["category"]["category_id"] == new_category.category_id
 
 
+def test_create_product_is_active_by_default(admin_client, make_category, upload_dir):
+    category = make_category()
+
+    response = admin_client.post("/api/products/", data={"category_id": category.category_id, "title": "X", "price": "1"})
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is True
+
+
+@pytest.mark.parametrize("value, expected", [("true", True), ("false", False), ("0", False), ("on", True)])
+def test_create_product_sets_is_active(admin_client, make_category, upload_dir, value, expected):
+    category = make_category()
+
+    response = admin_client.post("/api/products/", data={
+        "category_id": category.category_id, "title": "X", "price": "1", "is_active": value,
+    })
+
+    assert response.json()["is_active"] is expected
+
+
+def test_update_without_is_active_keeps_it(admin_client, make_product):
+    # A missing bool form field reads as False in FastAPI, which used to deactivate the product
+    active = make_product(is_active=True)
+    inactive = make_product(is_active=False)
+
+    for product, expected in [(active, True), (inactive, False)]:
+        response = admin_client.put(f"/api/products/{product.product_id}", data={"title": "Renamed"})
+
+        assert response.status_code == 200
+        assert response.json()["is_active"] is expected
+
+
+def test_invalid_is_active_is_rejected(admin_client, make_product):
+    product = make_product()
+
+    response = admin_client.put(f"/api/products/{product.product_id}", data={"is_active": "maybe"})
+
+    assert response.status_code == 422
+
+
 def test_update_product_merges_images(admin_client, make_product, upload_dir):
     product = make_product(images=["uploads/existing.png"])
 
