@@ -33,6 +33,20 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
+def parse_form_bool(value: str | None, default: bool | None) -> bool | None:
+    """FastAPI reads a missing bool form field as False (like an unticked HTML
+    checkbox), even with a default of True or None. So boolean form fields come in
+    as text, and a missing or blank one keeps the default."""
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.strip().lower()
+    if normalized in ("true", "1", "yes", "on"):
+        return True
+    if normalized in ("false", "0", "no", "off"):
+        return False
+    raise HTTPException(status_code=422, detail="is_active must be true or false")
+
+
 def save_uploads(request: Request, files: list[UploadFile]) -> list[str]:
     """Save uploaded images under random names and return their public URLs. The
     client's filename is only used for its extension, so it can't escape the uploads
@@ -76,7 +90,7 @@ def create_product(
     color: str = Form(""),
     thumbnail: UploadFile | None = File(None),
     stock_quantity: int = Form(0, ge=0),
-    is_active: bool = Form(True),
+    is_active: str | None = Form(None),   # true or false; new products are active by default
     session: Session = Depends(get_session)
 ):
     category_data = session.exec(select(Category).where(Category.category_id == category_id)).first()
@@ -97,7 +111,7 @@ def create_product(
         color=color,
         thumbnail=thumbnail_path,
         stock_quantity=stock_quantity,
-        is_active=is_active
+        is_active=parse_form_bool(is_active, default=True)
     )
 
     product = Product.model_validate(product_data)
@@ -170,7 +184,7 @@ def update_product(
     color: str = Form(None),
     thumbnail: str | None = Form(None),
     stock_quantity: int = Form(None, ge=0),
-    is_active: bool = Form(None),
+    is_active: str | None = Form(None),   # true or false; left out keeps the current value
 
     # ⭐ Add these
     images_files: list[UploadFile] = File(None),
@@ -197,7 +211,8 @@ def update_product(
     if color is not None: product.color = color
     if thumbnail is not None: product.thumbnail = thumbnail
     if stock_quantity is not None: product.stock_quantity = stock_quantity
-    if is_active is not None: product.is_active = is_active
+    active = parse_form_bool(is_active, default=None)
+    if active is not None: product.is_active = active
     if category_id is not None:
         if not session.get(Category, category_id):
             raise HTTPException(status_code=400, detail="Category not found")
