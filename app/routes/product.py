@@ -11,21 +11,15 @@ from app.models.order import OrderItem
 from app.schemas.product import ProductCreate, ProductRead
 from app.auth.dependencies import admin_required
 from app.database.products import database_get_product_read, database_get_product_reads
-from app.settings import public_api_url
+from app.settings import public_api_url, upload_dir
 from fastapi import Request
 
 import os
 import json
 import uuid
 
-# Get the directory of this file: app/routes/product.py
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Go up one folder: app/
-APP_DIR = os.path.dirname(BASE_DIR)
-
-# Point to: app/uploads
-UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
+# app/uploads locally, or the UPLOAD_DIR volume in production (served at /uploads)
+UPLOAD_DIR = upload_dir()
 
 # Make sure the folder exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)

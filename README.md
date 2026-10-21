@@ -106,6 +106,28 @@ venv\Scripts\python -m pytest
 ```
 Add `-x` to stop at the first failure, or pass a path to run part of the suite (for example `venv\Scripts\python -m pytest tests/api/test_cart_api.py`). Shared fixtures and test-data factories are in `tests/conftest.py`.
 
+## Deployment
+The API and the storefront deploy separately, each as its own Docker image. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and builds both images on every push and pull request.
+
+### API
+```bash
+docker build -t shop-api .
+```
+The image runs `alembic upgrade head` and then uvicorn (`docker/start-api.sh`). Configure it with the environment variables from `.env.example`. For production:
+- Use live Stripe keys, and the `whsec_...` secret of a webhook endpoint registered in the Stripe Dashboard for `https://<api host>/api/payments/webhook`.
+- Set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to the real addresses, and set `ENABLE_DOCS=false`. Set `COOKIE_SAMESITE=lax` if the storefront and API share a site (for example `shop.example.com` and `api.example.com`).
+- **Mount a persistent volume at `/data/uploads`** (the image sets `UPLOAD_DIR` to it). Without one, product images are lost on every deploy.
+- Use a managed MySQL with automated backups.
+- Optional: `PORT` (default 8000), `WEB_CONCURRENCY` (worker processes, default 2) and `FORWARDED_ALLOW_IPS` (proxies trusted for `X-Forwarded-*`, default all). With several replicas, set `RUN_MIGRATIONS=false` on all but one, or run `alembic upgrade head` as a release step.
+
+The host should terminate HTTPS. `GET /api/health` returns 200 when the database is reachable and 503 when it isn't, for health checks and uptime monitors.
+
+### Storefront
+```bash
+docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web frontend
+```
+`VITE_API_URL` is baked into the bundle at build time (see `frontend/.env.example`). The image serves the built site with nginx (`frontend/nginx.conf`), sending every unknown path to `index.html` so links like `/orders/abc` work. If you use a static host (Netlify, Vercel, Cloudflare Pages) instead, run `npm run build` with `VITE_API_URL` set, publish `frontend/dist`, and add the host's single-page-app rewrite to `/index.html`.
+
 ## Author
 Everett Lopez
 Salt Lake City, UT

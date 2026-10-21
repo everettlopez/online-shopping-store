@@ -11,6 +11,7 @@ load_dotenv()
 DEFAULT_FRONTEND_URL = "http://localhost:5173"
 DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 MIN_JWT_SECRET_LENGTH = 32
+DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -30,6 +31,12 @@ def public_api_url(request) -> str:
     Behind a reverse proxy the request's own URL is the internal one (often plain
     http), so production sets PUBLIC_API_URL."""
     return (os.getenv("PUBLIC_API_URL") or str(request.base_url)).rstrip("/")
+
+
+def upload_dir() -> str:
+    """Where product images are saved. Most hosts wipe the app's own folder on every
+    deploy, so production points UPLOAD_DIR at a persistent volume."""
+    return os.getenv("UPLOAD_DIR") or DEFAULT_UPLOAD_DIR
 
 
 def cors_origins() -> list[str]:

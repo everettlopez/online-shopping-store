@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlmodel import Session
 
-from app.db.session import seed_database
+from app.db.session import get_session, seed_database
 from app.settings import check_required_settings, cors_origins, docs_enabled
 from app.routes.auth import router as auth_router
 from app.routes.address import router as address_router
@@ -16,10 +18,7 @@ from fastapi.openapi.utils import get_openapi
 
 from fastapi.staticfiles import StaticFiles
 
-import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+from app.routes.product import UPLOAD_DIR
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -64,6 +63,15 @@ def create_app() -> FastAPI:
     @app.get("/api")
     def root():
         return {"message": "API is running"}
+
+    # For the host's health checks and uptime monitors: fails when the database is unreachable
+    @app.get("/api/health")
+    def health(session: Session = Depends(get_session)):
+        try:
+            session.exec(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "database unavailable"})
+        return {"status": "ok"}
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(address_router, prefix="/api")
