@@ -36,13 +36,15 @@ Frontend: `npm --prefix frontend run lint` (ESLint; `main` already has about 26 
 
 ## Configuration
 
-Settings come from the environment or `.env` (see `.env.example`). Required: `DATABASE_URL`, `JWT_SECRET_KEY` (at least 32 chars), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. Optional deployment settings are in `app/settings.py`: `FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS` and `SQL_ECHO`. Their defaults suit local development.
+Settings come from the environment or `.env` (see `.env.example`). Required: `DATABASE_URL`, `JWT_SECRET_KEY` (at least 32 chars), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. Optional deployment settings are in `app/settings.py`: `FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO` and `UPLOAD_DIR`. Their defaults suit local development. The frontend reads the API address from `VITE_API_URL` at build time (`frontend/.env.example`), falling back to the local API.
+
+Deployment: the root `Dockerfile` builds the API (`docker/start-api.sh` migrates, then runs uvicorn), and `frontend/Dockerfile` builds the storefront served by nginx with an SPA fallback. CI is `.github/workflows/ci.yml`. The README's Deployment section lists the production settings.
 
 The functions in `app/settings.py` read the environment each time they're called, which is how tests change settings with `monkeypatch.setenv`. Some values are still read once when a module is imported: `DATABASE_URL`/`engine` (`app/db/session.py`), `SECRET_KEY` (`app/auth/core.py`, which refuses to sign or verify tokens with a key under 32 characters), and the Stripe key and `WEBHOOK_SECRET` (`app/routes/payments.py`).
 
 ## Backend architecture
 
-- **App setup:** `app/main.py` has `create_app()`, which mounts every router under `/api` and serves `app/uploads` at `/uploads`. It also adds the CORS middleware and a CSRF guard that rejects POST/PUT/PATCH/DELETE requests from an `Origin` outside `CORS_ORIGINS` (requests with no `Origin`, such as Stripe's webhook, pass). On startup it runs `check_required_settings()`, then `seed_database()`. The latter refuses to start unless the database is at the Alembic head revision, then seeds the default categories into an empty table.
+- **App setup:** `app/main.py` has `create_app()`, which mounts every router under `/api`, adds `GET /api/health` (503 when the database is unreachable) and serves the upload folder (`UPLOAD_DIR`, default `app/uploads`) at `/uploads`. It also adds the CORS middleware and a CSRF guard that rejects POST/PUT/PATCH/DELETE requests from an `Origin` outside `CORS_ORIGINS` (requests with no `Origin`, such as Stripe's webhook, pass). On startup it runs `check_required_settings()`, then `seed_database()`. The latter refuses to start unless the database is at the Alembic head revision, then seeds the default categories into an empty table.
 - **Layers:**
   - `app/models/` holds the SQLModel tables.
   - `app/schemas/` holds the Pydantic request and response models.
@@ -62,11 +64,11 @@ The functions in `app/settings.py` read the environment each time they're called
   There is deliberately no route that creates an order or charges an amount supplied by the client; tests in `tests/api/test_security.py` check that.
 - **User deletion:** deleting a user goes through `database_user_has_orders`/`database_delete_user` (`app/database/users.py`). Users with orders are kept, since orders are financial records. Likewise, a product that appears in an order can't be deleted (409); admins set it inactive instead.
 - **Cart:** adding a product already in the cart raises that row's quantity rather than adding a row. Quantities are 1 to `MAX_CART_QUANTITY` (`app/schemas/cart_item.py`) and can't exceed stock.
-- **Uploads:** product images go through `save_uploads()` in `app/routes/product.py`. It checks every file (image extensions only, 5 MB each) before writing any, saves under random names in the module-level `UPLOAD_DIR`, and returns absolute URLs built from `PUBLIC_API_URL` (falling back to the request's base URL). The product create/update routes are plain `def` so this I/O runs in FastAPI's threadpool.
+- **Uploads:** product images go through `save_uploads()` in `app/routes/product.py`. It checks every file (image extensions only, 5 MB each) before writing any, saves under random names in the module-level `UPLOAD_DIR` (from `upload_dir()` in `app/settings.py`), and returns absolute URLs built from `PUBLIC_API_URL` (falling back to the request's base URL). The product create/update routes are plain `def` so this I/O runs in FastAPI's threadpool.
 
 ## Frontend architecture
 
-- `frontend/src/api/axiosClient.ts` calls `http://127.0.0.1:8000/api` with `withCredentials` (cookie auth). That is a different site from `localhost:5173`, which is why the cookie defaults to `SameSite=None`.
+- `frontend/src/api/axiosClient.ts` calls `VITE_API_URL` (locally `http://127.0.0.1:8000/api`) with `withCredentials` (cookie auth). That is a different site from `localhost:5173`, which is why the cookie defaults to `SameSite=None`.
 - API helpers live in `frontend/src/api/*`. Use `apiErrorMessage()` from `api/errors.ts` to show FastAPI `detail` errors (including the first 422 validation message).
 - App-wide state (auth, cart, categories) is in `frontend/src/context/`. Routes and the public-only/protected/admin guards are in `frontend/src/router/AppRouter.tsx`.
 - Styling is Tailwind, with MUI in the admin pages.

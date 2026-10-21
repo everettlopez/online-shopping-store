@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from app.models.category import Category
 
@@ -21,7 +22,11 @@ def database_seed_categories(session: Session):
     for position, (category_id, name) in enumerate(DEFAULT_CATEGORIES, start=1):
         session.add(Category(category_id=category_id, name=name, sort_order=position))
 
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        # Another worker starting at the same time seeded them first
+        session.rollback()
 
 def database_get_categories(session: Session, sort: str | None = None):
 

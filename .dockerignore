@@ -1,0 +1,15 @@
+# Only app/, alembic/ and the requirements go into the API image
+.git
+.github
+.claude
+venv
+.venv
+**/__pycache__
+**/*.py[cod]
+.env
+.env.*
+node_modules
+frontend
+tests
+app/uploads/*
+!app/uploads/.gitkeep

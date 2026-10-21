@@ -11,10 +11,14 @@ load_dotenv()
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-# Logging every statement leaks data into the logs, so it's opt-in (SQL_ECHO=true)
+# Logging every statement leaks data into the logs, so it's opt-in (SQL_ECHO=true).
+# MySQL closes connections idle longer than its wait_timeout, so test each pooled
+# connection before use and replace it well before a host's timeout can hit it
 engine = create_engine(
     DATABASE_URL,
     echo=sql_echo(),
+    pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 SessionLocal = sessionmaker(
