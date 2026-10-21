@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import { useCategories } from "../context/CategoriesContext";
 import UserProductDetailModal from "../components/products/UserProductDetailModal";
 import Navbar from "../components/Navbar";
+import ProductCard from "../components/products/ProductCard";
+import ProductFilters from "../components/products/ProductFilters";
+import { applyProductFilters, defaultProductFilters, filterOptions, hasActiveFilters, type ProductFilterState } from "../utils/productFilters";
 
 export interface Product {
   product_id: number;
@@ -19,6 +22,7 @@ export interface Product {
   is_active: boolean;
 
   images?: string[];
+  created_at: string;
 }
 
 interface CartItem {
@@ -54,7 +58,17 @@ export default function Products() {
 
     const productsKey = `${categoryId ?? "all"}|${isNewArrivals ? "newest" : ""}`;
     const loadingProducts = loaded?.key !== productsKey;
-    const products = loadingProducts ? [] : loaded.products;
+    const products = useMemo(() => (loaded?.key === productsKey ? loaded.products : []), [loaded, productsKey]);
+
+    // Filters belong to the URL query they were set on, so switching categories resets them
+    const defaultSort = isNewArrivals ? "newest" : "featured";
+    const [filterState, setFilterState] = useState<{ key: string; filters: ProductFilterState } | null>(null);
+    const filters = filterState?.key === productsKey ? filterState.filters : defaultProductFilters(defaultSort);
+    const setFilters = (next: ProductFilterState) => setFilterState({ key: productsKey, filters: next });
+
+    const sizeOptions = useMemo(() => filterOptions(products, "size"), [products]);
+    const colorOptions = useMemo(() => filterOptions(products, "color"), [products]);
+    const visibleProducts = useMemo(() => applyProductFilters(products, filters), [products, filters]);
 
     let heading = "ALL PRODUCTS";
     if (isNewArrivals) heading = "NEW ARRIVALS";
@@ -99,9 +113,14 @@ export default function Products() {
         <div className="flex gap-2 p-8">
             
             {/* Filter Section */}
-            <div className="border flex flex-col p-10">
-                <h2>Filter</h2>
-            </div>
+            <ProductFilters
+                filters={filters}
+                sizeOptions={sizeOptions}
+                colorOptions={colorOptions}
+                canClear={hasActiveFilters(filters, defaultSort)}
+                onChange={setFilters}
+                onClear={() => setFilters(defaultProductFilters(defaultSort))}
+            />
 
             {/* Products Grid */}
             <div className="flex flex-col gap-4 flex-1">
@@ -115,25 +134,20 @@ export default function Products() {
                 <p className="tracking-wider text-gray-500">
                     {isNewArrivals ? "No new arrivals yet." : "No products in this category yet."}
                 </p>
+            ) : !loadingProducts && visibleProducts.length === 0 ? (
+                <p className="tracking-wider text-gray-500">No products match these filters.</p>
             ) : (
             <div className="grid grid-cols-4 gap-3">
-                {products.map((product) => {
-                    return (
-                    <div onClick={() => {
-                        setIsProductDetailModalOpen(true); 
-                        setSelectedProduct(product);
-                        }} key={product.product_id} className="border flex flex-col gap-2 h-auto hover:bg-gray-100 rounded-2xl p-2 cursor-pointer">
-                        <img src={product.thumbnail} className="h-60 object-cover border rounded-2xl"/>
-                        <div className="flex flex-col gap-1">
-                            <p className="text-lg leading-tight tracking-wider">{product.title.toUpperCase()}</p>
-                            <div>
-                                <p className="tracking-wider text-gray-500">${product.price.toFixed(2)}</p>
-                                <p className="tracking-wider text-gray-500">Size: {product.size}</p>
-                            </div>
-                        </div>
-                    </div>
-                    );
-                })}
+                {visibleProducts.map((product) => (
+                    <ProductCard
+                        key={product.product_id}
+                        product={product}
+                        onClick={() => {
+                            setIsProductDetailModalOpen(true);
+                            setSelectedProduct(product);
+                        }}
+                    />
+                ))}
             </div>
             )}
             </div>

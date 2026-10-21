@@ -18,12 +18,15 @@ def database_seed_categories(session: Session):
     if session.exec(select(Category)).first():
         return
 
-    for category_id, name in DEFAULT_CATEGORIES:
-        session.add(Category(category_id=category_id, name=name))
+    for position, (category_id, name) in enumerate(DEFAULT_CATEGORIES, start=1):
+        session.add(Category(category_id=category_id, name=name, sort_order=position))
 
     session.commit()
 
 def database_get_categories(session: Session, sort: str | None = None):
+
+    if sort == "order":
+        return session.exec(select(Category).order_by(Category.sort_order, Category.category_id)).all()
 
     categories = session.exec(select(Category)).all()
 

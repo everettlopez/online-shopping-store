@@ -13,7 +13,7 @@ class Cart(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 class CartItem(SQLModel, table=True):
-    __tablename__ = "cart_Items"
+    __tablename__ = "cart_items"
 
     cart_item_id: int | None = Field(default=None, primary_key=True)
     cart_id: int = Field(foreign_key="carts.cart_id")

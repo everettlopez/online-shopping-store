@@ -1,12 +1,38 @@
 import heroBg from "../assets/pexels-arturoaez225-13662505.jpg";
 import model_1 from "../assets/model_1.jpg";
 import Navbar from "../components/Navbar";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import axiosClient from "../api/axiosClient";
+import ProductCard from "../components/products/ProductCard";
+
+interface NewArrival {
+    product_id: number;
+    title: string;
+    price: number;
+    size?: string | null;
+    thumbnail?: string | null;
+}
 
 function Landing() {
 
+    const navigate = useNavigate();
 
+    // null until loaded, so the "coming soon" message doesn't flash before the fetch finishes
+    const [newArrivals, setNewArrivals] = useState<NewArrival[] | null>(null);
 
+    // Fetch the newest products for the New Arrivals section
+    useEffect(() => {
+        let cancelled = false;
+        axiosClient.get("/products/active", { params: { sort: "newest", limit: 8 } })
+            .then((response) => { if (!cancelled) setNewArrivals(response.data); })
+            .catch((err) => {
+                console.error("Failed to fetch new arrivals: ", err);
+                if (!cancelled) setNewArrivals([]);
+            });
 
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <>
@@ -40,10 +66,27 @@ function Landing() {
                 NEW ARRIVALS
             </h2>
 
+            {newArrivals !== null && newArrivals.length === 0 ? (
+                <p className="text-center tracking-wider text-gray-500 mt-10">New arrivals coming soon.</p>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10 mt-10 max-w-7xl mx-auto">
-                {/* Map your products here */}
-                
+                {newArrivals?.map((product) => (
+                    <ProductCard
+                        key={product.product_id}
+                        product={product}
+                        onClick={() => navigate("/products?sort=newest")}
+                    />
+                ))}
             </div>
+            )}
+
+            {newArrivals !== null && newArrivals.length > 0 && (
+                <div className="flex justify-center mt-10">
+                    <Link to="/products?sort=newest" className="border border-black rounded-full px-10 py-3 tracking-wider hover:bg-black hover:text-white transition">
+                        View all
+                    </Link>
+                </div>
+            )}
         </div>
 
         <div className="flex flex-col justify-center h-[200px] p-10 gap-10 bg-cover bg-center"

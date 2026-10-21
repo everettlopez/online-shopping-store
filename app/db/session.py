@@ -1,4 +1,3 @@
-from sqlmodel import SQLModel
 from sqlmodel import Session as SQLModelSession
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,18 +20,8 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-def create_db_and_tables():
-    from app.models.user import User
-    from app.models.product import Product
-    from app.models.category import Category
-    from app.models.cart import CartItem
-    from app.models.cart import Cart
-    from app.models.user import User
-    from app.models.address import Address
-    from app.models.order import Order
-
-    SQLModel.metadata.create_all(bind=engine)
-
+def seed_database():
+    # The schema is managed by Alembic (run `alembic upgrade head`); startup only seeds data
     from app.database.category import database_seed_categories
 
     with SQLModelSession(engine) as session:

@@ -10,6 +10,7 @@ from app.schemas.category import (
     CategoryResponse,
     CategoryCreate,
     CategoryRead,
+    CategoryReorder,
     CategoryUpdate
 )
 from app.database.category import database_get_categories
@@ -33,7 +34,10 @@ def create_category(
 ):
     ensure_unique_name(session, data.name)
 
-    category = Category(**data.model_dump())
+    # New categories go to the end of the nav
+    last_position = session.exec(select(func.max(Category.sort_order))).one() or 0
+
+    category = Category(**data.model_dump(), sort_order=last_position + 1)
     session.add(category)
     session.commit()
     session.refresh(category)
@@ -65,6 +69,26 @@ def get_category(category_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Category not found")
 
     return category
+
+
+# -----------------------------------------
+# PUT /categories/reorder → set nav order
+# (declared before /{category_id} so "reorder" isn't parsed as an id)
+# -----------------------------------------
+@router.put("/reorder", response_model=CategoryResponse, dependencies=[Depends(admin_required)])
+def reorder_categories(data: CategoryReorder, session: Session = Depends(get_session)):
+    categories = {c.category_id: c for c in session.exec(select(Category)).all()}
+
+    if len(data.category_ids) != len(set(data.category_ids)) or set(data.category_ids) != set(categories):
+        raise HTTPException(status_code=400, detail="category_ids must list every category exactly once")
+
+    for position, category_id in enumerate(data.category_ids, start=1):
+        categories[category_id].sort_order = position
+        session.add(categories[category_id])
+
+    session.commit()
+
+    return list_categories(session=session, sort="order")
 
 
 # -----------------------------------------

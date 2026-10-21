@@ -5,6 +5,7 @@ export type Category = {
     category_id: number;
     name: string;
     description: string | null;
+    sort_order: number;
 };
 
 export type AdminUser = {
@@ -35,7 +36,13 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong")
 
 // Categories
 export async function getCategories(): Promise<Category[]> {
-    const res = await axiosClient.get("/categories");
+    const res = await axiosClient.get("/categories", { params: { sort: "order" } });
+    return res.data.categories;
+}
+
+// Saves the nav order: every category id, first to last
+export async function reorderCategories(categoryIds: number[]): Promise<Category[]> {
+    const res = await axiosClient.put("/categories/reorder", { category_ids: categoryIds });
     return res.data.categories;
 }
 

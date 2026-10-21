@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.session import create_db_and_tables
+from app.db.session import seed_database
 from app.routes.auth import router as auth_router
 from app.routes.address import router as address_router
 from app.routes.order import router as order_router
@@ -39,7 +39,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
+    seed_database()
 
 @app.get("/api")
 def root():
