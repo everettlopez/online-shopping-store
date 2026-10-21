@@ -48,6 +48,7 @@ export default function AdminProductsPage() {
   const [size, setSize] = useState("0");
   const [color, setColor] = useState("0");
   const [price, setPrice] = useState<number | null>(null);
+  const [stock, setStock] = useState<number | null>(1);
   const [isActive, setIsActive] = useState(true);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
 
@@ -63,6 +64,7 @@ export default function AdminProductsPage() {
     {field: "name", headerName: "Name", width: 300, resizable: false,},
     {field: "price", headerName: "Price ($)", width: 100, resizable: false,},
     {field: "size", headerName: "Size", width: 100, resizable: false},
+    {field: "stock", headerName: "Stock", width: 100, resizable: false},
     {field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params: any) => (
       <button className="text-blue-600 underline"
         onClick={() => {
@@ -92,6 +94,7 @@ export default function AdminProductsPage() {
         name: product.title,
         price: product.price.toFixed(2),
         size: product.size,
+        stock: product.stock_quantity,
       }));
 
       setRows(formatted);
@@ -117,6 +120,7 @@ export default function AdminProductsPage() {
       setSize("0");
       setColor("0");
       setPrice(null);
+      setStock(1);
       setIsActive(true);
       setThumbnail(null);
     }
@@ -135,6 +139,7 @@ export default function AdminProductsPage() {
       formData.append("size", size);
       formData.append("color", color);
       formData.append("price", String(price));
+      formData.append("stock_quantity", String(stock));
       formData.append("is_active", String(isActive));
 
       if (thumbnail) {
@@ -257,7 +262,13 @@ export default function AdminProductsPage() {
                 {/* Price Wheel */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel required>Price</InputLabel>
-                  <NumberField label="Price ($)" value={price} min={1} onValueChange={(newValue) => setPrice(newValue)}/>  
+                  <NumberField label="Price ($)" value={price} min={1} onValueChange={(newValue) => setPrice(newValue)}/>
+                </FormGroup>
+
+                {/* Stock Wheel */}
+                <FormGroup className="flex flex-col gap-2">
+                  <InputLabel required>Stock</InputLabel>
+                  <NumberField label="Stock" value={stock} min={0} step={1} onValueChange={(newValue) => setStock(newValue)}/>
                 </FormGroup>
 
                 <FormGroup className="h-full flex justify-center items-center">
@@ -268,7 +279,7 @@ export default function AdminProductsPage() {
               {/* Cancel/Create Buttons */}
               <div className="border flex justify-between">
                 <button className="border rounded-full px-5 py-1" onClick={() => handleCancelCreate()}>Cancel</button>
-                <button disabled={!title || !price || !category || !thumbnail} onClick={() => handleCreate()} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>
+                <button disabled={!title || !price || stock === null || !category || !thumbnail} onClick={() => handleCreate()} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>
               </div>
             </div>
           </div>

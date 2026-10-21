@@ -1,5 +1,21 @@
 from sqlmodel import Session, select
 from app.models.product import Product
+from app.models.category import Category
+from app.schemas.category import CategoryRead
+from app.schemas.product import ProductRead
+
+def database_get_product_read(session: Session, product_id: int) -> ProductRead | None:
+    """Load a product with its category, shaped for API responses (ProductRead needs the category)."""
+    product = session.get(Product, product_id)
+    if not product:
+        return None
+
+    category = session.get(Category, product.category_id)
+
+    return ProductRead(
+        **product.model_dump(exclude={"category_id"}),
+        category=CategoryRead.model_validate(category)
+    )
 
 def database_get_products(session: Session, sort: str | None = None):
     products = session.exec(select(Product)).all()

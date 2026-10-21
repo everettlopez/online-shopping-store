@@ -56,16 +56,13 @@ export default function Cart() {
     
     // Address Modal
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-    const [shippingAddresses, setShippingAddresses] = useState<Address[]>([]);
-    const [billingAddresses, setBillingAddresses] = useState<Address[]>([]);
+    const [addresses, setAddresses] = useState<Address[]>([]);
 
     async function fetchAddresses() {
         try {
-            const shippingRes = await axiosClient.get("/addresses?address_type=shipping");
-            const billingRes = await axiosClient.get("/addresses?address_type=billing");
-
-            setShippingAddresses(shippingRes.data);
-            setBillingAddresses(billingRes.data);
+            // Any saved address can be used for shipping or billing
+            const res = await axiosClient.get("/addresses/");
+            setAddresses(res.data);
         } catch (err) {
             console.error("Failed to load addresses:", err);
         }
@@ -203,7 +200,7 @@ export default function Cart() {
 
         {/* Checkout Button */}
         <button
-            onClick={() => {setIsAddressModalOpen(true)}}
+            onClick={() => {fetchAddresses(); setIsAddressModalOpen(true)}}
             className="py-2 px-3 bg-black text-white mx-auto rounded-[10px] text-lg"
         >
             Checkout
@@ -219,8 +216,7 @@ export default function Cart() {
                 state: { shippingAddress: shipping, billingAddress: billing, cart }
                 });
             }}
-            shippingAddresses={shippingAddresses}
-            billingAddresses={billingAddresses}
+            addresses={addresses}
             />
 
 

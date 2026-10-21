@@ -84,6 +84,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
   const [size, setSize] = useState("0");
   const [color, setColor] = useState("0");
   const [price, setPrice] = useState(0);
+  const [stock, setStock] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [changes, setChanges] = useState(false);
 
@@ -152,6 +153,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     setSize(product.size || "");
     setColor(product.color || "");
     setPrice(product.price);
+    setStock(product.stock_quantity);
     setIsActive(product.is_active);
 
   }, [isOpen, product]);
@@ -192,6 +194,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
       setSize(updated.size || "");
       setColor(updated.color || "");
       setPrice(updated.price);
+      setStock(updated.stock_quantity);
       setIsActive(updated.is_active);
 
     } catch (err) {
@@ -212,6 +215,7 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
       fd.append("size", size);
       fd.append("color", color);
       fd.append("price", String(price));
+      fd.append("stock_quantity", String(stock));
       fd.append("is_active", String(isActive));
 
       // Thumbnail is a string URL in your current setup
@@ -292,7 +296,12 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
               <FormGroup className="w-40">
                 <InputLabel required>Price</InputLabel>
-                <NumberField value={price}/>
+                <NumberField value={price} min={1} onValueChange={(newValue) => {setPrice(newValue ?? 0); setChanges(true);}}/>
+              </FormGroup>
+
+              <FormGroup className="w-32">
+                <InputLabel required>Stock</InputLabel>
+                <NumberField value={stock} min={0} step={1} onValueChange={(newValue) => {setStock(newValue ?? 0); setChanges(true);}}/>
               </FormGroup>
               
               <FormGroup>

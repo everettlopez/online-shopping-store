@@ -72,16 +72,15 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
         if product.stock_quantity < item.quantity:
             raise HTTPException(
                 status_code=400,
-                detail=f"Not enough stock for {product.name}"
+                detail=f"Not enough stock for {product.title}"
             )
 
         total_amount += product.price * item.quantity
 
     # 4. Create Stripe Checkout Session
+    # Payment methods (card, etc.) are configured in the Stripe Dashboard
     stripe_session = stripe.checkout.Session.create(
-        payment_method_types=["card"],
         mode="payment",
-        expand=["payment_intent.charges"],
         line_items=[{
             "price_data": {
                 "currency": "usd",
@@ -93,7 +92,7 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
             "quantity": 1,
         }],
         success_url="http://localhost:5173/order-success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url="http://localhost:5173/payment-cancel",
+        cancel_url="http://localhost:5173/cart",
         metadata={
             "user_id": user.user_id,
             "shipping_address_id": data.shipping_address_id,
@@ -109,6 +108,17 @@ def get_order_from_session(session_id: str, session: Session = Depends(get_sessi
     order = session.exec(
         select(Order).where(Order.stripe_session_id == session_id)
     ).first()
+
+    # Webhook hasn't created the order yet (or never arrived): ask Stripe directly
+    if not order:
+        try:
+            stripe_session = stripe.checkout.Session.retrieve(session_id)
+        except Exception as e:
+            print("Failed to load checkout session:", session_id, e)
+            stripe_session = None
+
+        if stripe_session and stripe_session.payment_status == "paid":
+            order = fulfill_checkout(session, stripe_session)
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -138,8 +148,46 @@ def get_order_from_session(session_id: str, session: Session = Depends(get_sessi
         "items": enriched_items
     }
 
-# Temporary in-memory store for payment details
-PAYMENT_CACHE = {}
+def summarize_payment_method(pmd: dict) -> dict:
+    """Turn a charge's payment_method_details into how the customer paid.
+    Checkout offers several methods (card, Link, Klarna, Cash App, ...), and only
+    card-backed ones have a brand/last4."""
+    method = pmd.get("type")
+    details = pmd.get(method) or {}
+
+    # Card, or a card funding another method (e.g. Amazon Pay)
+    card = details if "last4" in details else (details.get("funding") or {}).get("card") or {}
+
+    # Wallets (Apple Pay, Google Pay, Link) charge a card; show the wallet the customer picked
+    wallet = (details.get("wallet") or {}).get("type") if method == "card" else None
+
+    return {
+        "payment_method_type": wallet or method,
+        "card_brand": card.get("brand"),
+        "card_last4": card.get("last4")
+    }
+
+
+def get_payment_details(payment_intent_id: str) -> dict:
+    """Read payment + receipt details straight from Stripe, so the order doesn't
+    depend on separate charge.* webhook events arriving in the right order."""
+    try:
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id, expand=["latest_charge"])
+        charge = intent.latest_charge
+        if not charge:
+            return {}
+
+        pmd = charge.payment_method_details.to_dict() if charge.payment_method_details else {}
+
+        return {
+            **summarize_payment_method(pmd),
+            "payment_status": charge.status,
+            "receipt_url": charge.receipt_url
+        }
+    except Exception as e:
+        print("Failed to load payment details for:", payment_intent_id, e)
+        return {}
+
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, session: Session = Depends(get_session)):
@@ -152,139 +200,85 @@ async def stripe_webhook(request: Request, session: Session = Depends(get_sessio
         print("Webhook signature failed:", e)
         return {"received": True}
 
-    event_type = event["type"]
-
-    # ---------------------------------------------------------
-    # 1️⃣ charge.succeeded → store payment details temporarily
-    # ---------------------------------------------------------
-    if event_type == "charge.succeeded":
-        charge = event["data"]["object"]
-        pi_id = charge["payment_intent"]
-
-        pm = charge["payment_method_details"]
-
-        PAYMENT_CACHE[pi_id] = {
-            "payment_method_type": pm["type"],
-            "card_brand": pm["card"]["brand"],
-            "card_last4": pm["card"]["last4"],
-            "payment_status": charge["status"],
-            "receipt_url": charge["receipt_url"]
-        }
-
-        print("Cached payment details for:", pi_id)
-        return {"received": True}
-
-    # ---------------------------------------------------------
-    # 2️⃣ checkout.session.completed → create order + apply cached payment
-    # ---------------------------------------------------------
-    if event_type == "checkout.session.completed":
-        stripe_session = event["data"]["object"]
-        metadata = stripe_session.metadata.to_dict()
-
-        user_id = int(metadata["user_id"])
-        shipping_id = int(metadata["shipping_address_id"])
-        billing_id = int(metadata["billing_address_id"])
-
-        user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
-
-        if not user_obj:
-            print("ERROR: User not found: ", user_id)
-            return {"received": True}
-
-        cart = session.exec(select(Cart).where(Cart.user_id == user_id)).first()
-        if not cart:
-            return {"received": True}
-
-        cart_items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
-        if not cart_items:
-            return {"received": True}
-
-        total_amount = sum(
-            session.get(Product, item.product_id).price * item.quantity
-            for item in cart_items
-        )
-
-        order = Order(
-            user_id=user_id,
-            first_name=user_obj.first_name,
-            last_name=user_obj.last_name,
-            shipping_address_id=shipping_id,
-            billing_address_id=billing_id,
-            total_amount=total_amount,
-            order_number=str(uuid.uuid4())[:8],
-            status="pending",
-            payment_intent_id=stripe_session.payment_intent,
-            stripe_session_id=stripe_session.id
-        )
-
-        session.add(order)
-        session.commit()
-        session.refresh(order)
-
-        for item in cart_items:
-            product = session.get(Product, item.product_id)
-            session.add(OrderItem(
-                order_id=order.order_id,
-                product_id=item.product_id,
-                quantity=item.quantity,
-                unit_price=product.price,
-                subtotal=product.price * item.quantity
-            ))
-            product.stock_quantity -= item.quantity
-            session.add(product)
-
-        session.commit()
-
-        for item in cart_items:
-            session.delete(item)
-        session.commit()
-
-        # ⭐ Apply cached payment details if available
-        pi_id = stripe_session.payment_intent
-        if pi_id in PAYMENT_CACHE:
-            pd = PAYMENT_CACHE.pop(pi_id)
-
-            order.payment_method_type = pd["payment_method_type"]
-            order.card_brand = pd["card_brand"]
-            order.card_last4 = pd["card_last4"]
-            order.payment_status = pd["payment_status"]
-            order.receipt_url = pd["receipt_url"]
-            order.status = "placed"
-
-            session.add(order)
-            session.commit()
-
-            print("Applied cached payment details to order:", order.order_id)
-
-        return {"received": True}
-
-    # ---------------------------------------------------------
-    # 3️⃣ charge.updated → fallback: apply payment details if order exists
-    # ---------------------------------------------------------
-    if event_type == "charge.updated":
-        charge = event["data"]["object"]
-        pi_id = charge["payment_intent"]
-
-        order = session.exec(
-            select(Order).where(Order.payment_intent_id == pi_id)
-        ).first()
-
-        if order:
-            pm = charge["payment_method_details"]
-
-            order.payment_method_type = pm["type"]
-            order.card_brand = pm["card"]["brand"]
-            order.card_last4 = pm["card"]["last4"]
-            order.payment_status = charge["status"]
-            order.receipt_url = charge["receipt_url"]
-            order.status = "placed"
-
-            session.add(order)
-            session.commit()
-
-            print("Payment saved from charge.updated:", order.order_id)
-
-        return {"received": True}
+    if event["type"] == "checkout.session.completed":
+        fulfill_checkout(session, event["data"]["object"])
 
     return {"received": True}
 
+
+def fulfill_checkout(session: Session, stripe_session) -> Order | None:
+    """Create the order for a completed Checkout Session. Called by the webhook and,
+    as a fallback, by the success page, so it must be safe to run more than once."""
+
+    # Stripe can deliver the same event more than once
+    existing = session.exec(select(Order).where(Order.stripe_session_id == stripe_session.id)).first()
+    if existing:
+        return existing
+
+    metadata = stripe_session.metadata.to_dict()
+
+    user_id = int(metadata["user_id"])
+    shipping_id = int(metadata["shipping_address_id"])
+    billing_id = int(metadata["billing_address_id"])
+
+    user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
+
+    if not user_obj:
+        print("ERROR: User not found: ", user_id)
+        return None
+
+    cart = session.exec(select(Cart).where(Cart.user_id == user_id)).first()
+    if not cart:
+        return None
+
+    cart_items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
+    if not cart_items:
+        return None
+
+    total_amount = sum(
+        session.get(Product, item.product_id).price * item.quantity
+        for item in cart_items
+    )
+
+    pi_id = stripe_session.payment_intent
+
+    order = Order(
+        user_id=user_id,
+        first_name=user_obj.first_name,
+        last_name=user_obj.last_name,
+        shipping_address_id=shipping_id,
+        billing_address_id=billing_id,
+        total_amount=total_amount,
+        order_number=str(uuid.uuid4())[:8],
+        status="placed" if stripe_session.payment_status == "paid" else "pending",
+        payment_intent_id=pi_id,
+        stripe_session_id=stripe_session.id,
+        **get_payment_details(pi_id)
+    )
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    for item in cart_items:
+        product = session.get(Product, item.product_id)
+        session.add(OrderItem(
+            order_id=order.order_id,
+            product_id=item.product_id,
+            quantity=item.quantity,
+            unit_price=product.price,
+            subtotal=product.price * item.quantity
+        ))
+        product.stock_quantity -= item.quantity
+        session.add(product)
+
+    for item in cart_items:
+        session.delete(item)
+
+    session.commit()
+
+    session.refresh(order)
+
+    print("Created order:", order.order_id, "status:", order.status)
+
+    return order

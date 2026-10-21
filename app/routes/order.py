@@ -11,6 +11,7 @@ from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
+from app.database.products import database_get_product_read
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -69,7 +70,7 @@ def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
 
         enriched_items = []
         for item in items:
-            product = session.get(Product, item.product_id)
+            product = database_get_product_read(session, item.product_id)
             enriched_items.append(OrderItemRead(
                 order_item_id=item.order_item_id,
                 order_id=item.order_id,
@@ -134,7 +135,7 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
 
         enriched_items = []
         for item in items:
-            product = session.get(Product, item.product_id)
+            product = database_get_product_read(session, item.product_id)
             enriched_items.append(OrderItemRead(
                 order_item_id=item.order_item_id,
                 order_id=item.order_id,
@@ -191,7 +192,7 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
     enriched_items = []
 
     for oi in order_items:
-        product = session.get(Product, oi.product_id)
+        product = database_get_product_read(session, oi.product_id)
 
         enriched_items.append(OrderItemRead(
             order_item_id=oi.order_item_id,

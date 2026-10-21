@@ -75,11 +75,17 @@ npm install                # root: dev runner (concurrently)
 npm install --prefix frontend
 ```
 
-### 5. Run both servers
-From the project root:
+### 5. Run the servers
+Use a separate terminal for each, from the project root:
 ```bash
-npm run dev
+venv\Scripts\python -m uvicorn app.main:app --reload    # Terminal 1: API
+npm --prefix frontend run dev                           # Terminal 2: frontend
+stripe listen --forward-to localhost:8000/api/payments/webhook --events checkout.session.completed    # Terminal 3: Stripe webhooks
 ```
+Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SECRET`, and make sure the Stripe CLI is logged in to the same account as `STRIPE_SECRET_KEY`.
+
+> **Windows:** keep the API in its own terminal. When uvicorn auto-reloads after a `.py` change, it sends Ctrl+C to every process in its terminal. Under `npm run dev` that also stops the frontend and leaves the old API process running in the background.
+
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/api (docs at http://localhost:8000/docs)
 

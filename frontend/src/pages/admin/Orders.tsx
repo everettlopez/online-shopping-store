@@ -5,6 +5,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
 import ConfirmDeleteOrderModal from "../../components/admin/orders/ConfirmDeleteOrderModal";
+import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 
 import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
 
@@ -596,8 +597,11 @@ export default function AdminOrders()
                       {/* Payment */}
                       <div className="flex flex-col">
                         <p className="text-gray-400 text-sm tracking-wider">PAYMENT</p>
-                        <p>${order.total_amount.toFixed(2)} paid with {order.payment_method_type?.toUpperCase()}</p>
-                        <p>{order.card_brand?.toUpperCase()} ending in ****{order.card_last4}</p>
+                        <p>${order.total_amount.toFixed(2)} paid with {paymentMethodLabel(order.payment_method_type)}</p>
+                        {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
+                        {order.receipt_url && (
+                          <a href={order.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View receipt</a>
+                        )}
                       </div>
                     </div>
 

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import axiosClient from "../../api/axiosClient";
+import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import Accordion from "@mui/material/Accordion";
@@ -344,13 +345,8 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Payment</p>
-                                                <p>
-                                                ${order.total_amount.toFixed(2)} with {order?.payment_method_type
-                                                    ? order.payment_method_type.charAt(0).toUpperCase() +
-                                                    order.payment_method_type.slice(1)
-                                                    : ""}
-                                                </p>
-                                                <p>{order.card_brand?.toUpperCase()} ending in ****{order.card_last4}</p>
+                                                <p>${order.total_amount.toFixed(2)} with {paymentMethodLabel(order.payment_method_type)}</p>
+                                                {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
 
                                             </div>
                                         </div>
@@ -452,13 +448,8 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Payment</p>
-                                                <p>
-                                                ${order.total_amount.toFixed(2)} with {order?.payment_method_type
-                                                    ? order.payment_method_type.charAt(0).toUpperCase() +
-                                                    order.payment_method_type.slice(1)
-                                                    : ""}
-                                                </p>
-                                                <p>{order.card_brand?.toUpperCase()} ending in ****{order.card_last4}</p>
+                                                <p>${order.total_amount.toFixed(2)} with {paymentMethodLabel(order.payment_method_type)}</p>
+                                                {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
 
                                             </div>
                                         </div>

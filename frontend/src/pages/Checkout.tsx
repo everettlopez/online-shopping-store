@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
@@ -19,8 +20,10 @@ interface CheckoutCartItem {
 
 export default function Checkout() {
   const location = useLocation();
+  const [checkoutError, setCheckoutError] = useState("");
 
   async function handlePlaceOrder() {
+    setCheckoutError("");
     try {
         const response = await axiosClient.post("/payments/create-checkout-session", {
         total_amount: cartTotal,
@@ -36,8 +39,9 @@ export default function Checkout() {
 
         window.location.href = checkoutUrl;
 
-    } catch (err) {
+    } catch (err: any) {
         console.error("Failed to start checkout:", err);
+        setCheckoutError(err.response?.data?.detail ?? "Something went wrong starting checkout. Please try again.");
     }
     }
 
@@ -124,7 +128,9 @@ export default function Checkout() {
                         <p>${cartTotal.toFixed(2)}</p>
                     </div>
 
-                    <button 
+                    {checkoutError && <p className="text-center text-sm text-red-600">{checkoutError}</p>}
+
+                    <button
                         onClick={handlePlaceOrder}
                         className="border py-2 px-5 rounded-[10px] hover:bg-gray-300">Place Order</button>
                 </div>

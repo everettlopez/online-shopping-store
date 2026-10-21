@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import axiosClient from "../../api/axiosClient";
+import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 import { useAuth } from "../../context/AuthContext";
 
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
@@ -313,13 +314,8 @@ export default function OrderDetails() {
                       {/* Payment */}
                       <div className="flex flex-col">
                           <p className="text-sm text-gray-400">Payment</p>
-                          <p>
-                          ${currentOrder.total_amount.toFixed(2)} with {currentOrder?.payment_method_type
-                              ? currentOrder.payment_method_type.charAt(0).toUpperCase() +
-                              currentOrder.payment_method_type.slice(1)
-                              : ""}
-                          </p>
-                          <p>{currentOrder.card_brand?.toUpperCase()} ending in ****{currentOrder.card_last4}</p>
+                          <p>${currentOrder.total_amount.toFixed(2)} with {paymentMethodLabel(currentOrder.payment_method_type)}</p>
+                          {paymentCardSummary(currentOrder) && <p>{paymentCardSummary(currentOrder)}</p>}
 
                       </div>
                   </div>
