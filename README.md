@@ -59,6 +59,8 @@ JWT_SECRET_KEY=a-long-random-string
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+`JWT_SECRET_KEY` must be at least 32 characters, and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists optional deployment settings (`FRONTEND_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`); their defaults suit local development. For production, set `FRONTEND_URL` and `CORS_ORIGINS` to your real site, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
+
 `.env` is gitignored, so never commit real keys. Percent-encode special characters in the DB password (for example, `@` becomes `%40`).
 
 ### 3. Backend (FastAPI)

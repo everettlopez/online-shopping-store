@@ -9,6 +9,7 @@ from datetime import datetime
 from app.db.session import get_session
 from app.schemas.checkout import CheckoutRequest
 from app.auth.core import CurrentUser
+from app.settings import frontend_url
 from app.models.order import Order, OrderItem
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
@@ -19,25 +20,6 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-
-@router.post("/create-payment-intent")
-def create_payment_intent(
-    data: CheckoutRequest,
-    user: CurrentUser,
-    session: Session = Depends(get_session)
-):
-    intent = stripe.PaymentIntent.create(
-        amount=int(data.total_amount * 100),
-        currency="usd",
-        payment_method_types=["card"],
-        metadata={
-            "user_id": user.user_id,
-            "shipping_address_id": data.shipping_address_id,
-            "billing_address_id": data.billing_address_id
-        }
-    )
-
-    return {"clientSecret": intent.client_secret}
 
 @router.post("/create-checkout-session")
 def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: Session = Depends(get_session)):
@@ -64,13 +46,25 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
     total_cents = 0
     snapshot = []
 
+    # The same product can be in the cart more than once, so check stock against the total
+    wanted = {}
+    for item in cart_items:
+        wanted[item.product_id] = wanted.get(item.product_id, 0) + item.quantity
+
     for item in cart_items:
         product = session.get(Product, item.product_id)
 
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
 
-        if product.stock_quantity < item.quantity:
+        # A negative quantity would lower the total the customer pays
+        if item.quantity < 1:
+            raise HTTPException(status_code=400, detail=f"Invalid quantity for {product.title}")
+
+        if not product.is_active:
+            raise HTTPException(status_code=400, detail=f"{product.title} is no longer available")
+
+        if product.stock_quantity < wanted[item.product_id]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Not enough stock for {product.title}"
@@ -99,8 +93,8 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
             },
             "quantity": 1,
         }],
-        success_url="http://localhost:5173/order-success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url="http://localhost:5173/cart",
+        success_url=f"{frontend_url()}/order-success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{frontend_url()}/cart",
         metadata={
             "user_id": user.user_id,
             "shipping_address_id": data.shipping_address_id,
@@ -204,6 +198,11 @@ def get_payment_details(payment_intent_id: str) -> dict:
 async def stripe_webhook(request: Request, session: Session = Depends(get_session)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
+
+    # With an empty secret anyone could sign a fake event, so accept nothing
+    if not WEBHOOK_SECRET:
+        print("Webhook rejected: STRIPE_WEBHOOK_SECRET is not set")
+        raise HTTPException(status_code=503, detail="Webhook is not configured")
 
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)

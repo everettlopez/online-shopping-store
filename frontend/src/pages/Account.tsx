@@ -2,42 +2,68 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
+import { updateEmail, updatePassword, deleteAccount } from "../api/auth";
+import { apiErrorMessage } from "../api/admin";
+
+type FormMessage = { type: "success" | "error"; text: string } | null;
+
+function Message({ message }: { message: FormMessage }) {
+  if (!message) return null;
+  return (
+    <p className={`mb-4 text-sm ${message.type === "error" ? "text-red-600" : "text-green-700"}`}>
+      {message.text}
+    </p>
+  );
+}
 
 export default function AccountPage() {
   const { user, refreshUser, logout } = useAuth();
 
   const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const [emailMessage, setEmailMessage] = useState<FormMessage>(null);
+  const [passwordMessage, setPasswordMessage] = useState<FormMessage>(null);
+  const [deleteMessage, setDeleteMessage] = useState<FormMessage>(null);
 
   async function handleEmailUpdate(e: React.FormEvent) {
     e.preventDefault();
 
-    await fetch("/api/auth/me/email", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newEmail }),
-    });
-
-    refreshUser();
+    try {
+      await updateEmail(newEmail, emailPassword);
+      setEmailMessage({ type: "success", text: "Email updated." });
+      setNewEmail("");
+      setEmailPassword("");
+      await refreshUser();
+    } catch (err) {
+      setEmailMessage({ type: "error", text: apiErrorMessage(err, "Couldn't update your email.") });
+    }
   }
 
   async function handlePasswordUpdate(e: React.FormEvent) {
     e.preventDefault();
 
-    const formData = new FormData();
-    formData.append("old_password", oldPassword);
-    formData.append("new_password", newPassword);
-
-    await fetch("/api/auth/me/password", {
-      method: "PUT",
-      body: formData,
-    });
+    try {
+      await updatePassword(oldPassword, newPassword);
+      setPasswordMessage({ type: "success", text: "Password updated." });
+      setOldPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setPasswordMessage({ type: "error", text: apiErrorMessage(err, "Couldn't update your password.") });
+    }
   }
 
   async function handleDeleteAccount() {
-    await fetch("/api/auth/me", { method: "DELETE" });
-    window.location.href = "/login";
+    if (!window.confirm("Delete your account? This can't be undone.")) return;
+
+    try {
+      await deleteAccount();
+      window.location.href = "/login";
+    } catch (err) {
+      setDeleteMessage({ type: "error", text: apiErrorMessage(err, "Couldn't delete your account.") });
+    }
   }
 
   return (
@@ -117,12 +143,25 @@ export default function AccountPage() {
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Email</h2>
 
+            <Message message={emailMessage} />
+
             <input
               type="email"
               placeholder="New email"
               className="border p-3 rounded w-full mb-4"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Current password"
+              className="border p-3 rounded w-full mb-4"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              autoComplete="current-password"
+              required
             />
 
             <button className="bg-black text-white px-6 py-2 rounded-full">
@@ -137,20 +176,27 @@ export default function AccountPage() {
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Password</h2>
 
+            <Message message={passwordMessage} />
+
             <input
               type="password"
               placeholder="Old password"
               className="border p-3 rounded w-full mb-4"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
+              autoComplete="current-password"
+              required
             />
 
             <input
               type="password"
-              placeholder="New password"
+              placeholder="New password (at least 8 characters)"
               className="border p-3 rounded w-full mb-4"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              required
             />
 
             <button className="bg-black text-white px-6 py-2 rounded-full">
@@ -160,6 +206,7 @@ export default function AccountPage() {
 
           {/* Delete Account */}
           <div className="bg-white shadow-sm p-8 rounded-2xl text-center border border-gray-200">
+            <Message message={deleteMessage} />
             <button
               onClick={handleDeleteAccount}
               className="bg-red-600 text-white px-6 py-2 rounded-full"

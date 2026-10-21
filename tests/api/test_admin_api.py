@@ -28,17 +28,17 @@ def test_list_users(admin_client, admin, make_user):
 
 def test_create_user(admin_client):
     response = admin_client.post("/api/admin/users", json={
-        "email": "staff@example.com", "password": "pw", "first_name": "Staff", "last_name": "Member", "is_admin": True,
+        "email": "staff@example.com", "password": "staff-password", "first_name": "Staff", "last_name": "Member", "is_admin": True,
     })
 
     assert response.status_code == 200
     assert response.json()["is_admin"] is True
-    assert admin_client.post("/api/auth/login", json={"email": "staff@example.com", "password": "pw"}).status_code == 200
+    assert admin_client.post("/api/auth/login", json={"email": "staff@example.com", "password": "staff-password"}).status_code == 200
 
 
 def test_create_user_duplicate_email(admin_client, user):
     response = admin_client.post("/api/admin/users", json={
-        "email": user.email, "password": "pw", "first_name": "A", "last_name": "B",
+        "email": user.email, "password": "long-enough-pw", "first_name": "A", "last_name": "B",
     })
 
     assert response.status_code == 409
@@ -55,6 +55,13 @@ def test_update_user(admin_client, user):
 def test_update_user_password(admin_client, user):
     assert admin_client.put(f"/api/admin/users/{user.user_id}", json={"password": "reset-pw"}).status_code == 200
     assert admin_client.post("/api/auth/login", json={"email": user.email, "password": "reset-pw"}).status_code == 200
+
+
+def test_admin_passwords_must_be_long_enough(admin_client, user):
+    create = {"email": "staff@example.com", "password": "short", "first_name": "A", "last_name": "B"}
+
+    assert admin_client.post("/api/admin/users", json=create).status_code == 422
+    assert admin_client.put(f"/api/admin/users/{user.user_id}", json={"password": "short"}).status_code == 422
 
 
 def test_update_user_blank_password_keeps_old_one(admin_client, user):

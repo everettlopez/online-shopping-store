@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from sqlmodel import select
 
 from app.models.cart import CartItem
@@ -60,8 +62,10 @@ def test_create_product(admin_client, make_category, upload_dir):
     assert body["price"] == 19.99
     assert body["stock_quantity"] == 5
     assert body["category"]["category_id"] == category.category_id
-    assert body["thumbnail"].endswith("/uploads/scarf.png")
-    assert (upload_dir / "scarf.png").read_bytes() == b"fake-image"
+    # Saved under a random name, never the one the client sent
+    saved_name = body["thumbnail"].rsplit("/uploads/", 1)[1]
+    assert saved_name.endswith(".png") and saved_name != "scarf.png"
+    assert (upload_dir / saved_name).read_bytes() == b"fake-image"
 
 
 def test_create_product_without_thumbnail(admin_client, make_category, upload_dir):
@@ -110,8 +114,68 @@ def test_update_product_merges_images(admin_client, make_product, upload_dir):
     )
 
     assert response.status_code == 200
-    assert response.json()["images"] == ["uploads/existing.png", "uploads/new.png", "https://cdn.example.com/a.png"]
-    assert (upload_dir / "new.png").exists()
+    existing, uploaded, url = response.json()["images"]
+    assert (existing, url) == ("uploads/existing.png", "https://cdn.example.com/a.png")
+    assert uploaded.startswith("uploads/") and uploaded.endswith(".png")
+    assert (upload_dir / uploaded.removeprefix("uploads/")).exists()
+
+
+@pytest.mark.parametrize("filename", ["../../main.py", "page.html", "script.svg", "no-extension"])
+def test_upload_rejects_non_images(admin_client, make_category, upload_dir, filename):
+    category = make_category()
+
+    response = admin_client.post(
+        "/api/products/",
+        data={"category_id": category.category_id, "title": "X", "price": "1"},
+        files={"thumbnail": (filename, b"<script>alert(1)</script>", "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert list(upload_dir.iterdir()) == []
+
+
+def test_upload_cannot_escape_uploads_folder(admin_client, make_product, upload_dir):
+    product = make_product()
+
+    response = admin_client.put(
+        f"/api/products/{product.product_id}",
+        files=[("images_files", ("../../evil.png", b"img", "image/png"))],
+    )
+
+    assert response.status_code == 200
+    [saved] = list(upload_dir.iterdir())
+    assert saved.parent == upload_dir
+    assert not (upload_dir.parent / "evil.png").exists()
+
+
+def test_upload_size_limit(admin_client, make_product, upload_dir, monkeypatch):
+    monkeypatch.setattr("app.routes.product.MAX_UPLOAD_BYTES", 10)
+    product = make_product()
+
+    response = admin_client.put(
+        f"/api/products/{product.product_id}",
+        files=[("images_files", ("big.png", b"x" * 11, "image/png"))],
+    )
+
+    assert response.status_code == 400
+    assert list(upload_dir.iterdir()) == []
+
+
+def test_images_urls_must_be_a_list_of_strings(admin_client, make_product):
+    product = make_product()
+
+    for bad in ["not json", '{"a": 1}', "[1, 2]"]:
+        assert admin_client.put(f"/api/products/{product.product_id}", data={"images_urls": bad}).status_code == 400
+
+
+def test_price_and_stock_cannot_be_negative(admin_client, make_category, make_product, upload_dir):
+    category = make_category()
+    product = make_product()
+
+    assert admin_client.post("/api/products/", data={"category_id": category.category_id, "title": "X", "price": "-1"}).status_code == 422
+    assert admin_client.post("/api/products/", data={"category_id": category.category_id, "title": "X", "price": "1", "stock_quantity": "-3"}).status_code == 422
+    assert admin_client.put(f"/api/products/{product.product_id}", data={"price": "-5"}).status_code == 422
+    assert admin_client.put(f"/api/products/{product.product_id}", data={"stock_quantity": "-1"}).status_code == 422
 
 
 def test_update_product_unknown_category(admin_client, make_product):

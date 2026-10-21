@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class CartItemCreate(BaseModel):
     product_id: int
@@ -13,4 +13,4 @@ class CartItemRead(BaseModel):
         from_attributes = True
 
 class CartItemUpdate(BaseModel):
-    quantity: int
+    quantity: int = Field(ge=1)

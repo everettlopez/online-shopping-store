@@ -19,6 +19,10 @@ def test_create_and_list_addresses(user_client, user):
     assert [a["address_id"] for a in listed] == [created.json()["address_id"]]
 
 
+def test_address_type_must_be_shipping_or_billing(user_client):
+    assert user_client.post("/api/addresses/", json={**ADDRESS, "address_type": "vacation"}).status_code == 422
+
+
 def test_filter_addresses_by_type(user_client, user, make_address):
     make_address(user, "shipping")
     make_address(user, "billing")

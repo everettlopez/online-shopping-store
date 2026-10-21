@@ -9,9 +9,16 @@ import os
 # Must be set before anything imports app.*: the app reads these at import time,
 # and values already in the environment win over the developer's .env file.
 os.environ["DATABASE_URL"] = "sqlite://"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-that-is-at-least-32-chars"
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_dummy"
 os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_test_dummy"
+# Pin the deployment settings too, so a developer's .env can't change test results
+os.environ["FRONTEND_URL"] = "http://localhost:5173"
+os.environ["CORS_ORIGINS"] = "http://localhost:5173,http://127.0.0.1:5173"
+os.environ["COOKIE_SAMESITE"] = "none"
+os.environ["COOKIE_SECURE"] = "true"
+os.environ["ENABLE_DOCS"] = "true"
+os.environ["SQL_ECHO"] = "false"
 
 import itertools
 from datetime import datetime, timedelta

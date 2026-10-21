@@ -14,6 +14,8 @@ from app.database.products import database_get_product_read, database_get_produc
 from fastapi import Request
 
 import os
+import json
+import uuid
 
 # Get the directory of this file: app/routes/product.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +30,31 @@ UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+# Uploads are served back from /uploads, so only accept image types
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+async def save_upload(file: UploadFile) -> str:
+    """Save an uploaded image under a random name and return that name. The client's
+    filename is only used for its extension, so it can't escape the uploads folder,
+    overwrite another image, or upload a page the browser would run."""
+    extension = os.path.splitext(file.filename or "")[1].lower()
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Images must be .jpg, .jpeg, .png, .webp or .gif")
+
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Images must be 5 MB or smaller")
+
+    filename = f"{uuid.uuid4().hex}{extension}"
+    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+        f.write(contents)
+
+    return filename
 
 
 # -----------------------------------------
@@ -40,11 +66,11 @@ async def create_product(
     category_id: int = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    price: float = Form(...),
+    price: float = Form(..., ge=0),
     size: str = Form(""),
     color: str = Form(""),
     thumbnail: UploadFile | None = File(None),
-    stock_quantity: int = Form(0),
+    stock_quantity: int = Form(0, ge=0),
     is_active: bool = Form(True),
     session: Session = Depends(get_session)
 ):
@@ -55,13 +81,8 @@ async def create_product(
     thumbnail_path = None
 
     if thumbnail:
-        contents = await thumbnail.read()
-        file_path = os.path.join(UPLOAD_DIR, thumbnail.filename)
-
-        with open(file_path, "wb") as f:
-            f.write(contents)
-
-        thumbnail_path = f"{request.base_url}uploads/{thumbnail.filename}"
+        filename = await save_upload(thumbnail)
+        thumbnail_path = f"{request.base_url}uploads/{filename}"
 
     
     product_data = ProductCreate(
@@ -140,11 +161,11 @@ async def update_product(
     title: str = Form(None),
     category_id: int | None = Form(None),
     description: str = Form(None),
-    price: float = Form(None),
+    price: float = Form(None, ge=0),
     size: str = Form(None),
     color: str = Form(None),
     thumbnail: str | None = Form(None),
-    stock_quantity: int = Form(None),
+    stock_quantity: int = Form(None, ge=0),
     is_active: bool = Form(None),
 
     # ⭐ Add these
@@ -156,6 +177,13 @@ async def update_product(
     product = session.exec(select(Product).where(Product.product_id == product_id)).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        url_list = json.loads(images_urls)
+    except json.JSONDecodeError:
+        url_list = None
+    if not isinstance(url_list, list) or not all(isinstance(u, str) for u in url_list):
+        raise HTTPException(status_code=400, detail="images_urls must be a JSON list of strings")
 
     # Update simple fields
     if title is not None: product.title = title
@@ -175,17 +203,7 @@ async def update_product(
     saved_files = []
     if images_files:
         for file in images_files:
-            filepath = os.path.join(UPLOAD_DIR, file.filename)
-
-            with open(filepath, "wb") as f:
-                f.write(await file.read())
-
-            saved_files.append(f"uploads/{file.filename}")   # relative path for frontend
-
-
-    # ⭐ Merge URL images
-    import json
-    url_list = json.loads(images_urls)
+            saved_files.append(f"uploads/{await save_upload(file)}")   # relative path for frontend
 
     # ⭐ Merge old + new
     product.images = (product.images or []) + saved_files + url_list

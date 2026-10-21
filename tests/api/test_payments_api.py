@@ -133,6 +133,48 @@ def test_checkout_session_with_insufficient_stock(user_client, shopper, make_pro
     assert stripe_create == []
 
 
+def test_checkout_session_rejects_negative_quantity(user_client, shopper, make_product, add_to_cart, stripe_create):
+    # 3 shirts plus -2 hats would otherwise lower the total the customer pays
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product(price=20.0), quantity=3)
+    add_to_cart(user, make_product(price=15.0), quantity=-2)
+
+    response = user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    assert response.status_code == 400
+    assert stripe_create == []
+
+
+def test_checkout_session_rejects_inactive_product(user_client, shopper, make_product, add_to_cart, stripe_create):
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product(is_active=False))
+
+    assert user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing)).status_code == 400
+    assert stripe_create == []
+
+
+def test_checkout_session_counts_duplicate_cart_rows_against_stock(user_client, shopper, make_product, add_to_cart, stripe_create):
+    user, shipping, billing = shopper
+    product = make_product(stock_quantity=2)
+    for _ in range(3):
+        add_to_cart(user, product, quantity=1)
+
+    assert user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing)).status_code == 400
+    assert stripe_create == []
+
+
+def test_checkout_session_returns_to_configured_frontend(user_client, shopper, make_product, add_to_cart, stripe_create, monkeypatch):
+    monkeypatch.setenv("FRONTEND_URL", "https://shop.example.com/")
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product())
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    [call] = stripe_create
+    assert call["success_url"] == "https://shop.example.com/order-success?session_id={CHECKOUT_SESSION_ID}"
+    assert call["cancel_url"] == "https://shop.example.com/cart"
+
+
 def test_checkout_session_requires_login(client):
     assert client.post("/api/payments/create-checkout-session", json={"total_amount": 0, "shipping_address_id": 1, "billing_address_id": 1}).status_code == 401
 

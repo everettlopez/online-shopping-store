@@ -3,11 +3,12 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Response
 from fastapi.security import APIKeyCookie, HTTPBearer
 from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.user import User
+from app.settings import cookie_samesite, cookie_secure
 from typing import Annotated
 import os
 
@@ -40,9 +41,28 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def set_auth_cookie(response: Response, token: str):
+    response.set_cookie(
+        key=JWT_COOKIE_KEY,
+        value=token,
+        httponly=True,
+        samesite=cookie_samesite(),
+        secure=cookie_secure(),
+        path="/",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,   # the cookie lives as long as the token
+    )
+
+def clear_auth_cookie(response: Response):
+    # Browsers only drop the cookie when these attributes match the ones it was set with
+    response.delete_cookie(
+        key=JWT_COOKIE_KEY,
+        path="/",
+        httponly=True,
+        samesite=cookie_samesite(),
+        secure=cookie_secure(),
+    )
+
 def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depends(bearer_scheme)):
-    print("DEBUG: cookie_token =", cookie_token)
-    print("DEBUG: bearer_token =", bearer_token)
     if cookie_token:
         return cookie_token
     

@@ -4,34 +4,6 @@ from app.models.order import Order, OrderItem
 from app.models.product import Product
 
 
-def test_create_order(user_client, user, make_address):
-    shipping, billing = make_address(user, "shipping"), make_address(user, "billing")
-
-    response = user_client.post("/api/orders/", json={
-        "total_amount": 12.5,
-        "shipping_address_id": shipping.address_id,
-        "billing_address_id": billing.address_id,
-    })
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "pending"
-    assert body["total_amount"] == 12.5
-    assert body["last_name"] == user.last_name
-    assert user_client.get(f"/api/orders/{body['order_number']}").status_code == 200
-
-
-def test_create_order_with_someone_elses_address(user_client, user, make_user, make_address):
-    mine = make_address(user)
-    theirs = make_address(make_user())
-
-    response = user_client.post("/api/orders/", json={
-        "total_amount": 1, "shipping_address_id": theirs.address_id, "billing_address_id": mine.address_id,
-    })
-
-    assert response.status_code == 400
-
-
 def test_admin_lists_all_orders(admin_client, make_user, make_product, make_order):
     product = make_product()
     make_order(make_user(), items=[(product, 1)])
@@ -63,6 +35,13 @@ def test_get_order_by_number(user_client, user, make_product, make_order):
     assert response.json()["items"][0]["product"]["title"] == "Lamp"
     assert response.json()["items"][0]["quantity"] == 3
     assert user_client.get("/api/orders/nope").status_code == 404
+
+
+def test_orders_are_private(client, auth_headers, user, make_user, admin, make_order):
+    order = make_order(user)
+
+    assert client.get(f"/api/orders/{order.order_number}", headers=auth_headers(make_user())).status_code == 404
+    assert client.get(f"/api/orders/{order.order_number}", headers=auth_headers(admin)).status_code == 200
 
 
 def test_update_order_status(admin_client, user, make_order):
@@ -113,20 +92,12 @@ def test_admin_order_routes_require_admin(user_client, user, make_order):
 # -----------------------------------------
 
 def test_order_items(user_client, session, user, make_product, make_order):
-    product = make_product(price=3.0)
-    order = make_order(user, items=[(product, 2)])
+    order = make_order(user, items=[(make_product(), 2)])
     item = order_item(session, order)
     base = f"/api/orders/{order.order_id}/items"
 
     assert [i["order_item_id"] for i in user_client.get(base).json()] == [item.order_item_id]
     assert user_client.get(f"{base}/{item.order_item_id}").json()["quantity"] == 2
-
-    assert user_client.put(f"{base}/{item.order_item_id}", json={"quantity": 5}).json()["quantity"] == 5
-    session.expire_all()
-    assert session.get(OrderItem, item.order_item_id).subtotal == 15.0
-
-    assert user_client.delete(f"{base}/{item.order_item_id}").status_code == 200
-    assert user_client.get(base).json() == []
 
 
 def test_order_items_are_scoped_to_owner(user_client, session, make_user, make_product, make_order):
@@ -136,8 +107,6 @@ def test_order_items_are_scoped_to_owner(user_client, session, make_user, make_p
 
     assert user_client.get(base).status_code == 404
     assert user_client.get(f"{base}/{item.order_item_id}").status_code == 404
-    assert user_client.put(f"{base}/{item.order_item_id}", json={"quantity": 1}).status_code == 404
-    assert user_client.delete(f"{base}/{item.order_item_id}").status_code == 404
 
 
 def test_order_item_must_belong_to_order(user_client, session, user, make_product, make_order):

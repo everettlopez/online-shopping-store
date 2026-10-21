@@ -2,19 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.session import get_session
 from app.auth.core import CurrentUser
-import uuid
 
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.schemas.product import ProductRead
 from app.schemas.cart import CartRead, CartItemRead
 from app.schemas.cart_item import CartItemCreate, CartItemUpdate
-
-from app.schemas.checkout import CheckoutRequest
-from app.schemas.order import OrderRead
-from app.models.order import Order, OrderItem
-from app.routes.order import build_order_reads
-from app.models.address import Address
 from app.models.category import Category
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
@@ -112,6 +105,17 @@ def add_item_to_cart(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    if not product.is_active:
+        raise HTTPException(status_code=400, detail="Product is not available")
+
+    # The same product can be in the cart more than once, so count every row
+    in_cart = sum(i.quantity for i in session.exec(
+        select(CartItem).where(CartItem.cart_id == cart.cart_id, CartItem.product_id == product.product_id)
+    ).all())
+
+    if in_cart + 1 > product.stock_quantity:
+        raise HTTPException(status_code=400, detail=f"Not enough stock for {product.title}")
+
     # Get category (same pattern as product routes)
     category = session.exec(
         select(Category).where(Category.category_id == product.category_id)
@@ -206,88 +210,3 @@ def clear_cart(user: CurrentUser, session: Session = Depends(get_session)):
     session.commit()
 
     return {"message": "Cart cleared"}
-
-@router.post("/checkout", response_model=OrderRead)
-def checkout(
-    data: CheckoutRequest,
-    user: CurrentUser,
-    session: Session = Depends(get_session)
-):
-    cart = session.exec(
-        select(Cart).where(Cart.user_id == user.user_id)
-    ).first()
-
-    if not cart:
-        raise HTTPException(status_code=400, detail="Cart not found")
-
-    cart_items = session.exec(
-        select(CartItem).where(CartItem.cart_id == cart.cart_id)
-    ).all()
-
-    if not cart_items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
-
-    shipping = session.get(Address, data.shipping_address_id)
-    billing = session.get(Address, data.billing_address_id)
-
-    if not shipping or shipping.user_id != user.user_id:
-        raise HTTPException(status_code=400, detail="Invalid shipping address")
-
-    if not billing or billing.user_id != user.user_id:
-        raise HTTPException(status_code=400, detail="Invalid billing address")
-
-    total_amount = 0
-
-    for item in cart_items:
-        product = session.get(Product, item.product_id)
-
-        if not product:
-            raise HTTPException(status_code=400, detail="Product not found")
-
-        if product.stock_quantity < item.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Not enough stock for {product.title}"
-            )
-
-        total_amount += product.price * item.quantity
-
-    order = Order(
-        user_id=user.user_id,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        shipping_address_id=shipping.address_id,
-        billing_address_id=billing.address_id,
-        total_amount=total_amount,
-        order_number=str(uuid.uuid4())[:8],
-        status="pending"
-    )
-
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-
-    for item in cart_items:
-        product = session.get(Product, item.product_id)
-
-        order_item = OrderItem(
-            order_id=order.order_id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            unit_price=product.price,
-            subtotal=product.price * item.quantity
-        )
-
-        session.add(order_item)
-
-        product.stock_quantity -= item.quantity
-        session.add(product)
-
-    session.commit()
-
-    for item in cart_items:
-        session.delete(item)
-    session.commit()
-    session.refresh(order)
-
-    return build_order_reads(session, [order])[0]

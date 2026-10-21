@@ -5,13 +5,16 @@ from typing import Generator
 from dotenv import load_dotenv
 import os
 
+from app.settings import sql_echo
+
 load_dotenv()
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
+# Logging every statement leaks data into the logs, so it's opt-in (SQL_ECHO=true)
 engine = create_engine(
     DATABASE_URL,
-    echo=True,
+    echo=sql_echo(),
 )
 
 SessionLocal = sessionmaker(
