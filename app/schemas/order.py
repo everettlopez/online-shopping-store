@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import List
 from app.schemas.product import ProductRead
-from app.schemas.address import AddressRead
+from app.schemas.address import OrderAddress
 
 class OrderItemRead(BaseModel):
     order_item_id: int
@@ -40,8 +40,9 @@ class OrderRead(BaseModel):
     tracking_carrier: str | None = None
     tracking_url: str | None = None
 
-    shipping_address: AddressRead
-    billing_address: AddressRead
+    # As they were when the order was placed
+    shipping_address: OrderAddress | None = None
+    billing_address: OrderAddress | None = None
     items: List[OrderItemRead] = []
 
     class Config:

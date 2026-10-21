@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.user import User
-from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser
 from app.schemas.order import OrderRead, OrderItemRead
@@ -39,12 +38,8 @@ def build_order_reads(session: Session, orders) -> list[OrderRead]:
             for item in all_items if item.order_id == order.order_id
         ]
 
-        enriched_orders.append(OrderRead(
-            **order.model_dump(),
-            shipping_address=session.get(Address, order.shipping_address_id),
-            billing_address=session.get(Address, order.billing_address_id),
-            items=enriched_items
-        ))
+        # model_dump() includes the addresses as they were when the order was placed
+        enriched_orders.append(OrderRead(**order.model_dump(), items=enriched_items))
 
     return enriched_orders
 
@@ -73,8 +68,6 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
         raise HTTPException(status_code=404, detail="Order not found")
 
     user_obj = session.get(User, order.user_id)
-    shipping = session.get(Address, order.shipping_address_id)
-    billing = session.get(Address, order.billing_address_id)
 
     order_items = session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).all()
 
@@ -109,8 +102,8 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
         card_last4=order.card_last4,
         payment_status=order.payment_status,
         receipt_url=order.receipt_url,
-        shipping_address=shipping,
-        billing_address=billing,
+        shipping_address=order.shipping_address,
+        billing_address=order.billing_address,
         tracking_number=order.tracking_number,
         tracking_carrier=order.tracking_carrier,
         tracking_url=order.tracking_url,

@@ -2,18 +2,7 @@ import { useSearchParams, Link} from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
-
-export type Address = {
-  address_id: number;
-  user_id: number;
-  line1: string;
-  line2: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  county: string;
-  address_type: string;
-};
+import OrderAddressLines, { type OrderAddress } from "../components/OrderAddressLines";
 
 export type OrderItem = {
   order_item_id: number;
@@ -39,8 +28,8 @@ export type Order = {
   updated_at: string;
   order_date: string;
   total_amount: number;
-  shipping_address: Address;
-  billing_address: Address;
+  shipping_address: OrderAddress | null;
+  billing_address: OrderAddress | null;
 
   payment_method_type: string | null;
   card_brand: string | null;
@@ -125,7 +114,7 @@ export default function OrderSuccess() {
         {/* Billing Address */}
         <div className="flex flex-col">
           <p className="text-gray-400">Billing Address</p>
-          <p>{order.billing_address.line1} {order.billing_address.city}, {order.billing_address.state} {order.billing_address.postal_code}</p>
+          <OrderAddressLines address={order.billing_address} />
         </div>
 
         {/* Order Items */}

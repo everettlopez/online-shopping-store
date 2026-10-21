@@ -14,6 +14,7 @@ from app.models.order import Order, OrderItem
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.models.address import Address
+from app.schemas.address import address_snapshot
 from app.models.user import User
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
@@ -36,10 +37,10 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
     shipping = session.get(Address, data.shipping_address_id)
     billing = session.get(Address, data.billing_address_id)
 
-    if not shipping or shipping.user_id != user.user_id:
+    if not shipping or shipping.user_id != user.user_id or shipping.deleted_at:
         raise HTTPException(status_code=400, detail="Invalid shipping address")
 
-    if not billing or billing.user_id != user.user_id:
+    if not billing or billing.user_id != user.user_id or billing.deleted_at:
         raise HTTPException(status_code=400, detail="Invalid billing address")
 
     # 3. Validate stock BEFORE Stripe Checkout
@@ -127,10 +128,6 @@ def get_order_from_session(session_id: str, user: CurrentUser, session: Session 
     if not order or (order.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # Load addresses
-    shipping = session.get(Address, order.shipping_address_id)
-    billing = session.get(Address, order.billing_address_id)
-
     # Load items
     items = session.exec(
         select(OrderItem).where(OrderItem.order_id == order.order_id)
@@ -147,8 +144,6 @@ def get_order_from_session(session_id: str, user: CurrentUser, session: Session 
 
     return {
         **order.model_dump(),
-        "shipping_address": shipping.model_dump() if shipping else None,
-        "billing_address": billing.model_dump() if billing else None,
         "items": enriched_items
     }
 
@@ -282,6 +277,9 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
         status="placed" if stripe_session.payment_status == "paid" else "pending",
         payment_intent_id=pi_id,
         stripe_session_id=stripe_session.id,
+        # Saved addresses are only hidden when deleted, so these rows still exist
+        shipping_address=address_snapshot(session.get(Address, shipping_id)),
+        billing_address=address_snapshot(session.get(Address, billing_id)),
         **get_payment_details(pi_id)
     )
 

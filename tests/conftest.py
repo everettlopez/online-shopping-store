@@ -39,6 +39,7 @@ from app.models.product import Product
 from app.models.address import Address
 from app.models.cart import Cart, CartItem
 from app.models.order import Order, OrderItem
+from app.schemas.address import address_snapshot
 
 TEST_PASSWORD = "Password123!"
 
@@ -146,7 +147,7 @@ def make_product(session, make_category):
 @pytest.fixture
 def make_address(session):
     def make_address(user, address_type="shipping", **fields):
-        defaults = dict(line1="1 Main St", city="Springfield", state="IL", postal_code="62701")
+        defaults = dict(full_name="Pat Doe", line1="1 Main St", city="Springfield", state="IL", postal_code="62701")
         return save(session, Address(**{**defaults, **fields}, user_id=user.user_id, address_type=address_type))
     return make_address
 
@@ -171,6 +172,8 @@ def make_order(session, make_address):
             last_name=user.last_name,
             shipping_address_id=shipping.address_id,
             billing_address_id=billing.address_id,
+            shipping_address=address_snapshot(shipping),
+            billing_address=address_snapshot(billing),
             order_number=f"ord{next(_counter):05d}",
             status=status,
             total_amount=sum(p.price * q for p, q in items),

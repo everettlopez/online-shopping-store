@@ -21,18 +21,7 @@ import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
 
 import Stepper from '@mui/material/Stepper';
 import Navbar from "../../components/Navbar";
-
-export type Address = {
-  address_id: number;
-  user_id: number;
-  line1: string;
-  line2: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  county: string;
-  address_type: string;
-};
+import OrderAddressLines, { type OrderAddress } from "../../components/OrderAddressLines";
 
 export type OrderItem = {
   order_item_id: number;
@@ -77,8 +66,8 @@ export type Order = {
   payment_status: string | null;
   receipt_url: string | null;
 
-  shipping_address: Address;
-  billing_address: Address;
+  shipping_address: OrderAddress | null;
+  billing_address: OrderAddress | null;
 
   tracking_number: string | null,
   tracking_carrier: string | null,
@@ -306,16 +295,14 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Shipping</p>
-                                                <p>{order.shipping_address.line1}</p>
-                                                <p>{order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}</p>
+                                                <OrderAddressLines address={order.shipping_address} />
                                             </div>
 
                                             <div className="border"/>
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Billing</p>
-                                                <p>{order.billing_address.line1}</p>
-                                                <p>{order.billing_address.city}, {order.billing_address.state} {order.billing_address.postal_code}</p>
+                                                <OrderAddressLines address={order.billing_address} />
                                             </div>
 
                                             <div className="border"/>
@@ -409,16 +396,14 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Shipping</p>
-                                                <p>{order.shipping_address.line1}</p>
-                                                <p>{order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}</p>
+                                                <OrderAddressLines address={order.shipping_address} />
                                             </div>
 
                                             <div className="border"/>
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Billing</p>
-                                                <p>{order.billing_address.line1}</p>
-                                                <p>{order.billing_address.city}, {order.billing_address.state} {order.billing_address.postal_code}</p>
+                                                <OrderAddressLines address={order.billing_address} />
                                             </div>
 
                                             <div className="border"/>
