@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Literal
 from fastapi import Form, File, UploadFile
 from sqlmodel import Session, select, delete
 from datetime import datetime
@@ -97,8 +98,24 @@ def list_products(session: Session = Depends(get_session)):
 
 
 @router.get("/active", response_model=list[ProductRead])
-def list_active_products(session: Session = Depends(get_session)):
-    products = session.exec(select(Product).where(Product.is_active == True)).all()
+def list_active_products(
+    category_id: int | None = None,
+    sort: Literal["newest"] | None = None,
+    limit: int | None = Query(None, ge=1, le=100),
+    session: Session = Depends(get_session),
+):
+    query = select(Product).where(Product.is_active == True)
+
+    if category_id is not None:
+        query = query.where(Product.category_id == category_id)
+
+    if sort == "newest":
+        query = query.order_by(Product.created_at.desc())
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    products = session.exec(query).all()
     reads = database_get_product_reads(session, [p.product_id for p in products])
     return [reads[p.product_id] for p in products]
 

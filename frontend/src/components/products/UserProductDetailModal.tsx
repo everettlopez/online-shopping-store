@@ -4,7 +4,7 @@ import axiosClient from "../../api/axiosClient";
 
 type Product = {
     product_id: number;
-    category_id: number;
+    category: { category_id: number; name: string };
     title: string;
     description?: string;
     price: number;

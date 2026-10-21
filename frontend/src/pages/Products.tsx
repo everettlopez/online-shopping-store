@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
+import { useCategories } from "../context/CategoriesContext";
 import UserProductDetailModal from "../components/products/UserProductDetailModal";
+import Navbar from "../components/Navbar";
 
 export interface Product {
   product_id: number;
-  category_id: number;
+  category: { category_id: number; name: string };
 
   title: string;  // Updated
   description?: string;
@@ -34,41 +36,56 @@ interface Cart {
 
 export default function Products() {
 
-    const [products, setProducts] = useState<Product[]>([]);
+    // Products are tagged with the URL query they were fetched for, so switching
+    // categories never shows the previous category's products under the new heading
+    const [loaded, setLoaded] = useState<{ key: string; products: Product[] } | null>(null);
     const [cart, setCart] = useState<Cart | null>(null);
     const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    // Fetch Orders
-    async function fetchProducts()
-    {
-        try
-        {
-            const productResponse = await axiosClient.get("/products/active");
-            setProducts(productResponse.data);
-        }
-        catch (err)
-        {
-            console.error("Failed to fetch orders: ", err);
-        }
-    }
+    const [searchParams] = useSearchParams();
+    const { categories, loading: loadingCategories } = useCategories();
 
-    async function fetchCart()
-    {
-        try
-        {
-            const response = await axiosClient.get("/cart");
-            setCart(response.data);
-        }
-        catch(err)
-        {
-            console.error("Failed to fetch cart: ", err);
-        }
-    }
+    const categoryParam = searchParams.get("category");
+    const isNewArrivals = searchParams.get("sort") === "newest";
+    const categoryId = categoryParam !== null && /^\d+$/.test(categoryParam) ? Number(categoryParam) : null;
+    const currentCategory = categories.find((category) => category.category_id === categoryId);
+    const categoryNotFound = categoryParam !== null && !loadingCategories && !currentCategory;
 
+    const productsKey = `${categoryId ?? "all"}|${isNewArrivals ? "newest" : ""}`;
+    const loadingProducts = loaded?.key !== productsKey;
+    const products = loadingProducts ? [] : loaded.products;
+
+    let heading = "ALL PRODUCTS";
+    if (isNewArrivals) heading = "NEW ARRIVALS";
+    else if (currentCategory) heading = currentCategory.name.toUpperCase();
+
+    // Fetch Products for the selected category (or newest / all) whenever the nav changes the URL
     useEffect(() => {
-        fetchProducts();
-        fetchCart();
+        if (categoryParam !== null && categoryId === null) return;
+
+        let cancelled = false;
+        axiosClient.get("/products/active", {
+            params: {
+                category_id: categoryId ?? undefined,
+                sort: isNewArrivals ? "newest" : undefined,
+                limit: isNewArrivals ? 24 : undefined,
+            },
+        })
+            .then((response) => { if (!cancelled) setLoaded({ key: productsKey, products: response.data }); })
+            .catch((err) => {
+                console.error("Failed to fetch products: ", err);
+                if (!cancelled) setLoaded({ key: productsKey, products: [] });
+            });
+
+        return () => { cancelled = true; };
+    }, [categoryId, categoryParam, isNewArrivals, productsKey]);
+
+    // Fetch Cart
+    useEffect(() => {
+        axiosClient.get("/cart")
+            .then((response) => setCart(response.data))
+            .catch((err) => console.error("Failed to fetch cart: ", err));
     }, []);
 
 
@@ -76,31 +93,7 @@ export default function Products() {
     return (
         <>
         {/* Header */}
-        <div className="flex flex-col justify-center items-center gap-4 p-5">
-
-            {/* Right-side icons */}
-            <div className="absolute right-5 top-5 flex items-center gap-6 text-2xl">
-                <Link to="/account" className="hover:text-gray-600 transition">
-                    <i className="fa-regular fa-user"></i>
-                </Link>
-
-                <Link to="/cart" className="hover:text-gray-600 transition">
-                    <i className="fa-solid fa-bag-shopping"></i>
-                </Link>
-            </div>
-
-            <a href="/"><h1 className="text-6xl">KILLJOY</h1></a>
-
-            <nav className="flex gap-12">
-                <Link to="/"><p className="text-base font-normal tracking-widest">EVENTS</p></Link>
-                <Link to="/products?category=1"><p className="text-base font-normal tracking-widest">NEW ARRIVALS</p></Link>
-                <Link to="/products?category=2"><p className="text-base font-normal tracking-widest">WOMEN</p></Link>
-                <Link to="/products?category=3"><p className="text-base font-normal tracking-widest">MEN</p></Link>
-                <Link to="/products?category=4"><p className="text-base font-normal tracking-widest">BRANDS</p></Link>
-                <Link to="/products?category=5"><p className="text-base font-normal tracking-widest">ACCESSORIES</p></Link>
-                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELRY</p></Link>
-            </nav>
-        </div>
+        <Navbar />
 
         {/* Main */}
         <div className="flex gap-2 p-8">
@@ -111,6 +104,18 @@ export default function Products() {
             </div>
 
             {/* Products Grid */}
+            <div className="flex flex-col gap-4 flex-1">
+            <h2 className="text-2xl tracking-widest">{categoryNotFound ? "CATEGORY NOT FOUND" : heading}</h2>
+
+            {categoryNotFound ? (
+                <p className="tracking-wider text-gray-500">
+                    This category no longer exists. <Link to="/products" className="underline">View all products</Link>
+                </p>
+            ) : !loadingProducts && products.length === 0 ? (
+                <p className="tracking-wider text-gray-500">
+                    {isNewArrivals ? "No new arrivals yet." : "No products in this category yet."}
+                </p>
+            ) : (
             <div className="grid grid-cols-4 gap-3">
                 {products.map((product) => {
                     return (
@@ -129,6 +134,8 @@ export default function Products() {
                     </div>
                     );
                 })}
+            </div>
+            )}
             </div>
 
         </div>

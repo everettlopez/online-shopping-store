@@ -1,9 +1,10 @@
 from sqlmodel import Session, select
 from app.models.category import Category
 
-# The storefront nav and admin product form link to these IDs directly
+# Starter categories for a fresh database; the storefront nav is built from
+# whatever is in the categories table. "New Arrivals" is not a category, the
+# nav links to the newest products instead.
 DEFAULT_CATEGORIES = [
-    (1, "New Arrivals"),
     (2, "Women"),
     (3, "Men"),
     (4, "Brands"),
