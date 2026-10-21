@@ -7,7 +7,7 @@ from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.schemas.product import ProductRead
 from app.schemas.cart import CartRead, CartItemRead
-from app.schemas.cart_item import CartItemCreate, CartItemUpdate
+from app.schemas.cart_item import CartItemCreate, CartItemUpdate, MAX_CART_QUANTITY
 from app.models.category import Category
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
@@ -24,6 +24,13 @@ def get_or_create_cart(user_id: int, session: Session) -> Cart:
         session.refresh(cart)
 
     return cart
+
+def ensure_quantity_allowed(product: Product, quantity: int):
+    if quantity > MAX_CART_QUANTITY:
+        raise HTTPException(status_code=400, detail=f"You can buy at most {MAX_CART_QUANTITY} of one product")
+
+    if quantity > product.stock_quantity:
+        raise HTTPException(status_code=400, detail=f"Not enough stock for {product.title}")
 
 @router.get("/", response_model=CartRead)
 def get_cart(user: CurrentUser, session: Session = Depends(get_session)):
@@ -108,25 +115,18 @@ def add_item_to_cart(
     if not product.is_active:
         raise HTTPException(status_code=400, detail="Product is not available")
 
-    # The same product can be in the cart more than once, so count every row
-    in_cart = sum(i.quantity for i in session.exec(
+    # Adding a product that's already in the cart raises its quantity instead of adding a row
+    cart_item = session.exec(
         select(CartItem).where(CartItem.cart_id == cart.cart_id, CartItem.product_id == product.product_id)
-    ).all())
+    ).first() or CartItem(cart_id=cart.cart_id, product_id=product.product_id, quantity=0)
 
-    if in_cart + 1 > product.stock_quantity:
-        raise HTTPException(status_code=400, detail=f"Not enough stock for {product.title}")
+    ensure_quantity_allowed(product, cart_item.quantity + 1)
+    cart_item.quantity += 1
 
     # Get category (same pattern as product routes)
     category = session.exec(
         select(Category).where(Category.category_id == product.category_id)
     ).first()
-
-    # Create cart item
-    cart_item = CartItem(
-        cart_id=cart.cart_id,
-        product_id=product.product_id,
-        quantity=1
-    )
 
     session.add(cart_item)
     session.commit()
@@ -171,6 +171,8 @@ def update_cart_item(
 
     if not item or item.cart_id != cart.cart_id:
         raise HTTPException(status_code=404, detail="Cart item not found")
+
+    ensure_quantity_allowed(session.get(Product, item.product_id), data.quantity)
 
     item.quantity = data.quantity
     session.add(item)

@@ -12,5 +12,8 @@ class CartItemRead(BaseModel):
     class Config:
         from_attributes = True
 
+# Keeps quantities far below the database's INT limit
+MAX_CART_QUANTITY = 99
+
 class CartItemUpdate(BaseModel):
-    quantity: int = Field(ge=1)
+    quantity: int = Field(ge=1, le=MAX_CART_QUANTITY)

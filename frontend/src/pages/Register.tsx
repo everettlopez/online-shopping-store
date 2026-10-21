@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axiosClient from "../api/axiosClient";
-import { apiErrorMessage } from "../api/admin";
+import { apiErrorMessage } from "../api/errors";
 import { useNavigate, Link } from  "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 

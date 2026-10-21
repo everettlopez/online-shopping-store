@@ -11,6 +11,7 @@ from app.models.order import OrderItem
 from app.schemas.product import ProductCreate, ProductRead
 from app.auth.dependencies import admin_required
 from app.database.products import database_get_product_read, database_get_product_reads
+from app.settings import public_api_url
 from fastapi import Request
 
 import os
@@ -38,30 +39,40 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
-async def save_upload(file: UploadFile) -> str:
-    """Save an uploaded image under a random name and return that name. The client's
-    filename is only used for its extension, so it can't escape the uploads folder,
-    overwrite another image, or upload a page the browser would run."""
-    extension = os.path.splitext(file.filename or "")[1].lower()
-    if extension not in ALLOWED_IMAGE_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Images must be .jpg, .jpeg, .png, .webp or .gif")
+def save_uploads(request: Request, files: list[UploadFile]) -> list[str]:
+    """Save uploaded images under random names and return their public URLs. The
+    client's filename is only used for its extension, so it can't escape the uploads
+    folder, overwrite another image, or upload a page the browser would run. Every
+    file is checked before any is written, so a rejected batch leaves nothing behind."""
+    checked = []
+    for file in files:
+        extension = os.path.splitext(file.filename or "")[1].lower()
+        if extension not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Images must be .jpg, .jpeg, .png, .webp or .gif")
 
-    contents = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="Images must be 5 MB or smaller")
+        contents = file.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Images must be 5 MB or smaller")
 
-    filename = f"{uuid.uuid4().hex}{extension}"
-    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
-        f.write(contents)
+        checked.append((extension, contents))
 
-    return filename
+    urls = []
+    for extension, contents in checked:
+        filename = f"{uuid.uuid4().hex}{extension}"
+        with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+            f.write(contents)
+        urls.append(f"{public_api_url(request)}/uploads/{filename}")
+
+    return urls
 
 
 # -----------------------------------------
 # POST /products → create a new product
 # -----------------------------------------
+# Plain def (not async): FastAPI runs it in a threadpool, so file and database I/O
+# don't block other requests
 @router.post("/", response_model=ProductRead, dependencies=[Depends(admin_required)])
-async def create_product(
+def create_product(
     request: Request,
     category_id: int = Form(...),
     title: str = Form(...),
@@ -81,9 +92,7 @@ async def create_product(
     thumbnail_path = None
 
     if thumbnail:
-        filename = await save_upload(thumbnail)
-        thumbnail_path = f"{request.base_url}uploads/{filename}"
-
+        [thumbnail_path] = save_uploads(request, [thumbnail])
     
     product_data = ProductCreate(
         category_id=category_id,
@@ -156,7 +165,8 @@ def get_product(product_id: int, session: Session = Depends(get_session)):
 # PUT /products/{product_id} → update
 # -----------------------------------------
 @router.put("/{product_id}", response_model=ProductRead, dependencies=[Depends(admin_required)])
-async def update_product(
+def update_product(
+    request: Request,
     product_id: int,
     title: str = Form(None),
     category_id: int | None = Form(None),
@@ -200,10 +210,7 @@ async def update_product(
         product.category_id = category_id
 
     # ⭐ Save uploaded files
-    saved_files = []
-    if images_files:
-        for file in images_files:
-            saved_files.append(f"uploads/{await save_upload(file)}")   # relative path for frontend
+    saved_files = save_uploads(request, images_files or [])
 
     # ⭐ Merge old + new
     product.images = (product.images or []) + saved_files + url_list

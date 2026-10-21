@@ -63,6 +63,7 @@ def test_create_product(admin_client, make_category, upload_dir):
     assert body["stock_quantity"] == 5
     assert body["category"]["category_id"] == category.category_id
     # Saved under a random name, never the one the client sent
+    assert body["thumbnail"].startswith("http://testserver/uploads/")
     saved_name = body["thumbnail"].rsplit("/uploads/", 1)[1]
     assert saved_name.endswith(".png") and saved_name != "scarf.png"
     assert (upload_dir / saved_name).read_bytes() == b"fake-image"
@@ -116,8 +117,54 @@ def test_update_product_merges_images(admin_client, make_product, upload_dir):
     assert response.status_code == 200
     existing, uploaded, url = response.json()["images"]
     assert (existing, url) == ("uploads/existing.png", "https://cdn.example.com/a.png")
-    assert uploaded.startswith("uploads/") and uploaded.endswith(".png")
-    assert (upload_dir / uploaded.removeprefix("uploads/")).exists()
+    # Same absolute form as thumbnails, so the frontend can use either as an <img> src
+    assert uploaded.startswith("http://testserver/uploads/") and uploaded.endswith(".png")
+    assert (upload_dir / uploaded.rsplit("/", 1)[1]).exists()
+
+
+def test_image_links_use_public_api_url(admin_client, make_category, make_product, upload_dir, monkeypatch):
+    # Behind a proxy the request URL is the internal one, so links come from PUBLIC_API_URL
+    monkeypatch.setenv("PUBLIC_API_URL", "https://api.shop.example.com/")
+    category = make_category()
+    product = make_product()
+
+    created = admin_client.post(
+        "/api/products/",
+        data={"category_id": category.category_id, "title": "Hat", "price": "5"},
+        files={"thumbnail": ("hat.png", b"img", "image/png")},
+    ).json()
+    updated = admin_client.put(
+        f"/api/products/{product.product_id}",
+        files=[("images_files", ("side.png", b"img", "image/png"))],
+    ).json()
+
+    assert created["thumbnail"].startswith("https://api.shop.example.com/uploads/")
+    assert updated["images"][-1].startswith("https://api.shop.example.com/uploads/")
+
+
+def test_rejected_batch_leaves_no_files(admin_client, make_product, upload_dir):
+    product = make_product()
+
+    response = admin_client.put(
+        f"/api/products/{product.product_id}",
+        files=[
+            ("images_files", ("good.png", b"img", "image/png")),
+            ("images_files", ("bad.html", b"<script></script>", "text/html")),
+        ],
+    )
+
+    assert response.status_code == 400
+    assert list(upload_dir.iterdir()) == []
+    assert admin_client.get(f"/api/products/{product.product_id}").json()["images"] == []
+
+
+def test_upload_routes_do_not_block_the_event_loop():
+    # Plain def routes run in FastAPI's threadpool; async ones would block on file and DB I/O
+    import inspect
+    from app.routes.product import create_product, update_product
+
+    assert not inspect.iscoroutinefunction(create_product)
+    assert not inspect.iscoroutinefunction(update_product)
 
 
 @pytest.mark.parametrize("filename", ["../../main.py", "page.html", "script.svg", "no-extension"])

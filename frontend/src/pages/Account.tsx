@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import { updateEmail, updatePassword, deleteAccount } from "../api/auth";
-import { apiErrorMessage } from "../api/admin";
+import { apiErrorMessage } from "../api/errors";
 
 type FormMessage = { type: "success" | "error"; text: string } | null;
 

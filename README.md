@@ -55,11 +55,11 @@ Tables are created by the database migrations in step 3 (the backend only seeds 
 Copy `.env.example` to `.env` in the project root and fill in your values:
 ```
 DATABASE_URL=mysql+pymysql://root:your_password@localhost:3306/online_store
-JWT_SECRET_KEY=a-long-random-string
+JWT_SECRET_KEY=<at least 32 random characters>
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
-`JWT_SECRET_KEY` must be at least 32 characters, and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists optional deployment settings (`FRONTEND_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`); their defaults suit local development. For production, set `FRONTEND_URL` and `CORS_ORIGINS` to your real site, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
+`JWT_SECRET_KEY` must be at least 32 characters (generate one with `venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"`), and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists optional deployment settings (`FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`); their defaults suit local development. For production, set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to your real addresses, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
 
 `.env` is gitignored, so never commit real keys. Percent-encode special characters in the DB password (for example, `@` becomes `%40`).
 

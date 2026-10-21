@@ -25,6 +25,13 @@ def frontend_url() -> str:
     return os.getenv("FRONTEND_URL", DEFAULT_FRONTEND_URL).rstrip("/")
 
 
+def public_api_url(request) -> str:
+    """The API's address as browsers see it, used in links to uploaded images.
+    Behind a reverse proxy the request's own URL is the internal one (often plain
+    http), so production sets PUBLIC_API_URL."""
+    return (os.getenv("PUBLIC_API_URL") or str(request.base_url)).rstrip("/")
+
+
 def cors_origins() -> list[str]:
     """Origins allowed to call the API with cookies (comma-separated CORS_ORIGINS)."""
     origins = os.getenv("CORS_ORIGINS", DEFAULT_CORS_ORIGINS)

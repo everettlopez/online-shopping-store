@@ -163,6 +163,22 @@ def test_checkout_session_counts_duplicate_cart_rows_against_stock(user_client, 
     assert stripe_create == []
 
 
+def test_checkout_snapshot_has_one_entry_per_product(user_client, shopper, make_product, add_to_cart, stripe_create):
+    # Older carts can hold a product in several rows; the snapshot must not grow per row,
+    # or a normal cart hits Stripe's 500-character metadata limit
+    user, shipping, billing = shopper
+    product = make_product(price=40.0, stock_quantity=100)
+    for _ in range(60):
+        add_to_cart(user, product, quantity=1)
+
+    response = user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    assert response.status_code == 200
+    [call] = stripe_create
+    assert json.loads(call["metadata"]["items"]) == [[product.product_id, 60, 4000]]
+    assert call["line_items"][0]["price_data"]["unit_amount"] == 60 * 4000
+
+
 def test_checkout_session_returns_to_configured_frontend(user_client, shopper, make_product, add_to_cart, stripe_create, monkeypatch):
     monkeypatch.setenv("FRONTEND_URL", "https://shop.example.com/")
     user, shipping, billing = shopper

@@ -5,7 +5,8 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
-import { apiErrorMessage, createCategory, deleteCategory, getCategories, reorderCategories, updateCategory, type Category } from "../../api/admin";
+import { createCategory, deleteCategory, getCategories, reorderCategories, updateCategory, type Category } from "../../api/admin";
+import { apiErrorMessage } from "../../api/errors";
 import { useCategories } from "../../context/CategoriesContext";
 
 export default function AdminCategories() {

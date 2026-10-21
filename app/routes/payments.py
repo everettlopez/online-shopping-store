@@ -46,33 +46,32 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
     total_cents = 0
     snapshot = []
 
-    # The same product can be in the cart more than once, so check stock against the total
+    # Older carts can hold the same product in several rows, so total them per product
     wanted = {}
     for item in cart_items:
+        # A negative quantity would lower the total the customer pays
+        if item.quantity < 1:
+            raise HTTPException(status_code=400, detail="Invalid quantity in cart")
         wanted[item.product_id] = wanted.get(item.product_id, 0) + item.quantity
 
-    for item in cart_items:
-        product = session.get(Product, item.product_id)
+    for product_id, quantity in wanted.items():
+        product = session.get(Product, product_id)
 
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
 
-        # A negative quantity would lower the total the customer pays
-        if item.quantity < 1:
-            raise HTTPException(status_code=400, detail=f"Invalid quantity for {product.title}")
-
         if not product.is_active:
             raise HTTPException(status_code=400, detail=f"{product.title} is no longer available")
 
-        if product.stock_quantity < wanted[item.product_id]:
+        if product.stock_quantity < quantity:
             raise HTTPException(
                 status_code=400,
                 detail=f"Not enough stock for {product.title}"
             )
 
         unit_cents = round(product.price * 100)
-        total_cents += unit_cents * item.quantity
-        snapshot.append([item.product_id, item.quantity, unit_cents])
+        total_cents += unit_cents * quantity
+        snapshot.append([product_id, quantity, unit_cents])
 
     # What the customer pays for, so fulfillment doesn't depend on the cart later
     items_metadata = json.dumps(snapshot, separators=(",", ":"))
@@ -142,14 +141,14 @@ def get_order_from_session(session_id: str, user: CurrentUser, session: Session 
     for item in items:
         product = session.get(Product, item.product_id)
         enriched_items.append({
-            **item.dict(),
-            "product": product.dict() if product else None
+            **item.model_dump(),
+            "product": product.model_dump() if product else None
         })
 
     return {
-        **order.dict(),
-        "shipping_address": shipping.dict() if shipping else None,
-        "billing_address": billing.dict() if billing else None,
+        **order.model_dump(),
+        "shipping_address": shipping.model_dump() if shipping else None,
+        "billing_address": billing.model_dump() if billing else None,
         "items": enriched_items
     }
 

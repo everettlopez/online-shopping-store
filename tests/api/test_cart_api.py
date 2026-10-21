@@ -53,7 +53,18 @@ def test_cannot_add_more_than_stock(user_client, make_product):
     response = user_client.post("/api/cart/items", params={"product_id": product.product_id})
 
     assert response.status_code == 400
-    assert len(user_client.get("/api/cart/items").json()) == 2
+    assert [i["quantity"] for i in user_client.get("/api/cart/items").json()] == [2]
+
+
+def test_adding_same_product_raises_quantity(user_client, make_product):
+    product = make_product()
+
+    for _ in range(3):
+        response = user_client.post("/api/cart/items", params={"product_id": product.product_id})
+
+    assert response.json()["quantity"] == 3
+    items = user_client.get("/api/cart/items").json()
+    assert [(i["product_id"], i["quantity"]) for i in items] == [(product.product_id, 3)]
 
 
 def test_update_item_quantity(user_client, user, make_product, add_to_cart):
@@ -71,6 +82,22 @@ def test_quantity_must_be_positive(user_client, user, make_product, add_to_cart,
     item = add_to_cart(user, make_product())
 
     assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": quantity}).status_code == 422
+    assert user_client.get("/api/cart/items").json()[0]["quantity"] == 1
+
+
+def test_quantity_has_an_upper_limit(user_client, user, make_product, add_to_cart):
+    # Huge values used to overflow MySQL's INT column and return 500
+    item = add_to_cart(user, make_product(stock_quantity=10**6))
+
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 3_000_000_000}).status_code == 422
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 100}).status_code == 422
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 99}).status_code == 200
+
+
+def test_quantity_cannot_exceed_stock(user_client, user, make_product, add_to_cart):
+    item = add_to_cart(user, make_product(stock_quantity=3))
+
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 4}).status_code == 400
     assert user_client.get("/api/cart/items").json()[0]["quantity"] == 1
 
 

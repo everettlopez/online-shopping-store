@@ -160,3 +160,35 @@ def test_cookie_settings_come_from_settings(client, user, monkeypatch):
 
     assert "samesite=lax" in cookie
     assert "; secure" not in cookie
+
+
+def test_missing_jwt_secret_gets_a_clear_startup_error(tmp_path):
+    # The app used to crash with a bare KeyError on import, before the startup check ran.
+    # A fresh interpreter is needed because the key is read when app modules load.
+    import os
+    import subprocess
+    import sys
+
+    # Remove the key entirely, and stop a developer's .env from filling it back in
+    env = {k: v for k, v in os.environ.items() if k != "JWT_SECRET_KEY"}
+    env["PYTHON_DOTENV_DISABLED"] = "1"
+    script = (
+        "import app.main\n"
+        "from app.settings import check_required_settings\n"
+        "check_required_settings()\n"
+    )
+
+    result = subprocess.run([sys.executable, "-c", script], cwd=os.getcwd(), env=env, capture_output=True, text=True)
+
+    assert result.returncode != 0
+    assert "KeyError" not in result.stderr
+    assert "JWT_SECRET_KEY must be at least 32 characters" in result.stderr
+
+
+def test_tokens_are_never_signed_with_a_weak_key(monkeypatch):
+    import app.auth.core as core
+
+    monkeypatch.setattr(core, "SECRET_KEY", "")
+
+    with pytest.raises(RuntimeError):
+        core.create_access_token({"sub": "1"})
