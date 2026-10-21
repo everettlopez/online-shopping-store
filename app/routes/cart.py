@@ -11,8 +11,9 @@ from app.schemas.cart import CartRead, CartItemRead
 from app.schemas.cart_item import CartItemCreate, CartItemUpdate
 
 from app.schemas.checkout import CheckoutRequest
-from app.schemas.order import OrderRead, OrderItemRead
+from app.schemas.order import OrderRead
 from app.models.order import Order, OrderItem
+from app.routes.order import build_order_reads
 from app.models.address import Address
 from app.models.category import Category
 
@@ -100,13 +101,8 @@ def add_item_to_cart(
     session: Session = Depends(get_session)
 ):
 
-    # Get user's cart
-    cart = session.exec(
-        select(Cart).where(Cart.user_id == user.user_id)
-    ).first()
-
-    if not cart:
-        raise HTTPException(status_code=404, detail="Cart not found")
+    # Get user's cart (a first-time shopper doesn't have one yet)
+    cart = get_or_create_cart(user.user_id, session)
 
     # Get product
     product = session.exec(
@@ -251,13 +247,15 @@ def checkout(
         if product.stock_quantity < item.quantity:
             raise HTTPException(
                 status_code=400,
-                detail=f"Not enough stock for {product.name}"
+                detail=f"Not enough stock for {product.title}"
             )
 
         total_amount += product.price * item.quantity
 
     order = Order(
         user_id=user.user_id,
+        first_name=user.first_name,
+        last_name=user.last_name,
         shipping_address_id=shipping.address_id,
         billing_address_id=billing.address_id,
         total_amount=total_amount,
@@ -290,35 +288,6 @@ def checkout(
     for item in cart_items:
         session.delete(item)
     session.commit()
+    session.refresh(order)
 
-    order_items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order.order_id)
-    ).all()
-
-    enriched_items = []
-    for oi in order_items:
-        product = session.get(Product, oi.product_id)
-
-        enriched_items.append(OrderItemRead(
-            order_item_id=oi.order_item_id,
-            order_id=oi.order_id,
-            product=product,
-            quantity=oi.quantity
-        ))
-
-    shipping_address = session.get(Address, order.shipping_address_id)
-    billing_address = session.get(Address, order.billing_address_id)
-
-
-    return OrderRead(
-        order_id=order.order_id,
-        order_number=order.order_number,
-        status=order.status,
-        created_at=order.created_at,
-        updated_at=order.updated_at,
-        order_date=order.order_date,
-        total_amount=order.total_amount,
-        shipping_address=shipping_address,   
-        billing_address=billing_address,
-        items=enriched_items
-    )
+    return build_order_reads(session, [order])[0]

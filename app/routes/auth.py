@@ -9,6 +9,7 @@ from app.auth.core import (
     get_current_user
 )
 from app.schemas.user import UserCreate, UserLogin, UserRead
+from app.database.users import database_user_has_orders, database_delete_user
 from datetime import datetime
 from app.auth.core import CurrentUser
 
@@ -78,8 +79,10 @@ def read_current_user(user: CurrentUser):
 
 @router.delete("/me")
 def delete_account(user: CurrentUser, response: Response, session: Session = Depends(get_session)):
-    session.delete(user)
-    session.commit()
+    if database_user_has_orders(session, user.user_id):
+        raise HTTPException(status_code=409, detail="Accounts with orders cannot be deleted")
+
+    database_delete_user(session, user)
 
     response.delete_cookie("shop_token")
 

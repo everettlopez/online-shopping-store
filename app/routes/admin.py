@@ -1,17 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select, delete
+from sqlmodel import Session
 
 from app.db.session import get_session
 from app.auth.dependencies import admin_required
 from app.auth.core import hash_password
 
 from app.models.user import User
-from app.models.address import Address
-from app.models.order import Order
-from app.models.cart import Cart, CartItem
 from app.schemas.user import UserRead, UserResponse, AdminUserCreate, AdminUserUpdate, Metadata as UserMetadata
 
-from app.database.users import database_get_users, database_get_user_by_id, database_get_user_by_email
+from app.database.users import (
+    database_get_users,
+    database_get_user_by_id,
+    database_get_user_by_email,
+    database_user_has_orders,
+    database_delete_user
+)
 
 
 
@@ -99,16 +102,8 @@ def delete_user(user_id: int, session: Session = Depends(get_session), admin: Us
     if user.user_id == admin.user_id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
-    # Orders are financial records, so keep users who have them
-    if session.exec(select(Order).where(Order.user_id == user_id)).first():
+    if database_user_has_orders(session, user_id):
         raise HTTPException(status_code=409, detail="User has orders and cannot be deleted")
 
-    cart_ids = session.exec(select(Cart.cart_id).where(Cart.user_id == user_id)).all()
-    if cart_ids:
-        session.exec(delete(CartItem).where(CartItem.cart_id.in_(cart_ids)))
-    session.exec(delete(Cart).where(Cart.user_id == user_id))
-    session.exec(delete(Address).where(Address.user_id == user_id))
-
-    session.delete(user)
-    session.commit()
+    database_delete_user(session, user)
     return {"message": "User deleted"}

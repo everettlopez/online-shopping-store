@@ -30,6 +30,7 @@ This application models a real‑world e‑commerce workflow, including product 
 ### Tooling
 - GitHub for version control 
 - Custom Swagger-style API documentation
+- pytest for the backend test suite
 - Bruno for endpoint testing
 
 ## Development Setup
@@ -94,6 +95,14 @@ Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SEC
 
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/api (docs at http://localhost:8000/docs)
+
+### 6. Run the tests
+The backend test suite lives in `tests/`. It runs against a throwaway in-memory SQLite database and mocks Stripe, so it doesn't need MySQL, a `.env` file or network access. From the project root:
+```bash
+venv\Scripts\pip install -r requirements-dev.txt
+venv\Scripts\python -m pytest
+```
+Add `-x` to stop at the first failure, or pass a path to run part of the suite (for example `venv\Scripts\python -m pytest tests/api/test_cart_api.py`). Shared fixtures and test-data factories are in `tests/conftest.py`.
 
 ## Author
 Everett Lopez

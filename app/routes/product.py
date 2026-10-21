@@ -56,9 +56,7 @@ async def create_product(
 
     if thumbnail:
         contents = await thumbnail.read()
-        file_path = f"app/uploads/{thumbnail.filename}"
-
-
+        file_path = os.path.join(UPLOAD_DIR, thumbnail.filename)
 
         with open(file_path, "wb") as f:
             f.write(contents)

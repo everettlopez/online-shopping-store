@@ -6,9 +6,11 @@ from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser
 from app.schemas.order import OrderRead, OrderItemRead
-from app.schemas.order_item import OrderItemUpdate, OrderItemCreate
+from app.schemas.order_item import OrderItemUpdate
+from app.schemas.checkout import CheckoutRequest
 from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
+import uuid
 
 from app.models.product import Product
 from app.database.products import database_get_product_read, database_get_product_reads
@@ -50,7 +52,7 @@ def build_order_reads(session: Session, orders) -> list[OrderRead]:
     return enriched_orders
 
 @router.post("/", response_model=OrderRead)
-def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = Depends(get_session)):
+def create_order(data: CheckoutRequest, user: CurrentUser, session: Session = Depends(get_session)):
 
     # Validate shipping address
     shipping = session.get(Address, data.shipping_address_id)
@@ -62,11 +64,13 @@ def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = De
     if not billing or billing.user_id != user.user_id:
         raise HTTPException(status_code=400, detail="Invalid billing address")
     
-    # Generate order number
-    order_number = f"ORD-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    # Same lowercase format as checkout, so GET /orders/{order_number} can find it
+    order_number = str(uuid.uuid4())[:8]
 
     order = Order(
         user_id=user.user_id,
+        first_name=user.first_name,
+        last_name=user.last_name,
         shipping_address_id=data.shipping_address_id,
         billing_address_id=data.billing_address_id,
         total_amount=data.total_amount,
@@ -78,7 +82,7 @@ def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = De
     session.commit()
     session.refresh(order)
 
-    return order
+    return build_order_reads(session, [order])[0]
 
 @router.get("/", response_model=list[OrderRead], dependencies=[Depends(admin_required)])
 def list_orders(session: Session = Depends(get_session)):
