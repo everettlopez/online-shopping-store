@@ -2,7 +2,7 @@
   "name": "online-shopping-store",
   "private": true,
   "scripts": {
-    "backend": "venv/Scripts/python -m uvicorn app.main:app --reload",
+    "backend": "venv\\Scripts\\python -m uvicorn app.main:app --reload",
     "frontend": "npm --prefix frontend run dev",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\""
   },
