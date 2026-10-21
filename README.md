@@ -48,7 +48,7 @@ This project uses a decoupled architecture with separate frontend and backend se
 ```sql
 CREATE DATABASE online_store;
 ```
-Tables are created automatically when the backend starts.
+Tables are created by the database migrations in step 3 (the backend only seeds starter categories when it starts).
 
 ### 2. Environment variables
 Copy `.env.example` to `.env` in the project root and fill in your values:
@@ -68,6 +68,13 @@ venv\Scripts\activate      # Windows
 source venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
 ```
+
+Then create or update the database tables with Alembic (it reads `DATABASE_URL` from `.env`):
+```bash
+venv\Scripts\alembic upgrade head      # Windows
+venv/bin/alembic upgrade head          # macOS/Linux
+```
+If your database was created before the project used Alembic (when tables were created automatically at startup), the same command works: the first migration sees the existing tables and leaves them alone. Run this again whenever you pull new files in `alembic/versions/`; the backend refuses to start until the database is up to date. After changing a model, generate a migration with `alembic revision --autogenerate -m "describe the change"`, review the generated file, then run `alembic upgrade head`.
 
 ### 4. Frontend (React + TypeScript)
 ```bash

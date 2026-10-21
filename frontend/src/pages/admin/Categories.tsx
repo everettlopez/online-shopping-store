@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
-import { TextField } from "@mui/material";
+import { useEffect, useRef, useState } from "react";
+import { IconButton, TextField } from "@mui/material";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
-import { apiErrorMessage, createCategory, deleteCategory, getCategories, updateCategory, type Category } from "../../api/admin";
+import { apiErrorMessage, createCategory, deleteCategory, getCategories, reorderCategories, updateCategory, type Category } from "../../api/admin";
 import { useCategories } from "../../context/CategoriesContext";
 
 export default function AdminCategories() {
@@ -22,6 +24,8 @@ export default function AdminCategories() {
     const [editDescription, setEditDescription] = useState("");
 
     const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
+    const [reordering, setReordering] = useState(false);
+    const reorderInFlight = useRef(false);  // blocks clicks that land before the disabled state renders
 
     async function fetchCategories() {
         try {
@@ -72,6 +76,33 @@ export default function AdminCategories() {
         }
     }
 
+    // Swap a category with its neighbour (direction -1 = up, 1 = down) and save the new order.
+    // The arrows stay disabled until the save finishes, so the next move starts from the saved order
+    async function handleMove(index: number, direction: -1 | 1) {
+        const target = index + direction;
+        if (reorderInFlight.current || target < 0 || target >= categories.length) return;
+
+        const reordered = [...categories];
+        [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+
+        reorderInFlight.current = true;
+        setReordering(true);
+        try {
+            setCategories(await reorderCategories(reordered.map((category) => category.category_id)));
+            refreshCategories();
+        }
+        catch (err) {
+            setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to reorder categories") });
+
+            // The list may be out of date (e.g. another admin added a category), so reload it
+            fetchCategories();
+        }
+        finally {
+            reorderInFlight.current = false;
+            setReordering(false);
+        }
+    }
+
     async function handleDelete() {
         if (!pendingDelete) return;
 
@@ -108,15 +139,24 @@ export default function AdminCategories() {
             {/* Categories Table */}
             <div className="p-6 border rounded-lg bg-white shadow-sm flex flex-col gap-4">
 
-                <div className="grid grid-cols-4 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
+                <div className="grid grid-cols-5 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
+                    <div className="text-center tracking-wider">NAV ORDER</div>
                     <div className="text-center tracking-wider">CATEGORY ID</div>
                     <div className="text-center tracking-wider">NAME</div>
                     <div className="text-center tracking-wider">DESCRIPTION</div>
                     <div className="text-center tracking-wider">ACTIONS</div>
                 </div>
 
-                {categories.map(category => (
-                    <div key={category.category_id} className="grid grid-cols-4 gap-4 py-2 items-center">
+                {categories.map((category, index) => (
+                    <div key={category.category_id} className="grid grid-cols-5 gap-4 py-2 items-center">
+                        <div className="flex justify-center items-center gap-1">
+                            <IconButton size="small" aria-label={`Move ${category.name} up`} disabled={reordering || index === 0} onClick={() => handleMove(index, -1)}>
+                                <KeyboardArrowUpIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" aria-label={`Move ${category.name} down`} disabled={reordering || index === categories.length - 1} onClick={() => handleMove(index, 1)}>
+                                <KeyboardArrowDownIcon fontSize="small" />
+                            </IconButton>
+                        </div>
                         <div className="text-center">{category.category_id}</div>
 
                         {editingId === category.category_id ? (

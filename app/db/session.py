@@ -1,4 +1,3 @@
-from sqlmodel import SQLModel
 from sqlmodel import Session as SQLModelSession
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,17 +20,29 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-def create_db_and_tables():
-    from app.models.user import User
-    from app.models.product import Product
-    from app.models.category import Category
-    from app.models.cart import CartItem
-    from app.models.cart import Cart
-    from app.models.user import User
-    from app.models.address import Address
-    from app.models.order import Order
+ALEMBIC_INI = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "alembic.ini")
 
-    SQLModel.metadata.create_all(bind=engine)
+def ensure_schema_is_current():
+    """Stop startup with a clear message when the database hasn't been migrated to the
+    latest Alembic revision, instead of failing later on a missing table or column."""
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    expected = ScriptDirectory.from_config(Config(ALEMBIC_INI)).get_current_head()
+
+    with engine.connect() as connection:
+        current = MigrationContext.configure(connection).get_current_revision()
+
+    if current != expected:
+        raise RuntimeError(
+            f"Database schema is at revision {current or '(none)'} but the code expects {expected}. "
+            "Run `alembic upgrade head` from the project root, then start the server again."
+        )
+
+def seed_database():
+    # The schema is managed by Alembic (run `alembic upgrade head`); startup only seeds data
+    ensure_schema_is_current()
 
     from app.database.category import database_seed_categories
 
