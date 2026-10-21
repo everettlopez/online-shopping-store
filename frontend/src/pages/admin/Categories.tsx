@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconButton, TextField } from "@mui/material";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -24,6 +24,8 @@ export default function AdminCategories() {
     const [editDescription, setEditDescription] = useState("");
 
     const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
+    const [reordering, setReordering] = useState(false);
+    const reorderInFlight = useRef(false);  // blocks clicks that land before the disabled state renders
 
     async function fetchCategories() {
         try {
@@ -74,20 +76,30 @@ export default function AdminCategories() {
         }
     }
 
-    // Swap a category with its neighbour (direction -1 = up, 1 = down) and save the new order
+    // Swap a category with its neighbour (direction -1 = up, 1 = down) and save the new order.
+    // The arrows stay disabled until the save finishes, so the next move starts from the saved order
     async function handleMove(index: number, direction: -1 | 1) {
         const target = index + direction;
-        if (target < 0 || target >= categories.length) return;
+        if (reorderInFlight.current || target < 0 || target >= categories.length) return;
 
         const reordered = [...categories];
         [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
 
+        reorderInFlight.current = true;
+        setReordering(true);
         try {
-            await reorderCategories(reordered.map((category) => category.category_id));
-            fetchCategories();
+            setCategories(await reorderCategories(reordered.map((category) => category.category_id)));
+            refreshCategories();
         }
         catch (err) {
             setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to reorder categories") });
+
+            // The list may be out of date (e.g. another admin added a category), so reload it
+            fetchCategories();
+        }
+        finally {
+            reorderInFlight.current = false;
+            setReordering(false);
         }
     }
 
@@ -138,10 +150,10 @@ export default function AdminCategories() {
                 {categories.map((category, index) => (
                     <div key={category.category_id} className="grid grid-cols-5 gap-4 py-2 items-center">
                         <div className="flex justify-center items-center gap-1">
-                            <IconButton size="small" aria-label={`Move ${category.name} up`} disabled={index === 0} onClick={() => handleMove(index, -1)}>
+                            <IconButton size="small" aria-label={`Move ${category.name} up`} disabled={reordering || index === 0} onClick={() => handleMove(index, -1)}>
                                 <KeyboardArrowUpIcon fontSize="small" />
                             </IconButton>
-                            <IconButton size="small" aria-label={`Move ${category.name} down`} disabled={index === categories.length - 1} onClick={() => handleMove(index, 1)}>
+                            <IconButton size="small" aria-label={`Move ${category.name} down`} disabled={reordering || index === categories.length - 1} onClick={() => handleMove(index, 1)}>
                                 <KeyboardArrowDownIcon fontSize="small" />
                             </IconButton>
                         </div>

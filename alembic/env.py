@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 
 # Import every model so its table is registered on SQLModel.metadata
-# (OrderItem lives in order.py; app/models/order_item.py is an unused duplicate)
+# (OrderItem is defined in order.py)
 from app.models import address, cart, category, order, product, user  # noqa: F401
 
 # this is the Alembic Config object, which provides

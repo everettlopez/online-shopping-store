@@ -63,7 +63,8 @@ export default function Products() {
     // Filters belong to the URL query they were set on, so switching categories resets them
     const defaultSort = isNewArrivals ? "newest" : "featured";
     const [filterState, setFilterState] = useState<{ key: string; filters: ProductFilterState } | null>(null);
-    const filters = filterState?.key === productsKey ? filterState.filters : defaultProductFilters(defaultSort);
+    const defaultFilters = useMemo(() => defaultProductFilters(defaultSort), [defaultSort]);
+    const filters = filterState?.key === productsKey ? filterState.filters : defaultFilters;
     const setFilters = (next: ProductFilterState) => setFilterState({ key: productsKey, filters: next });
 
     const sizeOptions = useMemo(() => filterOptions(products, "size"), [products]);
