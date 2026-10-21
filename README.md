@@ -71,7 +71,6 @@ pip install -r requirements.txt
 
 ### 4. Frontend (React + TypeScript)
 ```bash
-npm install                # root: dev runner (concurrently)
 npm install --prefix frontend
 ```
 
@@ -84,7 +83,7 @@ stripe listen --forward-to localhost:8000/api/payments/webhook --events checkout
 ```
 Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SECRET`, and make sure the Stripe CLI is logged in to the same account as `STRIPE_SECRET_KEY`.
 
-> **Windows:** keep the API in its own terminal. When uvicorn auto-reloads after a `.py` change, it sends Ctrl+C to every process in its terminal. Under `npm run dev` that also stops the frontend and leaves the old API process running in the background.
+> **Windows:** keep the API in its own terminal and start it with Python directly, not through npm. When uvicorn auto-reloads after a `.py` change, it sends Ctrl+C to every process in its terminal, which would stop anything else running there and leave the old API process in the background.
 
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/api (docs at http://localhost:8000/docs)

@@ -61,7 +61,8 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
         raise HTTPException(status_code=400, detail="Invalid billing address")
 
     # 3. Validate stock BEFORE Stripe Checkout
-    total_amount = 0
+    total_cents = 0
+    snapshot = []
 
     for item in cart_items:
         product = session.get(Product, item.product_id)
@@ -75,7 +76,14 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
                 detail=f"Not enough stock for {product.title}"
             )
 
-        total_amount += product.price * item.quantity
+        unit_cents = round(product.price * 100)
+        total_cents += unit_cents * item.quantity
+        snapshot.append([item.product_id, item.quantity, unit_cents])
+
+    # What the customer pays for, so fulfillment doesn't depend on the cart later
+    items_metadata = json.dumps(snapshot, separators=(",", ":"))
+    if len(items_metadata) > 500:  # Stripe's limit for one metadata value
+        raise HTTPException(status_code=400, detail="Too many different items for one checkout")
 
     # 4. Create Stripe Checkout Session
     # Payment methods (card, etc.) are configured in the Stripe Dashboard
@@ -87,7 +95,7 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
                 "product_data": {
                     "name": "Order Payment"
                 },
-                "unit_amount": int(total_amount * 100),
+                "unit_amount": total_cents,
             },
             "quantity": 1,
         }],
@@ -96,7 +104,8 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
         metadata={
             "user_id": user.user_id,
             "shipping_address_id": data.shipping_address_id,
-            "billing_address_id": data.billing_address_id
+            "billing_address_id": data.billing_address_id,
+            "items": items_metadata
         }
     )
 
@@ -104,7 +113,7 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
 
 
 @router.get("/session/{session_id}")
-def get_order_from_session(session_id: str, session: Session = Depends(get_session)):
+def get_order_from_session(session_id: str, user: CurrentUser, session: Session = Depends(get_session)):
     order = session.exec(
         select(Order).where(Order.stripe_session_id == session_id)
     ).first()
@@ -117,10 +126,12 @@ def get_order_from_session(session_id: str, session: Session = Depends(get_sessi
             print("Failed to load checkout session:", session_id, e)
             stripe_session = None
 
-        if stripe_session and stripe_session.payment_status == "paid":
+        owner_id = stripe_session.metadata.to_dict().get("user_id") if stripe_session and stripe_session.metadata else None
+        if stripe_session and stripe_session.payment_status == "paid" and owner_id == str(user.user_id):
             order = fulfill_checkout(session, stripe_session)
 
-    if not order:
+    # Only the buyer (or an admin) can see the order; 404 so session ids can't be probed
+    if not order or (order.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Order not found")
 
     # Load addresses
@@ -197,8 +208,9 @@ async def stripe_webhook(request: Request, session: Session = Depends(get_sessio
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
+        # Non-2xx so Stripe retries and the failure shows in the CLI/Dashboard
         print("Webhook signature failed:", e)
-        return {"received": True}
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     if event["type"] == "checkout.session.completed":
         fulfill_checkout(session, event["data"]["object"])
@@ -210,16 +222,27 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
     """Create the order for a completed Checkout Session. Called by the webhook and,
     as a fallback, by the success page, so it must be safe to run more than once."""
 
-    # Stripe can deliver the same event more than once
-    existing = session.exec(select(Order).where(Order.stripe_session_id == stripe_session.id)).first()
+    metadata = stripe_session.metadata.to_dict() if stripe_session.metadata else {}
+
+    # Sessions from `stripe trigger`, Payment Links, etc. don't carry our order metadata
+    try:
+        user_id = int(metadata["user_id"])
+        shipping_id = int(metadata["shipping_address_id"])
+        billing_id = int(metadata["billing_address_id"])
+    except (KeyError, ValueError):
+        print("Skipping checkout session without order metadata:", stripe_session.id)
+        return None
+
+    # Lock the user's cart so the webhook and the success page can't fulfill the same
+    # session at once; the second caller waits here, then finds the committed order.
+    cart = session.exec(select(Cart).where(Cart.user_id == user_id).with_for_update()).first()
+
+    # Locking reads see rows committed by a concurrent fulfillment (plain reads may not)
+    existing = session.exec(
+        select(Order).where(Order.stripe_session_id == stripe_session.id).with_for_update()
+    ).first()
     if existing:
         return existing
-
-    metadata = stripe_session.metadata.to_dict()
-
-    user_id = int(metadata["user_id"])
-    shipping_id = int(metadata["shipping_address_id"])
-    billing_id = int(metadata["billing_address_id"])
 
     user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
 
@@ -227,18 +250,26 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
         print("ERROR: User not found: ", user_id)
         return None
 
-    cart = session.exec(select(Cart).where(Cart.user_id == user_id)).first()
-    if not cart:
+    cart_items = []
+    if cart:
+        cart_items = session.exec(
+            select(CartItem).where(CartItem.cart_id == cart.cart_id).with_for_update()
+        ).all()
+
+    # Fulfill what was paid for (snapshot taken at checkout), not whatever is in the cart now
+    if "items" in metadata:
+        purchased = [(int(pid), int(qty), cents / 100) for pid, qty, cents in json.loads(metadata["items"])]
+    else:
+        # Sessions created before the snapshot was added
+        purchased = [(i.product_id, i.quantity, session.get(Product, i.product_id).price) for i in cart_items]
+
+    if not purchased:
         return None
 
-    cart_items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
-    if not cart_items:
-        return None
-
-    total_amount = sum(
-        session.get(Product, item.product_id).price * item.quantity
-        for item in cart_items
-    )
+    if stripe_session.amount_total is not None:
+        total_amount = stripe_session.amount_total / 100
+    else:
+        total_amount = sum(price * qty for _, qty, price in purchased)
 
     pi_id = stripe_session.payment_intent
 
@@ -257,23 +288,42 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
     )
 
     session.add(order)
-    session.commit()
-    session.refresh(order)
+    session.flush()  # assigns order.order_id; everything below commits together
 
-    for item in cart_items:
-        product = session.get(Product, item.product_id)
+    for product_id, quantity, unit_price in purchased:
+        product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
+        if not product:
+            print("WARNING: purchased product no longer exists:", product_id, "order:", order.order_id)
+            continue
+
         session.add(OrderItem(
             order_id=order.order_id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            unit_price=product.price,
-            subtotal=product.price * item.quantity
+            product_id=product_id,
+            quantity=quantity,
+            unit_price=unit_price,
+            subtotal=unit_price * quantity
         ))
-        product.stock_quantity -= item.quantity
+
+        # Stock was checked at checkout, but another buyer may have taken it since
+        if product.stock_quantity >= quantity:
+            product.stock_quantity -= quantity
+        else:
+            print(f"OVERSOLD: product {product_id} had {product.stock_quantity}, order {order.order_id} needs {quantity}")
+            product.stock_quantity = 0
         session.add(product)
 
+    # Remove only what was bought; items added to the cart after checkout stay
+    bought = {}
+    for product_id, quantity, _ in purchased:
+        bought[product_id] = bought.get(product_id, 0) + quantity
+
     for item in cart_items:
-        session.delete(item)
+        remaining = item.quantity - bought.get(item.product_id, 0)
+        if remaining > 0:
+            item.quantity = remaining
+            session.add(item)
+        else:
+            session.delete(item)
 
     session.commit()
 

@@ -31,13 +31,7 @@ export default function Checkout() {
         billing_address_id: billingAddress.address_id
         });
 
-        const checkoutUrl = response.data.checkoutUrl;
-        localStorage.setItem("shipping_address_id", shippingAddress.address_id);
-        localStorage.setItem("billing_address_id", billingAddress.address_id);
-        localStorage.setItem("total_amount", cartTotal.toString());
-
-
-        window.location.href = checkoutUrl;
+        window.location.href = response.data.checkoutUrl;
 
     } catch (err: any) {
         console.error("Failed to start checkout:", err);

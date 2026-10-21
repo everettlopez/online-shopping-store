@@ -52,7 +52,7 @@ export default function AddressModal({
   // Create form
   const [form, setForm] = useState(emptyForm);
 
-  // Reset to the latest address list each time the modal opens
+  // Reset each time the modal opens (not when the address list refreshes)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -66,7 +66,23 @@ export default function AddressModal({
     setBillingSameAsShipping(true);
     setError("");
     setForm(emptyForm);
-  }, [isOpen, addresses]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-running on `addresses` would wipe in-progress input
+  }, [isOpen]);
+
+  // A refreshed address list arrived while open: add new entries, keep the user's mode and form
+  useEffect(() => {
+    if (addresses.length === 0) return;
+
+    const newestId = String(Math.max(...addresses.map((a) => a.address_id)));
+
+    setSavedAddresses((prev) => {
+      const known = new Set(prev.map((a) => a.address_id));
+      const added = addresses.filter((a) => !known.has(a.address_id));
+      return added.length > 0 ? [...prev, ...added].sort((a, b) => b.address_id - a.address_id) : prev;
+    });
+    setShippingAddressId((prev) => prev || newestId);
+    setBillingAddressId((prev) => prev || newestId);
+  }, [addresses]);
 
   if (!isOpen) return null;
 
