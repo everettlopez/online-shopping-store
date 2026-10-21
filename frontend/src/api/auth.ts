@@ -41,9 +41,9 @@ export const deleteAccount = async() => {
     return response.data;
 };
 
-export const updateEmail = async(newEmail: string) => {
+export const updateEmail = async(newEmail: string, currentPassword: string) => {
     const response = await axiosClient.put("/auth/me/email", {
-        new_email: newEmail,
+        new_email: newEmail, current_password: currentPassword,
     });
 
     return response.data;

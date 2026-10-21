@@ -6,9 +6,12 @@ from app.auth.core import (
     hash_password,
     verify_password,
     create_access_token,
-    get_current_user
+    get_current_user,
+    set_auth_cookie,
+    clear_auth_cookie
 )
-from app.schemas.user import UserCreate, UserLogin, UserRead
+from app.schemas.user import UserCreate, UserLogin, UserRead, EmailUpdate, PasswordUpdate
+from app.database.users import database_user_has_orders, database_delete_user
 from datetime import datetime
 from app.auth.core import CurrentUser
 
@@ -45,56 +48,46 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
     token = create_access_token({"sub": str(user.user_id)})
-
-    response.set_cookie(
-        key="shop_token",
-        value=token,
-        httponly=True,
-        samesite="none",
-        secure=True,
-        path="/",
-        max_age=60 * 60 * 24 * 7,
-    )
+    set_auth_cookie(response, token)
 
     return {"access_token": token, "token_type": "bearer"}
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie(
-        key="shop_token",
-        path="/",
-        httponly=True,
-        samesite="none",
-        secure=True
-    )
+    clear_auth_cookie(response)
     return {"message": "Logged out"}
 
 
 
 @router.get("/me", response_model=UserRead)
 def read_current_user(user: CurrentUser):
-    print("DEBUG: /me user =", user)
     return user
 
 @router.delete("/me")
 def delete_account(user: CurrentUser, response: Response, session: Session = Depends(get_session)):
-    session.delete(user)
-    session.commit()
+    if database_user_has_orders(session, user.user_id):
+        raise HTTPException(status_code=409, detail="Accounts with orders cannot be deleted")
 
-    response.delete_cookie("shop_token")
+    database_delete_user(session, user)
+
+    clear_auth_cookie(response)
 
     return {"message": "Account deleted successfully"}
 
 @router.put("/me/email", response_model = UserRead)
-def update_email(user: CurrentUser, new_email: str, session: Session = Depends(get_session)):
+def update_email(data: EmailUpdate, user: CurrentUser, session: Session = Depends(get_session)):
+
+    # Changing the login email takes the current password, so a stolen session can't take over the account
+    if not verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid Credentials")
 
     # Check if the email already exists
-    exists_query = session.exec(select(User).where(User.email == new_email)).first()
+    exists_query = session.exec(select(User).where(User.email == data.new_email)).first()
 
     if exists_query:
         raise HTTPException(status_code=400, detail="Email already taken")
     
-    user.email = new_email
+    user.email = data.new_email
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -103,20 +96,19 @@ def update_email(user: CurrentUser, new_email: str, session: Session = Depends(g
 
 @router.put("/me/password")
 def update_password(
-    old_password: str,
-    new_password: str,
+    data: PasswordUpdate,
     user: CurrentUser,
     session: Session = Depends(get_session)
 ):
     
-    if old_password == new_password:
+    if data.old_password == data.new_password:
         raise HTTPException(status_code=400, detail="New password must be different")
 
     # Verify the old password
-    if not verify_password(old_password, user.hashed_password):
+    if not verify_password(data.old_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid Credentials")
     
-    user.hashed_password = hash_password(new_password)
+    user.hashed_password = hash_password(data.new_password)
     session.add(user)
     session.commit()
 

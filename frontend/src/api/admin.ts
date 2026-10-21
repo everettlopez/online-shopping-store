@@ -1,4 +1,3 @@
-import axios from "axios";
 import axiosClient from "./axiosClient";
 
 export type Category = {
@@ -24,15 +23,6 @@ export type AdminUserInput = {
     is_admin: boolean;
     password?: string;
 };
-
-// Pull the FastAPI "detail" message out of a failed request
-export function apiErrorMessage(err: unknown, fallback = "Something went wrong"): string {
-    if (axios.isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === "string") return detail;
-    }
-    return fallback;
-}
 
 // Categories
 export async function getCategories(): Promise<Category[]> {

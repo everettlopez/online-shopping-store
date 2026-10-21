@@ -6,7 +6,6 @@ from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser
 from app.schemas.order import OrderRead, OrderItemRead
-from app.schemas.order_item import OrderItemUpdate, OrderItemCreate
 from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
 
@@ -49,37 +48,6 @@ def build_order_reads(session: Session, orders) -> list[OrderRead]:
 
     return enriched_orders
 
-@router.post("/", response_model=OrderRead)
-def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = Depends(get_session)):
-
-    # Validate shipping address
-    shipping = session.get(Address, data.shipping_address_id)
-    if not shipping or shipping.user_id != user.user_id:
-        raise HTTPException(status_code=400, detail="Invalid shipping address")
-    
-    # Validate billing address
-    billing = session.get(Address, data.billing_address_id)
-    if not billing or billing.user_id != user.user_id:
-        raise HTTPException(status_code=400, detail="Invalid billing address")
-    
-    # Generate order number
-    order_number = f"ORD-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-
-    order = Order(
-        user_id=user.user_id,
-        shipping_address_id=data.shipping_address_id,
-        billing_address_id=data.billing_address_id,
-        total_amount=data.total_amount,
-        order_number=order_number,
-        status="pending"
-    )
-
-    session.add(order)
-    session.commit()
-    session.refresh(order)
-
-    return order
-
 @router.get("/", response_model=list[OrderRead], dependencies=[Depends(admin_required)])
 def list_orders(session: Session = Depends(get_session)):
     orders = session.exec(select(Order)).all()
@@ -99,8 +67,9 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
 @router.get("/{order_number}", response_model=OrderRead)
 def get_order(order_number: str, user: CurrentUser, session: Session = Depends(get_session)):
     order = session.exec(select(Order).where(Order.order_number == order_number.lower())).first()
-    
-    if not order:
+
+    # Only the buyer (or an admin) can see the order; 404 so order numbers can't be probed
+    if not order or (order.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Order not found")
 
     user_obj = session.get(User, order.user_id)
@@ -253,54 +222,3 @@ def get_order_item(order_id: int, item_id: int, user: CurrentUser, session: Sess
         raise HTTPException(status_code=404, detail="Order item not found")
 
     return item
-
-
-# -------------------------------------------------------------------
-# PUT /orders/{order_id}/items/{item_id} → update quantity
-# -------------------------------------------------------------------
-@router.put("/{order_id}/items/{item_id}", response_model=OrderItemRead)
-def update_order_item(order_id: int, item_id: int, data: OrderItemUpdate, user: CurrentUser, session: Session = Depends(get_session)):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    item = session.get(OrderItem, item_id)
-
-    if not item or item.order_id != order_id:
-        raise HTTPException(status_code=404, detail="Order item not found")
-
-    update_data = data.dict(exclude_unset=True)
-
-    for key, value in update_data.items():
-        setattr(item, key, value)
-
-    # Recalculate subtotal
-    item.subtotal = item.unit_price * item.quantity
-
-    session.add(item)
-    session.commit()
-    session.refresh(item)
-
-    return item
-
-
-# -------------------------------------------------------------------
-# DELETE /orders/{order_id}/items/{item_id} → delete order item
-# -------------------------------------------------------------------
-@router.delete("/{order_id}/items/{item_id}")
-def delete_order_item(order_id: int, item_id: int, user: CurrentUser, session: Session = Depends(get_session)):
-    order = session.get(Order, order_id)
-
-    if not order or order.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    item = session.get(OrderItem, item_id)
-
-    if not item or item.order_id != order_id:
-        raise HTTPException(status_code=404, detail="Order item not found")
-
-    session.delete(item)
-    session.commit()
-
-    return {"message": "Order item deleted"}

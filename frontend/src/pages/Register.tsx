@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axiosClient from "../api/axiosClient";
+import { apiErrorMessage } from "../api/errors";
 import { useNavigate, Link } from  "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 
@@ -30,7 +31,7 @@ function Register() {
             setTimeout(() => navigate("/login"), 800);
         } catch (err: any) {
             console.error(err);
-            setMessage("Registration failed.");
+            setMessage(apiErrorMessage(err, "Registration failed."));
         }
     };
 
@@ -81,8 +82,10 @@ function Register() {
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
                                 <label className="text-sm">Password</label>
-                                <input type="password" placeholder="password"
+                                <input type="password" placeholder="at least 8 characters"
                                     value={password}
+                                    minLength={8}
+                                    required
                                     onChange = {(e) => setPassword(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
                             </div>

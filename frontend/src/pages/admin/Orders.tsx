@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
-import { apiErrorMessage } from "../../api/admin";
+import { apiErrorMessage } from "../../api/errors";
 import { deleteOrder, getAllOrders, updateOrderStatus, updateOrderTracking } from "../../api/orders";
 import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 

@@ -4,7 +4,8 @@ import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
 import AdminUserEditModal from "../../components/admin/users/AdminUserEditModal";
-import { apiErrorMessage, createUser, deleteUser, getUsers, updateUser, type AdminUser, type AdminUserInput } from "../../api/admin";
+import { createUser, deleteUser, getUsers, updateUser, type AdminUser, type AdminUserInput } from "../../api/admin";
+import { apiErrorMessage } from "../../api/errors";
 
 
 export default function AdminUsers() {

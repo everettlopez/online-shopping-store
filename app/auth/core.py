@@ -3,11 +3,12 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Response
 from fastapi.security import APIKeyCookie, HTTPBearer
 from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.user import User
+from app.settings import MIN_JWT_SECRET_LENGTH, cookie_samesite, cookie_secure
 from typing import Annotated
 import os
 
@@ -16,7 +17,14 @@ JWT_COOKIE_KEY = "shop_token"
 cookie_scheme = APIKeyCookie(name=JWT_COOKIE_KEY, auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+# A missing key is reported by check_required_settings() at startup
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+
+def signing_key() -> str:
+    # Never sign or accept tokens with an empty or weak key, even if startup was skipped
+    if len(SECRET_KEY) < MIN_JWT_SECRET_LENGTH:
+        raise RuntimeError("JWT_SECRET_KEY is missing or too short")
+    return SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -38,11 +46,30 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, signing_key(), algorithm=ALGORITHM)
+
+def set_auth_cookie(response: Response, token: str):
+    response.set_cookie(
+        key=JWT_COOKIE_KEY,
+        value=token,
+        httponly=True,
+        samesite=cookie_samesite(),
+        secure=cookie_secure(),
+        path="/",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,   # the cookie lives as long as the token
+    )
+
+def clear_auth_cookie(response: Response):
+    # Browsers only drop the cookie when these attributes match the ones it was set with
+    response.delete_cookie(
+        key=JWT_COOKIE_KEY,
+        path="/",
+        httponly=True,
+        samesite=cookie_samesite(),
+        secure=cookie_secure(),
+    )
 
 def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depends(bearer_scheme)):
-    print("DEBUG: cookie_token =", cookie_token)
-    print("DEBUG: bearer_token =", bearer_token)
     if cookie_token:
         return cookie_token
     
@@ -53,7 +80,7 @@ def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depen
 
 def get_current_user(token: str = Depends(get_access_token), session: Session = Depends(get_session)):
     try: 
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, signing_key(), algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
 
         if user_id is None:

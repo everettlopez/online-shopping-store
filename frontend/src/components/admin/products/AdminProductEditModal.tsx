@@ -9,7 +9,8 @@ import { InputLabel, MenuItem, Select } from '@mui/material';
 
 import ConfirmDeleteModal from "../ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../AdminSnackbar";
-import { apiErrorMessage, type Category } from "../../../api/admin";
+import { type Category } from "../../../api/admin";
+import { apiErrorMessage } from "../../../api/errors";
 import { deleteProduct, updateProduct } from "../../../api/products";
 
 interface Props {

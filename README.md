@@ -30,6 +30,7 @@ This application models a real‑world e‑commerce workflow, including product 
 ### Tooling
 - GitHub for version control 
 - Custom Swagger-style API documentation
+- pytest for the backend test suite
 - Bruno for endpoint testing
 
 ## Development Setup
@@ -54,10 +55,12 @@ Tables are created by the database migrations in step 3 (the backend only seeds 
 Copy `.env.example` to `.env` in the project root and fill in your values:
 ```
 DATABASE_URL=mysql+pymysql://root:your_password@localhost:3306/online_store
-JWT_SECRET_KEY=a-long-random-string
+JWT_SECRET_KEY=<at least 32 random characters>
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+`JWT_SECRET_KEY` must be at least 32 characters (generate one with `venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"`), and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists optional deployment settings (`FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`); their defaults suit local development. For production, set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to your real addresses, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
+
 `.env` is gitignored, so never commit real keys. Percent-encode special characters in the DB password (for example, `@` becomes `%40`).
 
 ### 3. Backend (FastAPI)
@@ -94,6 +97,14 @@ Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SEC
 
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/api (docs at http://localhost:8000/docs)
+
+### 6. Run the tests
+The backend test suite lives in `tests/`. It runs against a throwaway in-memory SQLite database and mocks Stripe, so it doesn't need MySQL, a `.env` file or network access. From the project root:
+```bash
+venv\Scripts\pip install -r requirements-dev.txt
+venv\Scripts\python -m pytest
+```
+Add `-x` to stop at the first failure, or pass a path to run part of the suite (for example `venv\Scripts\python -m pytest tests/api/test_cart_api.py`). Shared fixtures and test-data factories are in `tests/conftest.py`.
 
 ## Author
 Everett Lopez

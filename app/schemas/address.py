@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 
 class AddressCreate(BaseModel):
     line1: str
@@ -8,7 +8,7 @@ class AddressCreate(BaseModel):
     state: str
     postal_code: str
     county: Optional[str] = None
-    address_type: str
+    address_type: Literal["shipping", "billing"]
 
 class AddressRead(BaseModel):
     address_id: int

@@ -11,9 +11,12 @@ from app.models.order import OrderItem
 from app.schemas.product import ProductCreate, ProductRead
 from app.auth.dependencies import admin_required
 from app.database.products import database_get_product_read, database_get_product_reads
+from app.settings import public_api_url
 from fastapi import Request
 
 import os
+import json
+import uuid
 
 # Get the directory of this file: app/routes/product.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,23 +31,57 @@ UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+# Uploads are served back from /uploads, so only accept image types
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+def save_uploads(request: Request, files: list[UploadFile]) -> list[str]:
+    """Save uploaded images under random names and return their public URLs. The
+    client's filename is only used for its extension, so it can't escape the uploads
+    folder, overwrite another image, or upload a page the browser would run. Every
+    file is checked before any is written, so a rejected batch leaves nothing behind."""
+    checked = []
+    for file in files:
+        extension = os.path.splitext(file.filename or "")[1].lower()
+        if extension not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Images must be .jpg, .jpeg, .png, .webp or .gif")
+
+        contents = file.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Images must be 5 MB or smaller")
+
+        checked.append((extension, contents))
+
+    urls = []
+    for extension, contents in checked:
+        filename = f"{uuid.uuid4().hex}{extension}"
+        with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+            f.write(contents)
+        urls.append(f"{public_api_url(request)}/uploads/{filename}")
+
+    return urls
 
 
 # -----------------------------------------
 # POST /products → create a new product
 # -----------------------------------------
+# Plain def (not async): FastAPI runs it in a threadpool, so file and database I/O
+# don't block other requests
 @router.post("/", response_model=ProductRead, dependencies=[Depends(admin_required)])
-async def create_product(
+def create_product(
     request: Request,
     category_id: int = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    price: float = Form(...),
+    price: float = Form(..., ge=0),
     size: str = Form(""),
     color: str = Form(""),
     thumbnail: UploadFile | None = File(None),
-    stock_quantity: int = Form(0),
+    stock_quantity: int = Form(0, ge=0),
     is_active: bool = Form(True),
     session: Session = Depends(get_session)
 ):
@@ -55,16 +92,7 @@ async def create_product(
     thumbnail_path = None
 
     if thumbnail:
-        contents = await thumbnail.read()
-        file_path = f"app/uploads/{thumbnail.filename}"
-
-
-
-        with open(file_path, "wb") as f:
-            f.write(contents)
-
-        thumbnail_path = f"{request.base_url}uploads/{thumbnail.filename}"
-
+        [thumbnail_path] = save_uploads(request, [thumbnail])
     
     product_data = ProductCreate(
         category_id=category_id,
@@ -137,16 +165,17 @@ def get_product(product_id: int, session: Session = Depends(get_session)):
 # PUT /products/{product_id} → update
 # -----------------------------------------
 @router.put("/{product_id}", response_model=ProductRead, dependencies=[Depends(admin_required)])
-async def update_product(
+def update_product(
+    request: Request,
     product_id: int,
     title: str = Form(None),
     category_id: int | None = Form(None),
     description: str = Form(None),
-    price: float = Form(None),
+    price: float = Form(None, ge=0),
     size: str = Form(None),
     color: str = Form(None),
     thumbnail: str | None = Form(None),
-    stock_quantity: int = Form(None),
+    stock_quantity: int = Form(None, ge=0),
     is_active: bool = Form(None),
 
     # ⭐ Add these
@@ -158,6 +187,13 @@ async def update_product(
     product = session.exec(select(Product).where(Product.product_id == product_id)).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        url_list = json.loads(images_urls)
+    except json.JSONDecodeError:
+        url_list = None
+    if not isinstance(url_list, list) or not all(isinstance(u, str) for u in url_list):
+        raise HTTPException(status_code=400, detail="images_urls must be a JSON list of strings")
 
     # Update simple fields
     if title is not None: product.title = title
@@ -174,20 +210,7 @@ async def update_product(
         product.category_id = category_id
 
     # ⭐ Save uploaded files
-    saved_files = []
-    if images_files:
-        for file in images_files:
-            filepath = os.path.join(UPLOAD_DIR, file.filename)
-
-            with open(filepath, "wb") as f:
-                f.write(await file.read())
-
-            saved_files.append(f"uploads/{file.filename}")   # relative path for frontend
-
-
-    # ⭐ Merge URL images
-    import json
-    url_list = json.loads(images_urls)
+    saved_files = save_uploads(request, images_files or [])
 
     # ⭐ Merge old + new
     product.images = (product.images or []) + saved_files + url_list
