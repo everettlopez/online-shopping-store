@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Navbar from "../components/Navbar";
 
 export default function AccountPage() {
   const { user, refreshUser, logout } = useAuth();
@@ -43,35 +44,7 @@ export default function AccountPage() {
     <div className="min-h-screen bg-gray-50">
 
       {/* HEADER */}
-      <header className="relative flex flex-col justify-center items-center gap-4 p-5 bg-white shadow-sm">
-
-        {/* Right-side icons */}
-        <div className="absolute right-5 top-5 flex items-center gap-6 text-2xl">
-          <Link to="/account" className="hover:text-gray-600 transition">
-            <i className="fa-regular fa-user"></i>
-          </Link>
-
-          <Link to="/cart" className="hover:text-gray-600 transition">
-            <i className="fa-solid fa-bag-shopping"></i>
-          </Link>
-        </div>
-
-        {/* Logo */}
-        <Link to="/">
-          <h1 className="text-6xl tracking-tight font-light">KILLJOY</h1>
-        </Link>
-
-        {/* Navigation */}
-        <nav className="flex gap-12 text-sm tracking-widest text-gray-700">
-          <Link to="/"><p>EVENTS</p></Link>
-          <Link to="/products?category=1"><p>NEW ARRIVALS</p></Link>
-          <Link to="/products?category=2"><p>WOMEN</p></Link>
-          <Link to="/products?category=3"><p>MEN</p></Link>
-          <Link to="/products?category=4"><p>BRANDS</p></Link>
-          <Link to="/products?category=5"><p>ACCESSORIES</p></Link>
-          <Link to="/products?category=6"><p>JEWELRY</p></Link>
-        </nav>
-      </header>
+      <Navbar className="bg-white shadow-sm" />
 
       {/* MAIN CONTENT */}
       <div className="w-full p-8 flex bg-white gap-10">

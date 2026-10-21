@@ -4,10 +4,12 @@ import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
 import { apiErrorMessage, createCategory, deleteCategory, getCategories, updateCategory, type Category } from "../../api/admin";
+import { useCategories } from "../../context/CategoriesContext";
 
 export default function AdminCategories() {
 
     const [categories, setCategories] = useState<Category[]>([]);
+    const { refreshCategories } = useCategories();
     const [notice, setNotice] = useState<AdminNotice>(null);
 
     // Create form
@@ -24,6 +26,9 @@ export default function AdminCategories() {
     async function fetchCategories() {
         try {
             setCategories(await getCategories());
+
+            // Keep the storefront nav in sync with admin changes
+            refreshCategories();
         }
         catch (err) {
             setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load categories") });
