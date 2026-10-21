@@ -69,7 +69,7 @@ export default function AccountPage() {
           <Link to="/products?category=3"><p>MEN</p></Link>
           <Link to="/products?category=4"><p>BRANDS</p></Link>
           <Link to="/products?category=5"><p>ACCESSORIES</p></Link>
-          <Link to="/products?category=6"><p>JEWELERY</p></Link>
+          <Link to="/products?category=6"><p>JEWELRY</p></Link>
         </nav>
       </header>
 

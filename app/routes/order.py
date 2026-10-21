@@ -11,6 +11,7 @@ from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
+from app.database.products import database_get_product_read, database_get_product_reads
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -55,6 +56,12 @@ def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
     # Get all orders for the user
     orders = session.exec(select(Order)).all()
 
+    # Load every order's items and their products up front instead of per item
+    all_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id.in_([o.order_id for o in orders]))
+    ).all() if orders else []
+    products = database_get_product_reads(session, {i.product_id for i in all_items})
+
     enriched_orders = []
 
     for order in orders:
@@ -62,14 +69,11 @@ def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
         shipping = session.get(Address, order.shipping_address_id)
         billing = session.get(Address, order.billing_address_id)
 
-        # Load items for this order
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.order_id)
-        ).all()
+        items = [i for i in all_items if i.order_id == order.order_id]
 
         enriched_items = []
         for item in items:
-            product = session.get(Product, item.product_id)
+            product = products.get(item.product_id)
             enriched_items.append(OrderItemRead(
                 order_item_id=item.order_item_id,
                 order_id=item.order_id,
@@ -120,6 +124,12 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
 
     orders = session.exec(query).all()
 
+    # Load every order's items and their products up front instead of per item
+    all_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id.in_([o.order_id for o in orders]))
+    ).all() if orders else []
+    products = database_get_product_reads(session, {i.product_id for i in all_items})
+
     enriched_orders = []
 
     for order in orders:
@@ -127,14 +137,11 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
         shipping = session.get(Address, order.shipping_address_id)
         billing = session.get(Address, order.billing_address_id)
 
-        # Load items for this order
-        items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.order_id)
-        ).all()
+        items = [i for i in all_items if i.order_id == order.order_id]
 
         enriched_items = []
         for item in items:
-            product = session.get(Product, item.product_id)
+            product = products.get(item.product_id)
             enriched_items.append(OrderItemRead(
                 order_item_id=item.order_item_id,
                 order_id=item.order_id,
@@ -191,7 +198,7 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
     enriched_items = []
 
     for oi in order_items:
-        product = session.get(Product, oi.product_id)
+        product = database_get_product_read(session, oi.product_id)
 
         enriched_items.append(OrderItemRead(
             order_item_id=oi.order_item_id,

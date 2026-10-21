@@ -1,27 +1,7 @@
 {
-  "dependencies": {
-    "@base-ui/react": "^1.8.0",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^9.4.0",
-    "@mui/lab": "^9.0.0-beta.9",
-    "@mui/material": "^9.4.0",
-    "@mui/x-data-grid": "^9.13.0",
-    "@stripe/react-stripe-js": "^6.10.0",
-    "@stripe/stripe-js": "^9.16.0",
-    "axios": "^1.18.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.17.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "concurrently": "^10.0.5"
-  },
+  "name": "online-shopping-store",
+  "private": true,
   "scripts": {
-    "backend": "uvicorn app.main:app --reload",
-    "frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+    "frontend": "npm --prefix frontend run dev"
   }
 }

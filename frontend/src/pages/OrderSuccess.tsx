@@ -1,6 +1,7 @@
 import { useSearchParams, Link} from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
+import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
 
 export type Address = {
   address_id: number;
@@ -56,23 +57,32 @@ export default function OrderSuccess() {
   const sessionId = params.get("session_id");
 
   const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(sessionId));
 
 
   useEffect(() => {
-    async function fetchOrder() {
+    let cancelled = false;
+
+    async function fetchOrder(attempt: number) {
       try {
         const res = await axiosClient.get(`/payments/session/${sessionId}`);
 
         const data = Array.isArray(res.data) ? res.data[0] : res.data;
-        setOrder(data);
-      } catch (err) {
+        if (!cancelled) setOrder(data);
+      } catch (err: any) {
+        // Stripe's webhook can land a moment after the redirect, so retry while the order is created
+        if (err.response?.status === 404 && attempt < 5) {
+          setTimeout(() => { if (!cancelled) fetchOrder(attempt + 1); }, 1000);
+          return;
+        }
         console.error("Failed to fetch order:", err);
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
 
-    if (sessionId) fetchOrder();
+    if (sessionId) fetchOrder(1);
+
+    return () => { cancelled = true; };
   }, [sessionId]);
 
   if (loading) return <p>Loading order...</p>;
@@ -107,7 +117,8 @@ export default function OrderSuccess() {
           
           <div className="flex flex-col">
             <p className="text-gray-400">Payment Method</p>
-            <p className="flex justify-center">{order.card_brand?.toUpperCase()}</p>
+            <p className="flex justify-center">{paymentMethodLabel(order.payment_method_type)}</p>
+            {paymentCardSummary(order) && <p className="flex justify-center">{paymentCardSummary(order)}</p>}
           </div>
         </div>
 

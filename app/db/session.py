@@ -3,8 +3,12 @@ from sqlmodel import Session as SQLModelSession
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from typing import Generator
+from dotenv import load_dotenv
+import os
 
-DATABASE_URL = "mysql+pymysql://root:%40RjpN4675is@localhost:3306/online_store"
+load_dotenv()
+
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 engine = create_engine(
     DATABASE_URL,
@@ -28,6 +32,11 @@ def create_db_and_tables():
     from app.models.order import Order
 
     SQLModel.metadata.create_all(bind=engine)
+
+    from app.database.category import database_seed_categories
+
+    with SQLModelSession(engine) as session:
+        database_seed_categories(session)
 
 def get_session() -> Generator:
     with SQLModelSession(engine) as session:

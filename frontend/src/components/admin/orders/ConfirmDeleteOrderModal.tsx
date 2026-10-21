@@ -1,6 +1,12 @@
 import Modal from "@mui/material/Modal";
 
-export default function ConfirmDeleteOrderModal({ open, onClose, onConfirm }) {
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+export default function ConfirmDeleteOrderModal({ open, onClose, onConfirm }: Props) {
   return (
     <Modal open={open} onClose={onClose}>
       <div className="bg-white p-6 rounded-lg shadow-xl w-[400px] mx-auto mt-[20vh]">

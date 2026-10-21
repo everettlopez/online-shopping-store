@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import axiosClient from "../../api/axiosClient";
+import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import Accordion from "@mui/material/Accordion";
@@ -8,9 +9,8 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
+import { Chip, Step, StepLabel } from "@mui/material";
 
-import Box from '@mui/material/Box';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
@@ -18,7 +18,6 @@ import DoneRoundedIcon from '@mui/icons-material/DoneRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
-import TextField from '@mui/material/TextField';
 
 import Stepper from '@mui/material/Stepper';
 
@@ -171,8 +170,6 @@ export default function Orders()
 
     const { user } = useAuth();
 
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
     const steps = ["Placed", "Processing", "Shipped", "Delivered"];
     const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
@@ -189,9 +186,7 @@ export default function Orders()
 
                 setPendingOrders(active);
                 setOrderHistory(history);
-                setCurrentOrder(active[0] || null);
 
-                setOrders(data);
 
             }
             catch (err)
@@ -244,7 +239,7 @@ export default function Orders()
                 <Link to="/products?category=3"><p className="text-base font-normal tracking-widest">MEN</p></Link>
                 <Link to="/products?category=4"><p className="text-base font-normal tracking-widest">BRANDS</p></Link>
                 <Link to="/products?category=5"><p className="text-base font-normal tracking-widest">ACCESSORIES</p></Link>
-                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELERY</p></Link>
+                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELRY</p></Link>
             </nav>
         </div>
 
@@ -350,13 +345,8 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Payment</p>
-                                                <p>
-                                                ${order.total_amount.toFixed(2)} with {order?.payment_method_type
-                                                    ? order.payment_method_type.charAt(0).toUpperCase() +
-                                                    order.payment_method_type.slice(1)
-                                                    : ""}
-                                                </p>
-                                                <p>{order.card_brand?.toUpperCase()} ending in ****{order.card_last4}</p>
+                                                <p>${order.total_amount.toFixed(2)} with {paymentMethodLabel(order.payment_method_type)}</p>
+                                                {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
 
                                             </div>
                                         </div>
@@ -458,13 +448,8 @@ export default function Orders()
 
                                             <div className="flex flex-col">
                                                 <p className="text-sm text-gray-400">Payment</p>
-                                                <p>
-                                                ${order.total_amount.toFixed(2)} with {order?.payment_method_type
-                                                    ? order.payment_method_type.charAt(0).toUpperCase() +
-                                                    order.payment_method_type.slice(1)
-                                                    : ""}
-                                                </p>
-                                                <p>{order.card_brand?.toUpperCase()} ending in ****{order.card_last4}</p>
+                                                <p>${order.total_amount.toFixed(2)} with {paymentMethodLabel(order.payment_method_type)}</p>
+                                                {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
 
                                             </div>
                                         </div>

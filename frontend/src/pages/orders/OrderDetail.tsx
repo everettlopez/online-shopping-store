@@ -1,9 +1,10 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
 import axiosClient from "../../api/axiosClient";
+import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 import { useAuth } from "../../context/AuthContext";
 
-import Box from '@mui/material/Box';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
@@ -11,9 +12,8 @@ import DoneRoundedIcon from '@mui/icons-material/DoneRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
-import TextField from '@mui/material/TextField';
 import Stepper from '@mui/material/Stepper';
-import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
+import { Chip, Step, StepLabel } from "@mui/material";
 
 export type Address = {
   address_id: number;
@@ -233,7 +233,7 @@ export default function OrderDetails() {
                 <Link to="/products?category=3"><p className="text-base font-normal tracking-widest">MEN</p></Link>
                 <Link to="/products?category=4"><p className="text-base font-normal tracking-widest">BRANDS</p></Link>
                 <Link to="/products?category=5"><p className="text-base font-normal tracking-widest">ACCESSORIES</p></Link>
-                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELERY</p></Link>
+                <Link to="/products?category=6"><p className="text-base font-normal tracking-widest">JEWELRY</p></Link>
             </nav>
         </div>
 
@@ -314,13 +314,8 @@ export default function OrderDetails() {
                       {/* Payment */}
                       <div className="flex flex-col">
                           <p className="text-sm text-gray-400">Payment</p>
-                          <p>
-                          ${currentOrder.total_amount.toFixed(2)} with {currentOrder?.payment_method_type
-                              ? currentOrder.payment_method_type.charAt(0).toUpperCase() +
-                              currentOrder.payment_method_type.slice(1)
-                              : ""}
-                          </p>
-                          <p>{currentOrder.card_brand?.toUpperCase()} ending in ****{currentOrder.card_last4}</p>
+                          <p>${currentOrder.total_amount.toFixed(2)} with {paymentMethodLabel(currentOrder.payment_method_type)}</p>
+                          {paymentCardSummary(currentOrder) && <p>{paymentCardSummary(currentOrder)}</p>}
 
                       </div>
                   </div>

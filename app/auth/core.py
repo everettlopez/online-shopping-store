@@ -9,13 +9,14 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models.user import User
 from typing import Annotated
+import os
 
 
 JWT_COOKIE_KEY = "shop_token"
 cookie_scheme = APIKeyCookie(name=JWT_COOKIE_KEY, auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-SECRET_KEY = "supersecretkey123"
+SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

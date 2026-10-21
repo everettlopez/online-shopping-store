@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
 import { Link } from "react-router-dom";   // ← FIXED: Link imported
-import { useAuth } from "../../context/AuthContext";
 import { DataGrid } from "@mui/x-data-grid";
 import AdminProductEditModal from "../../components/admin/products/AdminProductEditModal";
 import { FormControlLabel, FormGroup, InputLabel, MenuItem, Select, TextField } from "@mui/material";
@@ -9,22 +8,6 @@ import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 import NumberField from "../../components/NumberField";
 import Switch from '@mui/material/Switch';
 
-
-export interface Product {
-  product_id: number;
-  category_id: number;
-
-  title: string;  // Updated
-  description?: string;
-  price: number;
-  size?: string;
-  color?: string;
-  thumbnail?: string;   // Updated
-  stock_quantity: number;
-  is_active: boolean;
-
-  images?: string[];
-}
 
 export interface CategoryRead {
   category_id: number;
@@ -53,11 +36,8 @@ export interface ProductRead {
 
 
 export default function AdminProductsPage() {
-  const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [products, setProducts] = useState<ProductRead[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRead | null>(null);
   const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
 
 
@@ -67,7 +47,8 @@ export default function AdminProductsPage() {
   const [category, setCategory] = useState(0);
   const [size, setSize] = useState("0");
   const [color, setColor] = useState("0");
-  const [price, setPrice] = useState(null);
+  const [price, setPrice] = useState<number | null>(null);
+  const [stock, setStock] = useState<number | null>(1);
   const [isActive, setIsActive] = useState(true);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
 
@@ -77,17 +58,17 @@ export default function AdminProductsPage() {
     {field: "id", headerName: "Product ID", width: 100, resizable: false,},
     {field: "active", headerName: "Active", width: 100, resizable: false},
     {field: "category", headerName: "Category", width: 100, resizable: false,},
-    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params) => (
+    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params: any) => (
       <img src={params.value} alt="thumbnail" className="h-10 w-10 object-cover"/>
     ),},
     {field: "name", headerName: "Name", width: 300, resizable: false,},
     {field: "price", headerName: "Price ($)", width: 100, resizable: false,},
     {field: "size", headerName: "Size", width: 100, resizable: false},
+    {field: "stock", headerName: "Stock", width: 100, resizable: false},
     {field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params: any) => (
       <button className="text-blue-600 underline"
         onClick={() => {
           const fullProduct = products.find(p => p.product_id === params.row.id);
-          setExpandedRow(params.row.id);
           setSelectedProduct(fullProduct || null);
           setIsProductDetailModalOpen(true);
         }}>
@@ -113,6 +94,7 @@ export default function AdminProductsPage() {
         name: product.title,
         price: product.price.toFixed(2),
         size: product.size,
+        stock: product.stock_quantity,
       }));
 
       setRows(formatted);
@@ -138,6 +120,7 @@ export default function AdminProductsPage() {
       setSize("0");
       setColor("0");
       setPrice(null);
+      setStock(1);
       setIsActive(true);
       setThumbnail(null);
     }
@@ -156,6 +139,7 @@ export default function AdminProductsPage() {
       formData.append("size", size);
       formData.append("color", color);
       formData.append("price", String(price));
+      formData.append("stock_quantity", String(stock));
       formData.append("is_active", String(isActive));
 
       if (thumbnail) {
@@ -172,7 +156,6 @@ export default function AdminProductsPage() {
     }
   }
 
-  const eligibleProduct = title && price && category;
 
 
   return (
@@ -252,7 +235,7 @@ export default function AdminProductsPage() {
                     <MenuItem value={3}>Men</MenuItem>
                     <MenuItem value={4}>Brands</MenuItem>
                     <MenuItem value={5}>Accessories</MenuItem>
-                    <MenuItem value={6}>Jewlery</MenuItem>
+                    <MenuItem value={6}>Jewelry</MenuItem>
                   </Select>
                 </FormGroup>
 
@@ -279,7 +262,13 @@ export default function AdminProductsPage() {
                 {/* Price Wheel */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel required>Price</InputLabel>
-                  <NumberField label="Price ($)" value={price} min={1} onValueChange={(newValue) => setPrice(newValue)}/>  
+                  <NumberField label="Price ($)" value={price} min={1} onValueChange={(newValue) => setPrice(newValue)}/>
+                </FormGroup>
+
+                {/* Stock Wheel */}
+                <FormGroup className="flex flex-col gap-2">
+                  <InputLabel required>Stock</InputLabel>
+                  <NumberField label="Stock" value={stock} min={0} step={1} onValueChange={(newValue) => setStock(newValue)}/>
                 </FormGroup>
 
                 <FormGroup className="h-full flex justify-center items-center">
@@ -290,7 +279,7 @@ export default function AdminProductsPage() {
               {/* Cancel/Create Buttons */}
               <div className="border flex justify-between">
                 <button className="border rounded-full px-5 py-1" onClick={() => handleCancelCreate()}>Cancel</button>
-                <button disabled={!title || !price || !category || !thumbnail} onClick={() => handleCreate()} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>
+                <button disabled={!title || !price || stock === null || !category || !thumbnail} onClick={() => handleCreate()} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>
               </div>
             </div>
           </div>
@@ -319,7 +308,6 @@ export default function AdminProductsPage() {
         product={selectedProduct}
         onClose={() => {
           setIsProductDetailModalOpen(false);
-          setExpandedRow(null);
           setSelectedProduct(null);
           fetchProducts();
         }}

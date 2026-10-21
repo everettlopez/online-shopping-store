@@ -18,48 +18,73 @@ interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: (data: { shipping: Address; billing: Address }) => void;
-  shippingAddresses: Address[];
-  billingAddresses: Address[];
+  addresses: Address[];
 }
+
+const emptyForm = {
+  line1: "",
+  line2: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  county: "",
+  // Required by the API; any saved address can be used for shipping or billing
+  address_type: "shipping",
+};
 
 export default function AddressModal({
   isOpen,
   onClose,
   onSaved,
-  shippingAddresses = [],
-  billingAddresses = [],
+  addresses = [],
 }: AddressModalProps) {
-  if (!isOpen) return null;
+  // Saved addresses, newest first (includes ones added in this modal)
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
 
   // Mode: select or create
-  const [mode, setMode] = useState(
-    shippingAddresses.length > 0 || billingAddresses.length > 0
-      ? "select"
-      : "create"
-  );
+  const [mode, setMode] = useState<"select" | "create">("create");
 
-  useEffect(() => {
-    if (shippingAddresses.length > 0 || billingAddresses.length > 0) {
-      setMode("select");
-    } else {
-      setMode("create");
-    }
-  }, [shippingAddresses, billingAddresses]);
-
-  // Two selectors
   const [shippingAddressId, setShippingAddressId] = useState<string>("");
   const [billingAddressId, setBillingAddressId] = useState<string>("");
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
+  const [error, setError] = useState("");
 
   // Create form
-  const [form, setForm] = useState({
-    line1: "",
-    line2: "",
-    city: "",
-    state: "",
-    postal_code: "",
-    county: "",
-    address_type: "shipping",
-  });
+  const [form, setForm] = useState(emptyForm);
+
+  // Reset each time the modal opens (not when the address list refreshes)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const sorted = [...addresses].sort((a, b) => b.address_id - a.address_id);
+    const newestId = sorted.length > 0 ? String(sorted[0].address_id) : "";
+
+    setSavedAddresses(sorted);
+    setMode(sorted.length > 0 ? "select" : "create");
+    setShippingAddressId(newestId);
+    setBillingAddressId(newestId);
+    setBillingSameAsShipping(true);
+    setError("");
+    setForm(emptyForm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-running on `addresses` would wipe in-progress input
+  }, [isOpen]);
+
+  // A refreshed address list arrived while open: add new entries, keep the user's mode and form
+  useEffect(() => {
+    if (addresses.length === 0) return;
+
+    const newestId = String(Math.max(...addresses.map((a) => a.address_id)));
+
+    setSavedAddresses((prev) => {
+      const known = new Set(prev.map((a) => a.address_id));
+      const added = addresses.filter((a) => !known.has(a.address_id));
+      return added.length > 0 ? [...prev, ...added].sort((a, b) => b.address_id - a.address_id) : prev;
+    });
+    setShippingAddressId((prev) => prev || newestId);
+    setBillingAddressId((prev) => prev || newestId);
+  }, [addresses]);
+
+  if (!isOpen) return null;
 
   type FormState = typeof form;
   type FormKey = keyof FormState;
@@ -68,38 +93,57 @@ export default function AddressModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // CREATE MODE — save new address
+  // CREATE MODE — save new address, then pick it in the select view
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
 
     try {
-      const res = await axiosClient.post("/addresses", form, {
+      const res = await axiosClient.post("/addresses/", form, {
         withCredentials: true,
       });
 
       const newAddress: Address = res.data;
+      const newId = String(newAddress.address_id);
 
-      // Return new address for both shipping + billing
-      onSaved({ shipping: newAddress, billing: newAddress });
-      onClose();
+      setSavedAddresses((prev) => [newAddress, ...prev]);
+      setShippingAddressId(newId);
+      if (billingSameAsShipping || !billingAddressId) {
+        setBillingAddressId(newId);
+      }
+      setForm(emptyForm);
+      setMode("select");
     } catch (err) {
       console.error("Error saving address:", err);
+      setError("Could not save the address. Please check the fields and try again.");
     }
   }
 
   // SELECT MODE — return chosen shipping + billing
   function handleSubmitSelection() {
-    const shipping = shippingAddresses.find(
+    const shipping = savedAddresses.find(
       (a) => a.address_id === Number(shippingAddressId)
     );
-    const billing = billingAddresses.find(
-      (a) => a.address_id === Number(billingAddressId)
-    );
+    const billing = billingSameAsShipping
+      ? shipping
+      : savedAddresses.find((a) => a.address_id === Number(billingAddressId));
 
-    if (!shipping || !billing) return;
+    if (!shipping) {
+      setError("Please choose a shipping address.");
+      return;
+    }
+    if (!billing) {
+      setError("Please choose a billing address.");
+      return;
+    }
 
     onSaved({ shipping, billing });
     onClose();
+  }
+
+  function formatAddress(addr: Address) {
+    const line2 = addr.line2 ? ` ${addr.line2}` : "";
+    return `${addr.line1}${line2}, ${addr.city}, ${addr.state} ${addr.postal_code}`;
   }
 
   return (
@@ -127,30 +171,45 @@ export default function AddressModal({
                 onChange={(e) => setShippingAddressId(e.target.value)}
               >
                 <option value="">Choose shipping address</option>
-                {shippingAddresses.map((addr) => (
+                {savedAddresses.map((addr) => (
                   <option key={addr.address_id} value={addr.address_id}>
-                    {addr.line1}, {addr.city}, {addr.state} {addr.postal_code}
+                    {formatAddress(addr)}
                   </option>
                 ))}
               </select>
             </div>
 
             {/* Billing */}
-            <div>
-              <p className="font-medium mb-1">Billing Address</p>
-              <select
-                className="border p-2 rounded w-full"
-                value={billingAddressId}
-                onChange={(e) => setBillingAddressId(e.target.value)}
-              >
-                <option value="">Choose billing address</option>
-                {billingAddresses.map((addr) => (
-                  <option key={addr.address_id} value={addr.address_id}>
-                    {addr.line1}, {addr.city}, {addr.state} {addr.postal_code}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={billingSameAsShipping}
+                  onChange={(e) => setBillingSameAsShipping(e.target.checked)}
+                />
+                Billing address same as shipping
+              </label>
+
+              {!billingSameAsShipping && (
+                <div>
+                  <p className="font-medium mb-1">Billing Address</p>
+                  <select
+                    className="border p-2 rounded w-full"
+                    value={billingAddressId}
+                    onChange={(e) => setBillingAddressId(e.target.value)}
+                  >
+                    <option value="">Choose billing address</option>
+                    {savedAddresses.map((addr) => (
+                      <option key={addr.address_id} value={addr.address_id}>
+                        {formatAddress(addr)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
 
             <button
               onClick={handleSubmitSelection}
@@ -160,7 +219,7 @@ export default function AddressModal({
             </button>
 
             <button
-              onClick={() => setMode("create")}
+              onClick={() => { setError(""); setMode("create"); }}
               className="bg-gray-300 py-2 rounded"
             >
               Add New Address
@@ -178,6 +237,7 @@ export default function AddressModal({
               <input
                 className="border p-2 w-full"
                 placeholder="Address Line 1"
+                required
                 value={form.line1}
                 onChange={(e) => updateField("line1", e.target.value)}
               />
@@ -192,6 +252,7 @@ export default function AddressModal({
               <input
                 className="border p-2 w-full"
                 placeholder="City"
+                required
                 value={form.city}
                 onChange={(e) => updateField("city", e.target.value)}
               />
@@ -199,6 +260,7 @@ export default function AddressModal({
               <input
                 className="border p-2 w-full"
                 placeholder="State"
+                required
                 value={form.state}
                 onChange={(e) => updateField("state", e.target.value)}
               />
@@ -206,6 +268,7 @@ export default function AddressModal({
               <input
                 className="border p-2 w-full"
                 placeholder="Postal Code"
+                required
                 value={form.postal_code}
                 onChange={(e) => updateField("postal_code", e.target.value)}
               />
@@ -217,6 +280,8 @@ export default function AddressModal({
                 onChange={(e) => updateField("county", e.target.value)}
               />
 
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
               <button
                 type="submit"
                 className="bg-black text-white w-full py-2 rounded"
@@ -225,9 +290,9 @@ export default function AddressModal({
               </button>
             </form>
 
-            {(shippingAddresses.length > 0 || billingAddresses.length > 0) && (
+            {savedAddresses.length > 0 && (
               <button
-                onClick={() => setMode("select")}
+                onClick={() => { setError(""); setMode("select"); }}
                 className="mt-4 text-gray-600 underline w-full text-center"
               >
                 Back to address list

@@ -46,6 +46,10 @@ async def create_product(
     is_active: bool = Form(True),
     session: Session = Depends(get_session)
 ):
+    category_data = session.exec(select(Category).where(Category.category_id == category_id)).first()
+    if not category_data:
+        raise HTTPException(status_code=400, detail="Category not found")
+
     thumbnail_path = None
 
     if thumbnail:
@@ -77,7 +81,6 @@ async def create_product(
     session.commit()
     session.refresh(product)
 
-    category_data = session.exec(select(Category).where(Category.category_id == category_id)).first()
     category = CategoryRead(
         category_id=category_data.category_id,
         name=category_data.name,
@@ -223,7 +226,10 @@ async def update_product(
     if thumbnail is not None: product.thumbnail = thumbnail
     if stock_quantity is not None: product.stock_quantity = stock_quantity
     if is_active is not None: product.is_active = is_active
-    if category_id is not None: product.category_id = category_id
+    if category_id is not None:
+        if not session.get(Category, category_id):
+            raise HTTPException(status_code=400, detail="Category not found")
+        product.category_id = category_id
 
     # ⭐ Save uploaded files
     saved_files = []
