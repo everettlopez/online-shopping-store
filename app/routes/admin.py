@@ -3,16 +3,15 @@ from sqlmodel import Session, select, delete
 
 from app.db.session import get_session
 from app.auth.dependencies import admin_required
+from app.auth.core import hash_password
 
 from app.models.user import User
-from app.schemas.user import UserRead, UserResponse, Metadata as UserMetadata
-from app.models.product import Product
-from app.models.category import Category
+from app.models.address import Address
+from app.models.order import Order
 from app.models.cart import Cart, CartItem
-from app.schemas.category import CategoryCreate
-from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
+from app.schemas.user import UserRead, UserResponse, AdminUserCreate, AdminUserUpdate, Metadata as UserMetadata
 
-from app.database.users import database_get_users
+from app.database.users import database_get_users, database_get_user_by_id, database_get_user_by_email
 
 
 
@@ -26,20 +25,6 @@ router = APIRouter(
 def admin_home():
     return {"message": "Welcome to the admin dashboard"}
 
-@router.post("/products")
-def create_product(product: ProductCreate):
-    # logic here
-    return {"message": "Product created"}
-
-@router.put("/products/{product_id}")
-def update_product(product_id: int, product: ProductUpdate):
-    # logic here
-    return {"message": "Product updated"}
-
-@router.post("/categories")
-def create_category(category: CategoryCreate):
-    return {"message": "Category created"}
-
 @router.get("/users", response_model=UserResponse)
 def get_all_users(session: Session = Depends(get_session), sort: str | None = None):
     users = database_get_users(session, sort)
@@ -52,17 +37,78 @@ def get_all_users(session: Session = Depends(get_session), sort: str | None = No
         users = user_reads
     )
 
-@router.delete("/users/{user_id}", dependencies=[Depends(admin_required)])
-def delete_user(user_id: int, session: Session = Depends(get_session)):
+@router.post("/users", response_model=UserRead)
+def create_user(data: AdminUserCreate, session: Session = Depends(get_session)):
+    if database_get_user_by_email(session, data.email):
+        raise HTTPException(status_code=409, detail="Email already taken")
 
-    # Delete associated cart items first
-    session.exec(delete(CartItem).where(CartItem.cart_id.in_(
-        session.exec(select(CartItem.cart_id).where(Cart.user_id == user_id)).all()
-    )))
+    user = User(
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        first_name=data.first_name,
+        last_name=data.last_name,
+        is_admin=data.is_admin
+    )
 
-    session.exec(delete(Cart).where(Cart.user_id == user_id))
-
-    session.exec(delete(User).where(User.user_id == user_id))
-
+    session.add(user)
     session.commit()
-    return {"message": "User Deleted"}
+    session.refresh(user)
+    return UserRead.model_validate(user.__dict__)
+
+@router.put("/users/{user_id}", response_model=UserRead)
+def update_user(
+    user_id: int,
+    data: AdminUserUpdate,
+    session: Session = Depends(get_session),
+    admin: User = Depends(admin_required)
+):
+    user = database_get_user_by_id(session, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    if update_data.get("is_admin") is False and user.user_id == admin.user_id:
+        raise HTTPException(status_code=400, detail="You cannot remove your own admin rights")
+
+    if "email" in update_data:
+        existing = database_get_user_by_email(session, update_data["email"])
+        if existing and existing.user_id != user.user_id:
+            raise HTTPException(status_code=409, detail="Email already taken")
+
+    # Blank password means "leave it unchanged"
+    password = update_data.pop("password", None)
+    if password:
+        user.hashed_password = hash_password(password)
+
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(user, key, value)
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return UserRead.model_validate(user.__dict__)
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, session: Session = Depends(get_session), admin: User = Depends(admin_required)):
+    user = database_get_user_by_id(session, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.user_id == admin.user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+    # Orders are financial records, so keep users who have them
+    if session.exec(select(Order).where(Order.user_id == user_id)).first():
+        raise HTTPException(status_code=409, detail="User has orders and cannot be deleted")
+
+    cart_ids = session.exec(select(Cart.cart_id).where(Cart.user_id == user_id)).all()
+    if cart_ids:
+        session.exec(delete(CartItem).where(CartItem.cart_id.in_(cart_ids)))
+    session.exec(delete(Cart).where(Cart.user_id == user_id))
+    session.exec(delete(Address).where(Address.user_id == user_id))
+
+    session.delete(user)
+    session.commit()
+    return {"message": "User deleted"}

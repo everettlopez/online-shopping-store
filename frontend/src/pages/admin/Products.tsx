@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import axiosClient from "../../api/axiosClient";
-import { Link } from "react-router-dom";   // ← FIXED: Link imported
 import { DataGrid } from "@mui/x-data-grid";
 import AdminProductEditModal from "../../components/admin/products/AdminProductEditModal";
+import AdminNav from "../../components/admin/AdminNav";
+import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
+import { apiErrorMessage, getCategories, type Category } from "../../api/admin";
+import { createProduct, getAllProducts } from "../../api/products";
 import { FormControlLabel, FormGroup, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 import NumberField from "../../components/NumberField";
@@ -39,6 +41,8 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<ProductRead[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<ProductRead | null>(null);
   const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [notice, setNotice] = useState<AdminNotice>(null);
 
 
   // Create Product Constants
@@ -83,10 +87,10 @@ export default function AdminProductsPage() {
   {
     try
     {
-      const response = await axiosClient.get("/products");
-      setProducts(response.data);
+      const data = await getAllProducts();
+      setProducts(data);
 
-      const formatted = response.data.map((product: ProductRead) => ({
+      const formatted = data.map((product: ProductRead) => ({
         id: product.product_id,
         active: product.is_active,
         category: product.category.name,
@@ -101,12 +105,15 @@ export default function AdminProductsPage() {
     }
     catch (err)
     {
-      console.error("Failed to load products: ", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load products") });
     }
   }
 
   useEffect(() => {
     fetchProducts();
+    getCategories()
+      .then(setCategories)
+      .catch((err) => setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load categories") }));
 
   }, []);
 
@@ -146,13 +153,13 @@ export default function AdminProductsPage() {
         formData.append("thumbnail", thumbnail);
       }
 
-      const response = await axiosClient.post("/products", formData);
+      await createProduct(formData);
 
-      console.log("Created product:", response.data);
+      setNotice({ severity: "success", message: "Product created" });
       fetchProducts(); // refresh grid
       handleCancelCreate();
     } catch (err) {
-      console.error("Failed to create new product:", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to create new product") });
     }
   }
 
@@ -160,25 +167,7 @@ export default function AdminProductsPage() {
 
   return (
     <>
-      {/* Header */}
-      <div className="relative flex flex-col justify-center items-center gap-4 p-5">
-        <a href="/"><h1 className="text-6xl">KILLJOY</h1></a>
-
-        <nav className="flex gap-12">
-          <Link to="/admin/products">
-            <p className="text-base font-normal tracking-widest">PRODUCTS</p>
-          </Link>
-          <Link to="/admin/categories">
-            <p className="text-base font-normal tracking-widest">CATEGORIES</p>
-          </Link>
-          <Link to="/admin/users">
-            <p className="text-base font-normal tracking-widest">USERS</p>
-          </Link>
-          <Link to="/admin/orders">
-            <p className="text-base font-normal tracking-widest">ORDERS</p>
-          </Link>
-        </nav>
-      </div>
+      <AdminNav />
 
       <div className="p-10">
 
@@ -228,14 +217,11 @@ export default function AdminProductsPage() {
                 {/* Category Selection */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel required>Category</InputLabel>
-                  <Select required value={category} defaultValue={0} onChange={(e) => setCategory(e.target.value)}>
+                  <Select required value={category} defaultValue={0} onChange={(e) => setCategory(Number(e.target.value))}>
                     <MenuItem disabled value={0}>Select a Category</MenuItem>
-                    <MenuItem value={1}>New Arrivals</MenuItem>
-                    <MenuItem value={2}>Women</MenuItem>
-                    <MenuItem value={3}>Men</MenuItem>
-                    <MenuItem value={4}>Brands</MenuItem>
-                    <MenuItem value={5}>Accessories</MenuItem>
-                    <MenuItem value={6}>Jewelry</MenuItem>
+                    {categories.map((c) => (
+                      <MenuItem key={c.category_id} value={c.category_id}>{c.name}</MenuItem>
+                    ))}
                   </Select>
                 </FormGroup>
 
@@ -310,12 +296,15 @@ export default function AdminProductsPage() {
       <AdminProductEditModal
         isOpen={isProductDetailModalOpen}
         product={selectedProduct}
+        categories={categories}
         onClose={() => {
           setIsProductDetailModalOpen(false);
           setSelectedProduct(null);
           fetchProducts();
         }}
       />
+
+      <AdminSnackbar notice={notice} onClose={() => setNotice(null)} />
     </>
   );
 }

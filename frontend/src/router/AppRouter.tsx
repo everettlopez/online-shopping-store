@@ -122,17 +122,17 @@ export default function AppRouter() {
             <Route 
                 path="/admin/users"
                 element={
-                    <ProtectedRoute>
+                    <AdminRoute>
                         <AdminUsers />
-                    </ProtectedRoute>
+                    </AdminRoute>
                 }/>
 
             <Route 
                 path="/admin/categories"
                 element= {
-                    <ProtectedRoute>
+                    <AdminRoute>
                         <AdminCategories />
-                    </ProtectedRoute>
+                    </AdminRoute>
                 }/>
             
 

@@ -22,3 +22,5 @@ def database_get_users(session: Session, sort: str | None = None):
 
 def database_get_user_by_id(session: Session, user_id: int):
     return session.get(User, user_id)
+def database_get_user_by_email(session: Session, email: str):
+    return session.exec(select(User).where(User.email == email)).first()

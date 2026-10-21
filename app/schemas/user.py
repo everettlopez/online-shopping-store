@@ -28,3 +28,17 @@ class UserRead(BaseModel):
 class UserResponse(BaseModel):
     metadata: Metadata
     users: list[UserRead]
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    is_admin: bool = False
+
+class AdminUserUpdate(BaseModel):
+    email: EmailStr | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    is_admin: bool | None = None
+    password: str | None = None
