@@ -23,9 +23,7 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# -----------------------------
-# CORS FIX (this is what you need)
-# -----------------------------
+# CORS: allow the Vite dev server to send cookies to the API
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",

@@ -1,13 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlmodel import Session, select
 import stripe
 import uuid
-from sqlmodel import Session, select
-
-from fastapi import APIRouter, Depends, Request
-from sqlmodel import Session
-import stripe
 import json
+import os
 from datetime import datetime
 
 from app.db.session import get_session
@@ -21,8 +17,8 @@ from app.models.user import User
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-stripe.api_key = ""
-WEBHOOK_SECRET = ""
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
 @router.post("/create-payment-intent")
 def create_payment_intent(

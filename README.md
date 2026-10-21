@@ -36,45 +36,52 @@ This application models a real‑world e‑commerce workflow, including product 
 This project uses a decoupled architecture with separate frontend and backend services. Each service runs independently during development and communicates over HTTP. The following instructions describe how to run the application locally.
 
 ### Prerequisites
-- Node.js (v18+)
-- Python (3.10+)
+- Node.js (v20+)
+- Python (3.14+)
 - MySQL server
 - Git
 - Recommended: VS Code with REST client or Bruno
 
-### Running the Frontend (React + TypeScript)
-1. Navigate to the frontend directory: ```cd frontend```
-2. Install dependencies: ```npm install```
-3. Start the development server: ```npm run dev```
-4. The application will be available at: ```http://localhost:5173```
+### 1. Database (MySQL)
+1. Make sure MySQL is running locally.
+2. Create the database:
+```sql
+CREATE DATABASE online_store;
+```
+Tables are created automatically when the backend starts.
 
-### Running the Backend (FastAPI)
-1. Navigate to the root of the project.
-2. Create and activate a virtual environment: 
+### 2. Environment variables
+Copy `.env.example` to `.env` in the project root and fill in your values:
+```
+DATABASE_URL=mysql+pymysql://root:your_password@localhost:3306/online_store
+JWT_SECRET_KEY=a-long-random-string
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+`.env` is gitignored, so never commit real keys. Percent-encode special characters in the DB password (for example, `@` becomes `%40`).
+
+### 3. Backend (FastAPI)
+From the project root:
 ```bash
 python -m venv venv
-source venv/bin/activate   # macOS/Linux
 venv\Scripts\activate      # Windows
+source venv/bin/activate   # macOS/Linux
+pip install -r requirements.txt
 ```
-3. Install dependencies: ```pip install -r requirements.txt```
-4. Start the FastAPI development server: ```uvicorn main:app --reload```
-5. The API will be available at: ```http://localhost:8000```
 
-### Database Setup (MySQL)
-1. Ensure MySQL is running locally
-2. Create a database: 
-```sql
-CREATE DATABASE online_store; 
+### 4. Frontend (React + TypeScript)
+```bash
+npm install                # root: dev runner (concurrently)
+npm install --prefix frontend
 ```
-3. Update your backend ```.env``` or configuration file with your MySQL credentials: 
+
+### 5. Run both servers
+From the project root:
+```bash
+npm run dev
 ```
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=your_user
-DB_PASSWORD=your_password
-DB_NAME=shopping_app
-```
-4. Run initial migrations or allow SQLAlchemy to generate tables on startup (depending on your configuration).
+- Frontend: http://localhost:5173
+- API: http://localhost:8000/api (docs at http://localhost:8000/docs)
 
 ## Author
 Everett Lopez
