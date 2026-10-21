@@ -1,5 +1,6 @@
 from __future__ import annotations
 from sqlmodel import SQLModel, Field
+from sqlalchemy import Column, JSON
 from datetime import datetime
 from typing import Optional
 
@@ -18,6 +19,11 @@ class Order(SQLModel, table=True):
 
     shipping_address_id: int = Field(foreign_key="addresses.address_id")
     billing_address_id: int = Field(foreign_key="addresses.address_id")
+
+    # Copies of the addresses when the order was placed (OrderAddress shape); the
+    # saved addresses above can be edited or deleted afterwards
+    shipping_address: dict | None = Field(default=None, sa_column=Column(JSON))
+    billing_address: dict | None = Field(default=None, sa_column=Column(JSON))
 
     order_number: str = Field(index=True, unique=True)
     status: str = Field(default="pending")  # pending, paid, shipped, cancelled

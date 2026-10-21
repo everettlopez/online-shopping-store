@@ -4,6 +4,8 @@ import axiosClient from "../api/axiosClient";
 interface Address {
   address_id: number;
   user_id: number;
+  full_name: string;
+  phone?: string | null;
   line1: string;
   line2?: string;
   city: string;
@@ -22,6 +24,8 @@ interface AddressModalProps {
 }
 
 const emptyForm = {
+  full_name: "",
+  phone: "",
   line1: "",
   line2: "",
   city: "",
@@ -99,7 +103,13 @@ export default function AddressModal({
     setError("");
 
     try {
-      const res = await axiosClient.post("/addresses/", form, {
+      // Optional fields left blank are sent as missing rather than empty text
+      const res = await axiosClient.post("/addresses/", {
+        ...form,
+        phone: form.phone.trim() || null,
+        line2: form.line2.trim() || null,
+        county: form.county.trim() || null,
+      }, {
         withCredentials: true,
       });
 
@@ -143,7 +153,7 @@ export default function AddressModal({
 
   function formatAddress(addr: Address) {
     const line2 = addr.line2 ? ` ${addr.line2}` : "";
-    return `${addr.line1}${line2}, ${addr.city}, ${addr.state} ${addr.postal_code}`;
+    return `${addr.full_name}, ${addr.line1}${line2}, ${addr.city}, ${addr.state} ${addr.postal_code}`;
   }
 
   return (
@@ -233,6 +243,24 @@ export default function AddressModal({
             <h2 className="text-2xl font-semibold mb-4">Add Address</h2>
 
             <form onSubmit={handleCreate} className="space-y-3">
+
+              <input
+                className="border p-2 w-full"
+                placeholder="Full Name"
+                autoComplete="name"
+                required
+                value={form.full_name}
+                onChange={(e) => updateField("full_name", e.target.value)}
+              />
+
+              <input
+                className="border p-2 w-full"
+                placeholder="Phone (for delivery questions)"
+                type="tel"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+              />
 
               <input
                 className="border p-2 w-full"

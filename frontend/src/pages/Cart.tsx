@@ -22,6 +22,8 @@ interface Product {
 interface Address {
   address_id: number;
   user_id: number;
+  full_name: string;
+  phone?: string | null;
   line1: string;
   line2?: string;
   city: string;

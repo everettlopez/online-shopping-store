@@ -26,7 +26,7 @@ def create_address(data: AddressCreate, user: CurrentUser, session: Session = De
 def get_all_addresses(user: CurrentUser, session: Session = Depends(get_session)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admins Only")
-    return session.exec(select(Address)).all()
+    return session.exec(select(Address).where(Address.deleted_at == None)).all()
 
 @router.get("/", response_model=list[AddressRead])
 def get_addresses(
@@ -34,7 +34,7 @@ def get_addresses(
     address_type: str | None = None,
     session: Session = Depends(get_session)
 ):
-    statement = select(Address).where(Address.user_id == user.user_id)
+    statement = select(Address).where(Address.user_id == user.user_id, Address.deleted_at == None)
 
     if address_type == "shipping":
         statement = statement.where(Address.address_type == "shipping")
@@ -53,7 +53,7 @@ def update_address(
 ):
     address = session.get(Address, address_id)
 
-    if not address or address.user_id != user.user_id:
+    if not address or address.user_id != user.user_id or address.deleted_at:
         raise HTTPException(status_code=404, detail="Address not found")
 
     for key, value in data.model_dump().items():
@@ -73,10 +73,12 @@ def delete_address(
 ):
     address = session.get(Address, address_id)
 
-    if not address or address.user_id != user.user_id:
+    if not address or address.user_id != user.user_id or address.deleted_at:
         raise HTTPException(status_code=404, detail="Address not found")
 
-    session.delete(address)
+    # Hide it rather than delete the row: orders and checkouts in progress point at it
+    address.deleted_at = datetime.utcnow()
+    session.add(address)
     session.commit()
 
     return {"message": "Address deleted"}

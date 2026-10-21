@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import pytest
 import stripe
@@ -122,6 +123,16 @@ def test_checkout_session_with_someone_elses_address(user_client, shopper, make_
     assert stripe_create == []
 
 
+def test_checkout_session_with_deleted_address(user_client, shopper, make_address, make_product, add_to_cart, stripe_create):
+    user, shipping, billing = shopper
+    deleted = make_address(user, deleted_at=datetime(2026, 1, 1))
+    add_to_cart(user, make_product())
+
+    assert user_client.post("/api/payments/create-checkout-session", json=checkout_body(deleted, billing)).status_code == 400
+    assert user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, deleted)).status_code == 400
+    assert stripe_create == []
+
+
 def test_checkout_session_with_insufficient_stock(user_client, shopper, make_product, add_to_cart, stripe_create):
     user, shipping, billing = shopper
     add_to_cart(user, make_product(title="Rare Coin", stock_quantity=1), quantity=3)
@@ -237,6 +248,35 @@ def test_completed_checkout_creates_order(send_webhook, session, shopper, make_p
     assert session.exec(select(CartItem)).all() == []
 
 
+def test_order_keeps_addresses_as_they_were(send_webhook, session, shopper, make_product, user_client):
+    user, shipping, billing = shopper
+    send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    # The customer moves and edits the saved address, then deletes the billing one
+    changed = {"full_name": "New Name", "line1": "9 Elm St", "city": "Boise", "state": "ID", "postal_code": "83702", "address_type": "shipping"}
+    assert user_client.put(f"/api/addresses/{shipping.address_id}", json=changed).status_code == 200
+    assert user_client.delete(f"/api/addresses/{billing.address_id}").status_code == 200
+
+    [order] = user_client.get("/api/orders/me").json()
+    assert order["shipping_address"] == {
+        "full_name": "Pat Doe", "phone": None, "line1": "1 Main St", "line2": None, "city": "Springfield",
+        "state": "IL", "postal_code": "62701", "county": None, "country": "US",
+    }
+    assert order["billing_address"]["line1"] == "1 Main St"
+
+
+def test_address_deleted_during_checkout_still_reaches_the_order(send_webhook, session, shopper, make_product):
+    user, shipping, billing = shopper
+    shipping.deleted_at = datetime(2026, 1, 1)
+    session.add(shipping)
+    session.commit()
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    [order] = session.exec(select(Order)).all()
+    assert order.shipping_address["line1"] == "1 Main St"
+
+
 def test_webhook_is_idempotent(send_webhook, session, shopper, make_product, add_to_cart):
     user, shipping, billing = shopper
     product = make_product(stock_quantity=5)
@@ -327,7 +367,8 @@ def test_buyer_sees_order_for_session(client, auth_headers, send_webhook, shoppe
     assert response.status_code == 200
     body = response.json()
     assert body["stripe_session_id"] == "cs_test_1"
-    assert body["shipping_address"]["address_id"] == shipping.address_id
+    assert body["shipping_address"]["line1"] == shipping.line1
+    assert body["shipping_address"]["full_name"] == shipping.full_name
     assert body["items"][0]["product"]["title"] == "Ring"
 
 
