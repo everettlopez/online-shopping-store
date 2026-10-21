@@ -42,13 +42,13 @@ class ProductRead(BaseModel):
 
 class ProductUpdate(BaseModel):
     category_id: int | None = None
-    name: str | None = None
+    title: str | None = None
     description: str | None = None
     price: float | None = None
 
     size: str | None = None
     color: str | None = None
-    image_url: str | None = None
+    thumbnail: str | None = None
 
     stock_quantity: int | None = None
     is_active: bool | None = None

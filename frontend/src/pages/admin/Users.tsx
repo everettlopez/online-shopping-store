@@ -1,124 +1,151 @@
-import { Link } from "react-router-dom";   // ← FIXED: Link imported
 import { useEffect, useState } from "react";
-import axiosClient from "../../api/axiosClient";
+import { FormControlLabel, Switch, TextField } from "@mui/material";
+import AdminNav from "../../components/admin/AdminNav";
+import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
+import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
+import AdminUserEditModal from "../../components/admin/users/AdminUserEditModal";
+import { apiErrorMessage, createUser, deleteUser, getUsers, updateUser, type AdminUser, type AdminUserInput } from "../../api/admin";
 
 
 export default function AdminUsers() {
 
-    type User = {
-        user_id: number;
-        email: string;
-        first_name: string;
-        last_name: string;
-        created_at: string;
-        is_admin: boolean;
-    };
+    const [users, setUsers] = useState<AdminUser[]>([]);
+    const [notice, setNotice] = useState<AdminNotice>(null);
+    const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<AdminUser | null>(null);
 
+    // Create form
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [isAdmin, setIsAdmin] = useState(false);
 
-    const handleEditUser = (user: User) => {
-        console.log("Edit user:", user);
-    // later: open modal / navigate to edit page
-    };
-
-    const [users, setUsers] = useState<User[]>([]);
+    async function fetchUsers() {
+        try {
+            setUsers(await getUsers());
+        }
+        catch (err) {
+            setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load users") });
+        }
+    }
 
     useEffect(() => {
-    const fetchUsers = async () => {
-        try {
-        const res = await fetch("http://127.0.0.1:8000/api/admin/users", {
-            credentials: "include", // important for admin auth
-        });
-
-        if (!res.ok) {
-            console.error("Failed to fetch users");
-            return;
-        }
-
-        const data = await res.json();
-        console.log("ADMIN USER RESPONSE: ", data)
-        setUsers(data.users);
-        
-        } catch (err) {
-        console.error("Error fetching users:", err);
-        }
-    };
-
-    fetchUsers();
+        fetchUsers();
     }, []);
 
-    async function handleDeleteUser(user_id: number)
-    {
-        try
-        {
-            await axiosClient.delete(`/admin/users/${user_id}`, {
-                withCredentials: true,
-            });
+    function resetCreateForm() {
+        setEmail("");
+        setPassword("");
+        setFirstName("");
+        setLastName("");
+        setIsAdmin(false);
+    }
 
-            setUsers(prev => prev.filter(u => u.user_id !== user_id));
+    async function handleCreate() {
+        try {
+            await createUser({ email: email.trim(), password, first_name: firstName.trim(), last_name: lastName.trim(), is_admin: isAdmin });
+            resetCreateForm();
+            setNotice({ severity: "success", message: "User created" });
+            fetchUsers();
         }
-        catch (err)
-        {
-            console.error("Failed to delete user: ", err);
+        catch (err) {
+            setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to create user") });
+        }
+    }
+
+    async function handleUpdate(userId: number, data: Partial<AdminUserInput>) {
+        try {
+            await updateUser(userId, data);
+            setEditingUser(null);
+            setNotice({ severity: "success", message: "User updated" });
+            fetchUsers();
+        }
+        catch (err) {
+            setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to update user") });
+        }
+    }
+
+    async function handleDelete() {
+        if (!pendingDelete) return;
+
+        try {
+            await deleteUser(pendingDelete.user_id);
+            setNotice({ severity: "success", message: "User deleted" });
+            fetchUsers();
+        }
+        catch (err) {
+            setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to delete user") });
+        }
+        finally {
+            setPendingDelete(null);
         }
     }
 
 
     return (
         <>
-        {/* Header */}
-        <div className="relative flex flex-col justify-center items-center gap-4 p-5">
-            <a href="/"><h1 className="text-6xl">KILLJOY</h1></a>
+        <AdminNav />
 
-            <nav className="flex gap-12">
-            <Link to="/admin/products">
-                <p className="text-base font-normal tracking-widest">PRODUCTS</p>
-            </Link>
-            <Link to="/admin/categories">
-                <p className="text-base font-normal tracking-widest">CATEGORIES</p>
-            </Link>
-            <Link to="/admin/users">
-                <p className="text-base font-normal tracking-widest">USERS</p>
-            </Link>
-            <Link to="/admin/orders">
-                <p className="text-base font-normal tracking-widest">ORDERS</p>
-            </Link>
-            </nav>
-        </div>
+        <div className="p-10 flex flex-col gap-6">
 
-        {/* Users Section */}
-        <div className="py-4 border rounded-lg bg-white shadow-sm flex flex-col divide-y">
-
-        {/* Header */}
-        <div className="grid grid-cols-5 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
-            <div className="text-center">First Name</div>
-            <div className="text-center">Last Name</div>
-            <div className="text-center">Created At</div>
-            <div className="text-center">Email</div>
-            <div className="text-center">Actions</div>
-        </div>
-
-        {/* User Rows */}
-        {users.map(user => (
-        <div key={user.user_id} className="grid grid-cols-5 gap-4 py-2">
-            <div className="text-center">{user.first_name}</div>
-            <div className="text-center">{user.last_name}</div>
-            <div className="text-center">
-            {new Date(user.created_at).toLocaleString()}
+            {/* Create User */}
+            <div className="flex flex-col gap-3">
+                <h1 className="text-4xl tracking-wider">CREATE NEW USER</h1>
+                <div className="flex flex-wrap gap-2 items-center border rounded-lg p-2">
+                    <TextField required label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}/>
+                    <TextField required label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}/>
+                    <TextField required label="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)}/>
+                    <TextField required label="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)}/>
+                    <FormControlLabel label="Admin" control={<Switch checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)}/>}/>
+                    <button disabled={!email.trim() || !password || !firstName.trim() || !lastName.trim()} onClick={handleCreate} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>
+                </div>
             </div>
-            <div className="text-center">{user.email}</div>
 
-            {/* Actions Buttons */}
-            <div className="flex justify-center gap-2">
-                <button onClick={() => handleEditUser(user)} className="border rounded-[10px] px-8 py-1 hover:bg-gray-300">Update</button>
-                <button onClick={() => handleDeleteUser(user.user_id)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
+            {/* Users Table */}
+            <div className="py-4 border rounded-lg bg-white shadow-sm flex flex-col divide-y">
+
+                <div className="grid grid-cols-6 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
+                    <div className="text-center">First Name</div>
+                    <div className="text-center">Last Name</div>
+                    <div className="text-center">Created At</div>
+                    <div className="text-center">Email</div>
+                    <div className="text-center">Admin</div>
+                    <div className="text-center">Actions</div>
+                </div>
+
+                {users.map(user => (
+                <div key={user.user_id} className="grid grid-cols-6 gap-4 py-2 items-center">
+                    <div className="text-center">{user.first_name}</div>
+                    <div className="text-center">{user.last_name}</div>
+                    <div className="text-center">{new Date(user.created_at).toLocaleString()}</div>
+                    <div className="text-center">{user.email}</div>
+                    <div className="text-center">{user.is_admin ? "Yes" : "No"}</div>
+
+                    <div className="flex justify-center gap-2">
+                        <button onClick={() => setEditingUser(user)} className="border rounded-[10px] px-8 py-1 hover:bg-gray-300">Update</button>
+                        <button onClick={() => setPendingDelete(user)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
+                    </div>
+                </div>
+                ))}
+
             </div>
         </div>
-        ))}
 
+        <AdminUserEditModal
+            user={editingUser}
+            onClose={() => setEditingUser(null)}
+            onSave={handleUpdate}
+        />
 
+        <ConfirmDeleteModal
+            open={pendingDelete !== null}
+            message={`Are you sure you want to delete ${pendingDelete?.first_name} ${pendingDelete?.last_name} (${pendingDelete?.email})?`}
+            onClose={() => setPendingDelete(null)}
+            onConfirm={handleDelete}
+        />
 
-        </div>
-
+        <AdminSnackbar notice={notice} onClose={() => setNotice(null)} />
         </>
     );
 }

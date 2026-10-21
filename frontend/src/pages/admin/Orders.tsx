@@ -1,10 +1,12 @@
 import type { ReactElement } from "react";
 
-import { Link } from "react-router-dom";
 import { DataGrid } from "@mui/x-data-grid";
 import { useEffect, useState } from "react";
-import axiosClient from "../../api/axiosClient";
-import ConfirmDeleteOrderModal from "../../components/admin/orders/ConfirmDeleteOrderModal";
+import AdminNav from "../../components/admin/AdminNav";
+import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
+import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
+import { apiErrorMessage } from "../../api/admin";
+import { deleteOrder, getAllOrders, updateOrderStatus, updateOrderTracking } from "../../api/orders";
 import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 
 import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
@@ -36,17 +38,15 @@ export type Address = {
 export type OrderItem = {
   order_item_id: number;
   order_id: number;
-  product_id: number;
   quantity: number;
-  unit_price: number;
-  subtotal: number;
+  // null when the product has since been removed from the catalog
   product: {
     product_id: number;
-    name: string;
+    title: string;
     price: number;
-    size: string;
-    image_url?: string;
-  };
+    size: string | null;
+    thumbnail: string | null;
+  } | null;
 };
 
 export type Order = {
@@ -199,6 +199,8 @@ export default function AdminOrders()
     handleDeleteOrder();
     closeDeleteModal();
   }
+
+  const [notice, setNotice] = useState<AdminNotice>(null);
 
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingCarrier, setTrackingCarrier] = useState("");
@@ -401,21 +403,17 @@ export default function AdminOrders()
 
     try
     {
-      await axiosClient.put( `/orders/${expandedRow}/tracking`, null, // no body
-        {
-          params: {
-            tracking_number: trackingNumber,
-            tracking_carrier: trackingCarrier,
-            tracking_url: trackingUrl
-          }
-        }
-      );
+      await updateOrderTracking(expandedRow, {
+        tracking_number: trackingNumber,
+        tracking_carrier: trackingCarrier,
+        tracking_url: trackingUrl
+      });
       fetchOrders();
-      console.log("Tracking saved and order marked as shipped");
+      setNotice({ severity: "success", message: "Tracking saved and order marked as shipped" });
     }
     catch (err)
     {
-      console.error("Failed to add tracking to order: ", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to add tracking to order") });
     }
   }
 
@@ -430,26 +428,23 @@ export default function AdminOrders()
     if (!expandedRow) return;
 
     try {
-      await axiosClient.put(`/orders/${expandedRow}/status`, null, {
-        params: { status: newStatus }
-      });
+      await updateOrderStatus(expandedRow, newStatus);
 
       await fetchOrders();
       handleCancelTracking();
-      console.log("Updated order:", expandedRow, "to", newStatus);
     } catch (err) {
-      console.error("Failed to update order status: ", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to update order status") });
     }
   }
 
 
   async function fetchOrders() {
     try {
-      const response = await axiosClient.get("/orders");
+      const data = await getAllOrders();
 
-      setFullOrders(response.data);
+      setFullOrders(data);
 
-      const formatted = response.data.map((order: Order) => ({
+      const formatted = data.map((order: Order) => ({
         id: order.order_id,
         user_id: order.user_id,
         first_name: order.first_name,
@@ -462,39 +457,24 @@ export default function AdminOrders()
 
       setRows(formatted);
     } catch (err) {
-      console.error("Failed to fetch orders: ", err);
-    }
-  }
-
-  async function handleCompleteOrder() {
-    try 
-    {
-      await axiosClient.put(`/orders/${expandedRow}/status`, null, {
-        params: {
-          status: "completed"
-        }
-      });
-
-      await fetchOrders();
-      console.log("Updated order:", expandedRow, "to", "completed");
-    }
-    catch (err)
-    {
-      console.error("Failed to complete the order: ", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to fetch orders") });
     }
   }
 
   async function handleDeleteOrder()
   {
-    try 
+    if (!expandedRow) return;
+
+    try
     {
-      await axiosClient.delete(`/orders/${expandedRow}`);
+      await deleteOrder(expandedRow);
+      setExpandedRow(null);
       await fetchOrders();
-      console.log("Delete order: ", expandedRow);
+      setNotice({ severity: "success", message: "Order deleted and stock restored" });
     }
     catch (err)
     {
-      console.error("Failed to delete the order: ", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to delete the order") });
     }
   }
 
@@ -506,20 +486,7 @@ export default function AdminOrders()
 
   return (
     <>
-    {/* Header */}
-    <div className="relative flex flex-col max-w-screen justify-center items-center gap-4 p-5">
-
-        {/* Logo */}
-        <a href="/"><h1 className="text-6xl">KILLJOY</h1></a>
-
-        {/* Navigation */}
-        <nav className="flex gap-12">
-            <Link to="/admin/products"><p className="text-base font-normal tracking-widest">PRODUCTS</p></Link>
-            <Link to="/admin/categories"><p className="text-base font-normal tracking-widest">CATEGORIES</p></Link>
-            <Link to="/admin/users"><p className="text-base font-normal tracking-widest">USERS</p></Link>
-            <Link to="/admin/orders"><p className="text-base font-normal tracking-widest">ORDERS</p></Link>
-        </nav>
-    </div>
+    <AdminNav />
 
       <div className="flex flex-col max-h-screen max-w-screen p-10 gap-4">
 
@@ -605,7 +572,7 @@ export default function AdminOrders()
                       </div>
                     </div>
 
-                    {order.status !== "completed" && (
+                    {order.status in stepIndexMap && (
                       <div className="flex flex-col gap-2 border rounded-[10px]">
                         <OrderStepper order={order} />
                         <OrderStepContent order={order} />
@@ -616,22 +583,22 @@ export default function AdminOrders()
                     <div className="flex flex-col justify-center items-center p-8 gap-5 border rounded-[10px]">
 
                       <div className="flex flex-col gap-1 w-full">
-                        {order.items.map((items) => {
-                          return (
-                            <div className="flex justify-between w-full p-3 items-center rounded-[10px]">
-                              <div className="flex gap-4">
-                                <img src={items.product.image_url} className="w-20 h-20 object-cover border rounded"/>
-                                <div className="flex flex-col">
-                                  <p className="text-lg tracking-wider">{items.product.name}</p>
-                                  <p className="text-gray-400 tracking-wider">${items.product.price.toFixed(2)}</p>
-                                  <p className="text-gray-400 tracking-wider">Qty: {items.quantity}</p>
-                                </div>
+                        {order.items.map((item) => (
+                          <div key={item.order_item_id} className="flex justify-between w-full p-3 items-center rounded-[10px]">
+                            <div className="flex gap-4">
+                              {item.product?.thumbnail
+                                ? <img src={item.product.thumbnail} className="w-20 h-20 object-cover border rounded"/>
+                                : <div className="w-20 h-20 border rounded bg-gray-100"/>}
+                              <div className="flex flex-col">
+                                <p className="text-lg tracking-wider">{item.product?.title ?? "Product no longer available"}</p>
+                                {item.product && <p className="text-gray-400 tracking-wider">${item.product.price.toFixed(2)}</p>}
+                                <p className="text-gray-400 tracking-wider">Qty: {item.quantity}</p>
                               </div>
-
-                              <p className="text-lg tracking-wider">{items.quantity} x ${items.product.price.toFixed(2)}</p>
                             </div>
-                          );
-                        })}  
+
+                            {item.product && <p className="text-lg tracking-wider">{item.quantity} x ${item.product.price.toFixed(2)}</p>}
+                          </div>
+                        ))}
                       </div>       
 
                       <div className="flex gap-10 w-full justify-end pr-2 items-center">
@@ -644,8 +611,13 @@ export default function AdminOrders()
 
 
                     <div className="flex justify-between">
-                      <button onClick={() => openDeleteModal()} className="border px-5 py-1 rounded-full bg-red-400 text-white">Delete Order</button>
-                      <button className="bg-green-300 px-5 py-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100" disabled={order.status !== "delivered"} onClick={handleCompleteOrder}>Complete Order</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => openDeleteModal()} className="border px-5 py-1 rounded-full bg-red-400 text-white">Delete Order</button>
+                        {["pending", "placed", "processing", "shipped"].includes(order.status) && (
+                          <button onClick={() => handleOrderStatusChange("cancelled")} className="border px-5 py-1 rounded-full hover:bg-gray-100">Cancel Order</button>
+                        )}
+                      </div>
+                      <button className="bg-green-300 px-5 py-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100" disabled={order.status !== "delivered"} onClick={() => handleOrderStatusChange("completed")}>Complete Order</button>
                     </div>
                   </>
                 );
@@ -656,11 +628,14 @@ export default function AdminOrders()
 
       </div>
 
-      <ConfirmDeleteOrderModal
+      <ConfirmDeleteModal
         open={deleteModalOpen}
+        message="Are you sure you want to delete this order? Its items' stock will be restored."
         onClose={closeDeleteModal}
         onConfirm={confirmDeleteOrder}
       />
+
+      <AdminSnackbar notice={notice} onClose={() => setNotice(null)} />
 
     </>
   );

@@ -12,9 +12,42 @@ from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
 from app.database.products import database_get_product_read, database_get_product_reads
+from app.auth.dependencies import admin_required
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+ORDER_STATUSES = {"pending", "placed", "processing", "shipped", "delivered", "completed", "cancelled", "refunded"}
+
+
+def build_order_reads(session: Session, orders) -> list[OrderRead]:
+    # Load every order's items and their products up front instead of per item
+    all_items = session.exec(
+        select(OrderItem).where(OrderItem.order_id.in_([o.order_id for o in orders]))
+    ).all() if orders else []
+    products = database_get_product_reads(session, {i.product_id for i in all_items})
+
+    enriched_orders = []
+
+    for order in orders:
+        enriched_items = [
+            OrderItemRead(
+                order_item_id=item.order_item_id,
+                order_id=item.order_id,
+                quantity=item.quantity,
+                product=products.get(item.product_id)
+            )
+            for item in all_items if item.order_id == order.order_id
+        ]
+
+        enriched_orders.append(OrderRead(
+            **order.model_dump(),
+            shipping_address=session.get(Address, order.shipping_address_id),
+            billing_address=session.get(Address, order.billing_address_id),
+            items=enriched_items
+        ))
+
+    return enriched_orders
 
 @router.post("/", response_model=OrderRead)
 def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = Depends(get_session)):
@@ -47,72 +80,10 @@ def create_order(data: OrderItemCreate, user: CurrentUser, session: Session = De
 
     return order
 
-@router.get("/", response_model=list[OrderRead])
-def list_orders(user: CurrentUser, session: Session = Depends(get_session)):
-
-    if not user.is_admin:
-        raise HTTPException(status_code=404, detail="User not admin")
-
-    # Get all orders for the user
+@router.get("/", response_model=list[OrderRead], dependencies=[Depends(admin_required)])
+def list_orders(session: Session = Depends(get_session)):
     orders = session.exec(select(Order)).all()
-
-    # Load every order's items and their products up front instead of per item
-    all_items = session.exec(
-        select(OrderItem).where(OrderItem.order_id.in_([o.order_id for o in orders]))
-    ).all() if orders else []
-    products = database_get_product_reads(session, {i.product_id for i in all_items})
-
-    enriched_orders = []
-
-    for order in orders:
-        # Load addresses for this order
-        shipping = session.get(Address, order.shipping_address_id)
-        billing = session.get(Address, order.billing_address_id)
-
-        items = [i for i in all_items if i.order_id == order.order_id]
-
-        enriched_items = []
-        for item in items:
-            product = products.get(item.product_id)
-            enriched_items.append(OrderItemRead(
-                order_item_id=item.order_item_id,
-                order_id=item.order_id,
-                quantity=item.quantity,
-                product=product
-            ))
-
-        # Build final enriched order
-        enriched_orders.append(OrderRead(
-            order_id=order.order_id,
-            user_id=order.user_id,
-            first_name=order.first_name,
-            last_name=order.last_name,
-            order_number=order.order_number,
-            status=order.status,
-            created_at=order.created_at,
-            updated_at=order.updated_at,
-            order_date=order.order_date,
-            total_amount=order.total_amount,
-
-            # ⭐ ADD THESE
-            payment_intent_id=order.payment_intent_id,
-            stripe_session_id=order.stripe_session_id,
-            payment_method_type=order.payment_method_type,
-            card_brand=order.card_brand,
-            card_last4=order.card_last4,
-            payment_status=order.payment_status,
-            receipt_url=order.receipt_url,
-
-            shipping_address=shipping,
-            billing_address=billing,
-            tracking_number=order.tracking_number,
-            tracking_carrier=order.tracking_carrier,
-            tracking_url=order.tracking_url,
-            items=enriched_items
-        ))
-
-
-    return enriched_orders
+    return build_order_reads(session, orders)
 
 @router.get("/me", response_model=list[OrderRead])
 def list_my_orders(user: CurrentUser, order_status: str | None = None, session: Session = Depends(get_session)):
@@ -123,71 +94,14 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
         query = query.where(Order.status == order_status)
 
     orders = session.exec(query).all()
-
-    # Load every order's items and their products up front instead of per item
-    all_items = session.exec(
-        select(OrderItem).where(OrderItem.order_id.in_([o.order_id for o in orders]))
-    ).all() if orders else []
-    products = database_get_product_reads(session, {i.product_id for i in all_items})
-
-    enriched_orders = []
-
-    for order in orders:
-        # Load addresses for this order
-        shipping = session.get(Address, order.shipping_address_id)
-        billing = session.get(Address, order.billing_address_id)
-
-        items = [i for i in all_items if i.order_id == order.order_id]
-
-        enriched_items = []
-        for item in items:
-            product = products.get(item.product_id)
-            enriched_items.append(OrderItemRead(
-                order_item_id=item.order_item_id,
-                order_id=item.order_id,
-                quantity=item.quantity,
-                product=product
-            ))
-
-        # Build final enriched order
-        enriched_orders.append(OrderRead(
-            order_id=order.order_id,
-            user_id=order.user_id,
-            first_name=order.first_name,
-            last_name=order.last_name,
-            order_number=order.order_number,
-            status=order.status,
-            created_at=order.created_at,
-            updated_at=order.updated_at,
-            order_date=order.order_date,
-            total_amount=order.total_amount,
-
-            # ⭐ ADD THESE
-            payment_intent_id=order.payment_intent_id,
-            stripe_session_id=order.stripe_session_id,
-            payment_method_type=order.payment_method_type,
-            card_brand=order.card_brand,
-            card_last4=order.card_last4,
-            payment_status=order.payment_status,
-            receipt_url=order.receipt_url,
-
-            shipping_address=shipping,
-            billing_address=billing,
-            tracking_number=order.tracking_number,
-            tracking_carrier=order.tracking_carrier,
-            tracking_url=order.tracking_url,
-            items=enriched_items
-        ))
-
-
-    return enriched_orders
+    return build_order_reads(session, orders)
 
 @router.get("/{order_number}", response_model=OrderRead)
 def get_order(order_number: str, user: CurrentUser, session: Session = Depends(get_session)):
     order = session.exec(select(Order).where(Order.order_number == order_number.lower())).first()
     
     if not order:
-        return HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Order not found")
 
     user_obj = session.get(User, order.user_id)
     shipping = session.get(Address, order.shipping_address_id)
@@ -234,21 +148,25 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
         items=enriched_items
     )
 
-@router.put("/{order_id}/status")
+@router.put("/{order_id}/status", dependencies=[Depends(admin_required)])
 def update_order_status(order_id: int, status: str, session: Session = Depends(get_session)):
+    if status not in ORDER_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid order status '{status}'")
+
     order = session.get(Order, order_id)
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     order.status = status
+    order.updated_at = datetime.now()
     session.add(order)
     session.commit()
     session.refresh(order)
 
     return {"message": "Order status updated"}
 
-@router.put("/{order_id}/tracking")
+@router.put("/{order_id}/tracking", dependencies=[Depends(admin_required)])
 def update_tracking_information(order_id: int, tracking_number: str, tracking_carrier: str, tracking_url: str, session: Session = Depends(get_session)):
 
     order = session.get(Order, order_id)
@@ -270,9 +188,12 @@ def update_tracking_information(order_id: int, tracking_number: str, tracking_ca
 
     return {"message": "Order tracking updated"}
 
-@router.delete("/{order_id}")
-def delete_order(order_id: int, user: CurrentUser, session: Session = Depends(get_session)):
+@router.delete("/{order_id}", dependencies=[Depends(admin_required)])
+def delete_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(Order, order_id)
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
 
     # 1. Load order items
     order_items = session.exec(

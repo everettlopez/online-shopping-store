@@ -1,5 +1,4 @@
 // This file should have been AdminProductModal
-import * as React from 'react';
 import { useState, useEffect } from "react";
 import TextField from '@mui/material/TextField';
 import NumberField from "../../NumberField";
@@ -7,45 +6,23 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import { InputLabel, MenuItem, Select } from '@mui/material';
-import axiosClient from "../../../api/axiosClient";
 
-import ConfirmAdminProductDeleteModal from "../../../components/admin/products/ConfirmAdminProductDeleteModal";
-
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
+import ConfirmDeleteModal from "../ConfirmDeleteModal";
+import AdminSnackbar, { type AdminNotice } from "../AdminSnackbar";
+import { apiErrorMessage, type Category } from "../../../api/admin";
+import { deleteProduct, updateProduct } from "../../../api/products";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   product: ProductRead | null;
+  categories: Category[];
 }
-
-type Category = {
-  category_id: number;
-  name: string;
-  description?: string | null;
-};
 
 export interface CategoryRead {
   category_id: number;
   name: string;
   description?: string | null;
-}
-
-export interface Product {
-  product_id: number;
-  category_id: number;
-
-  title: string;  // Updated
-  description?: string;
-  price: number;
-  size?: string;
-  color?: string;
-  thumbnail?: string;   // Updated
-  stock_quantity: number;
-  is_active: boolean;
-
-  images?: string[];
 }
 
 export interface ProductRead {
@@ -66,82 +43,22 @@ export interface ProductRead {
   images?: string[] | null;
 }
 
-export default function ProductModal({ isOpen, onClose, product }: Props) {
-
-  if (!isOpen)
-  {
-    console.log("PRODUCT MODAL CLOSED: ", isOpen);
-    return null;
-  }
-
-  const [categories, setCategories] = useState<Category[]>([]);
+export default function ProductModal({ isOpen, onClose, product, categories }: Props) {
 
   // Edit Product Constants
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState(product?.category.category_id ?? "");
+  const [category, setCategory] = useState<number | "">("");
 
-  const [size, setSize] = useState("0");
-  const [color, setColor] = useState("0");
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
   const [price, setPrice] = useState(0);
   const [stock, setStock] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [changes, setChanges] = useState(false);
 
-  const [alertOpen, setAlertOpen] = useState(false);
-
+  const [notice, setNotice] = useState<AdminNotice>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-
-  function openDeleteModal() {
-    setDeleteModalOpen(true);
-  }
-
-  function closeDeleteModal() {
-    setDeleteModalOpen(false);
-  }
-
-  async function confirmDeleteOrder() 
-  {
-    try
-    {
-      await axiosClient.delete(`/products/${product?.product_id}`);
-      console.log("Product deleted!")
-      closeDeleteModal();
-      onClose();
-    }
-    catch (err)
-    {
-      console.error("Failed to delete the order: ", err);
-    }
-  }
-
-
-
-
-  const handleAlertClose = (_event?: React.SyntheticEvent | Event, reason?: "timeout" | "clickaway",) => {
-    if (reason === "clickaway")
-    {
-      return;
-    }
-
-    setAlertOpen(false);
-  };
-
-
-  useEffect(() => {
-    async function loadCategories() {
-      const res = await fetch("http://127.0.0.1:8000/api/categories", {
-        credentials: "include",
-      });
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-      setCategories(data.categories as Category[]);
-    }
-
-    loadCategories();
-  }, []);
 
   // PREFILL WHEN EDITING
   useEffect(() => {
@@ -155,57 +72,34 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
     setPrice(product.price);
     setStock(product.stock_quantity);
     setIsActive(product.is_active);
+    setChanges(false);
 
   }, [isOpen, product]);
 
+  // Hooks above must run on every render, so bail out only after them
+  if (!isOpen) return null;
 
-  useEffect(() => {
-    if (!product || !product.category.category_id) return;
-    const fetchCategory = async () => {
-      try 
-      {
-        const res = await axiosClient.get(`/categories/${product.category.category_id}`);
-        const categoryData = res.data;
-        setCategory(categoryData.category_id);
-
-        console.log(res.data);
-      }
-      catch (err)
-      {
-        console.error("Failed to load product category: ", err);
-      }
-    };
-
-    fetchCategory();
-
-  }, [product?.category.category_id]);
-
-  async function refreshEdit() {
+  async function confirmDeleteProduct()
+  {
     if (!product) return;
 
-    try {
-      const res = await axiosClient.get(`/products/${product.product_id}`);
-      const updated = res.data;
-
-      // Update REAL state, not form
-      setTitle(updated.title);
-      setDescription(updated.description || "");
-      setCategory(updated.category.category_id);
-      setSize(updated.size || "");
-      setColor(updated.color || "");
-      setPrice(updated.price);
-      setStock(updated.stock_quantity);
-      setIsActive(updated.is_active);
-
-    } catch (err) {
-      console.error("Failed to refresh edit form:", err);
+    try
+    {
+      await deleteProduct(product.product_id);
+      setDeleteModalOpen(false);
+      onClose();
+    }
+    catch (err)
+    {
+      setDeleteModalOpen(false);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to delete the product") });
     }
   }
 
-
-
   // SUBMIT HANDLER
   async function handleSubmit() {
+    if (!product) return;
+
     try {
       const fd = new FormData();
 
@@ -219,20 +113,18 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
       fd.append("is_active", String(isActive));
 
       // Thumbnail is a string URL in your current setup
-      fd.append("thumbnail", product?.thumbnail ?? "");
+      fd.append("thumbnail", product.thumbnail ?? "");
 
-      const response = await axiosClient.put(`/products/${product?.product_id}`, fd);
-      console.log("Updated product: ", response.data);
+      await updateProduct(product.product_id, fd);
 
-      setAlertOpen(true);
-
-      refreshEdit();
+      setChanges(false);
+      setNotice({ severity: "success", message: "Updated the product" });
     } catch (err) {
-      console.error("Failed to submit changes to product:", err);
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to submit changes to product") });
     }
   }
 
-  
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
@@ -247,13 +139,13 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
 
         {/* Thumbnail and Form Row */}
         <div className="flex gap-4  w-full">
-          
+
           {/* Thumbnail */}
           <img src={product?.thumbnail ?? undefined} className="h-80 object-cover"/>
 
           {/* Form */}
           <div className="flex flex-col w-full gap-3">
-            
+
             {/* Title */}
             <TextField required label="Title" value={title} onChange={(e) => {
               setTitle(e.target.value);
@@ -263,12 +155,12 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
               setDescription(e.target.value);
               setChanges(true);
             }}/>
-            
+
             <div className="flex gap-2 items-center">
               {/* Category */}
               <FormGroup>
                 <InputLabel required>Category</InputLabel>
-                <Select value={category} onChange={(e) => {setCategory(e.target.value); setChanges(true);}}>
+                <Select value={category} onChange={(e) => {setCategory(Number(e.target.value)); setChanges(true);}}>
                   {categories.map((category) => {
                     return (
                       <MenuItem key={category.category_id} value={category.category_id}>{category.name}</MenuItem>
@@ -303,39 +195,27 @@ export default function ProductModal({ isOpen, onClose, product }: Props) {
                 <InputLabel required>Stock</InputLabel>
                 <NumberField value={stock} min={0} step={1} onValueChange={(newValue) => {setStock(newValue ?? 0); setChanges(true);}}/>
               </FormGroup>
-              
-              <FormGroup>
-                <FormControlLabel label="Acive" control={<Switch checked={isActive} onChange={(e) => {setIsActive(e.target.checked); setChanges(true);}}/>}/>
-              </FormGroup>
 
-              <Snackbar
-                open={alertOpen}
-                autoHideDuration={3000}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-              >
-                <Alert
-                  onClose={handleAlertClose}
-                  severity="success"
-                  variant="filled"
-                  sx={{ width: "100%" }}
-                >
-                  Updated the product
-                </Alert>
-              </Snackbar>
+              <FormGroup>
+                <FormControlLabel label="Active" control={<Switch checked={isActive} onChange={(e) => {setIsActive(e.target.checked); setChanges(true);}}/>}/>
+              </FormGroup>
             </div>
           </div>
         </div>
 
         <div className="w-full flex justify-between">
-          <button onClick={() => openDeleteModal()} className="border px-5 py-1 rounded-full">Delete</button>
+          <button onClick={() => setDeleteModalOpen(true)} className="border px-5 py-1 rounded-full">Delete</button>
           <button disabled={!changes} onClick={() => {handleSubmit();}} className="transition-all duration-1000 border px-5 py-1 rounded-full disabled:bg-gray-100 disabled:text-gray-400">Update</button>
         </div>
       </div>
 
-      <ConfirmAdminProductDeleteModal 
-        isOpen={deleteModalOpen}
-        onClose={closeDeleteModal}
-        onConfirm={confirmDeleteOrder}/>
+      <ConfirmDeleteModal
+        open={deleteModalOpen}
+        message="Are you sure you want to delete this product?"
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDeleteProduct}/>
+
+      <AdminSnackbar notice={notice} onClose={() => setNotice(null)} />
 
     </div>
   );

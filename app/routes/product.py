@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Form, File, UploadFile
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from datetime import datetime
 from app.db.session import get_session
 from app.models.product import Product
 from app.models.category import Category
-from app.schemas.category import CategoryRead
-from app.schemas.product import ProductCreate, ProductRead, ProductUpdate, ProductResponse, Metadata as ProductMetadata
+from app.models.cart import CartItem
+from app.models.order import OrderItem
+from app.schemas.product import ProductCreate, ProductRead
 from app.auth.dependencies import admin_required
-from app.database.products import database_get_products
+from app.database.products import database_get_product_read, database_get_product_reads
 from fastapi import Request
 
 import os
@@ -81,27 +82,7 @@ async def create_product(
     session.commit()
     session.refresh(product)
 
-    category = CategoryRead(
-        category_id=category_data.category_id,
-        name=category_data.name,
-        description=category_data.description
-    )
-
-    return ProductRead(
-        product_id=product.product_id,
-        category=category,
-        title=product.title,
-        description=product.description,
-        price=product.price,
-        size=product.size,
-        color=product.color,
-        thumbnail=product.thumbnail,
-        images=product.images,
-        stock_quantity=product.stock_quantity,
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at
-    )
+    return database_get_product_read(session, product.product_id)
 
 
 
@@ -111,55 +92,15 @@ async def create_product(
 @router.get("/", response_model=list[ProductRead])
 def list_products(session: Session = Depends(get_session)):
     products = session.exec(select(Product)).all()
-    enriched_products = []
-
-    for product in products:
-
-        category = session.exec(select(Category).where(Category.category_id == product.category_id)).first()
-
-        enriched_products.append(ProductRead(
-            product_id=product.product_id,
-            category=category,
-            title=product.title,
-            description=product.description,
-            price=product.price,
-            size=product.size,
-            color=product.color,
-            thumbnail=product.thumbnail,
-            stock_quantity=product.stock_quantity,
-            is_active=product.is_active,
-            created_at=product.created_at,
-            updated_at=product.updated_at,
-            images=product.images
-        ))
-    return enriched_products
+    reads = database_get_product_reads(session, [p.product_id for p in products])
+    return [reads[p.product_id] for p in products]
 
 
 @router.get("/active", response_model=list[ProductRead])
 def list_active_products(session: Session = Depends(get_session)):
     products = session.exec(select(Product).where(Product.is_active == True)).all()
-    enriched_products = []
-
-    for product in products:
-
-        category = session.exec(select(Category).where(Category.category_id == product.category_id)).first()
-
-        enriched_products.append(ProductRead(
-            product_id=product.product_id,
-            category=category,
-            title=product.title,
-            description=product.description,
-            price=product.price,
-            size=product.size,
-            color=product.color,
-            thumbnail=product.thumbnail,
-            stock_quantity=product.stock_quantity,
-            is_active=product.is_active,
-            created_at=product.created_at,
-            updated_at=product.updated_at,
-            images=product.images
-        ))
-    return enriched_products
+    reads = database_get_product_reads(session, [p.product_id for p in products])
+    return [reads[p.product_id] for p in products]
 
 
 # -----------------------------------------
@@ -167,28 +108,12 @@ def list_active_products(session: Session = Depends(get_session)):
 # -----------------------------------------
 @router.get("/{product_id}", response_model=ProductRead)
 def get_product(product_id: int, session: Session = Depends(get_session)):
-    product = session.exec(select(Product).where(Product.product_id == product_id)).first()
+    product = database_get_product_read(session, product_id)
 
     if not product:
-            raise HTTPException(status_code=404, detail="Product not found")
-    
-    category = session.exec(select(Category).where(Category.category_id == product.category_id)).first()
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    return ProductRead(
-        product_id=product.product_id,
-        category=category,
-        title=product.title,
-        description=product.description,
-        price=product.price,
-        size=product.size,
-        color=product.color,
-        thumbnail=product.thumbnail,
-        stock_quantity=product.stock_quantity,
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at,
-        images=product.images
-    )
+    return product
 
 
 # -----------------------------------------
@@ -252,27 +177,10 @@ async def update_product(
 
     product.updated_at = datetime.now()
 
-    category = session.exec(select(Category).where(Category.category_id == product.category_id)).first()
-
     session.add(product)
     session.commit()
-    session.refresh(product)
 
-    return ProductRead(
-        product_id=product.product_id,
-        category=category,
-        title=product.title,
-        description=product.description,
-        price=product.price,
-        size=product.size,
-        color=product.color,
-        thumbnail=product.thumbnail,
-        stock_quantity=product.stock_quantity,
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at,
-        images=product.images
-    )
+    return database_get_product_read(session, product_id)
 
 
 
@@ -286,6 +194,11 @@ def delete_product(product_id: int, session: Session = Depends(get_session)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Order history must keep pointing at the product
+    if session.exec(select(OrderItem).where(OrderItem.product_id == product_id)).first():
+        raise HTTPException(status_code=409, detail="Product appears in orders and cannot be deleted. Set it inactive instead")
+
+    session.exec(delete(CartItem).where(CartItem.product_id == product_id))
     session.delete(product)
     session.commit()
 
