@@ -36,9 +36,10 @@ def send_email(message: EmailMessage) -> bool:
 def deliver(message: EmailMessage):
     api_key = resend_api_key()
 
-    # Local development: show the email instead of sending it
+    # Local development: show the email instead of sending it. Flushed so it shows
+    # right away even when output is piped (a preview pane, Docker logs)
     if not api_key:
-        print(f"--- Email to {message.to}: {message.subject} ---\n{message.text}\n--- End of email ---")
+        print(f"--- Email to {message.to}: {message.subject} ---\n{message.text}\n--- End of email ---", flush=True)
         return
 
     resend.api_key = api_key
