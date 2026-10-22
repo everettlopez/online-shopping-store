@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Security, Response
-from sqlmodel import Session, select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, Response
+from sqlmodel import Session, select, delete
 from app.db.session import get_session
 from app.models.user import User
 from app.auth.core import (
@@ -10,12 +10,26 @@ from app.auth.core import (
     set_auth_cookie,
     clear_auth_cookie
 )
-from app.schemas.user import UserCreate, UserLogin, UserRead, EmailUpdate, PasswordUpdate
+from app.schemas.user import UserCreate, UserLogin, UserRead, EmailUpdate, PasswordUpdate, ForgotPasswordRequest, PasswordReset
 from app.database.users import database_user_has_orders, database_delete_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.auth.core import CurrentUser
+from app.models.password_reset import PasswordResetToken
+from app.mail import build_password_reset_email, send_email
+from app.settings import password_reset_minutes
+import hashlib
+import secrets
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+# A user gets at most one reset email per minute, which keeps a script from
+# flooding their inbox (or using up the email provider's daily quota)
+RESET_EMAIL_COOLDOWN = timedelta(minutes=1)
+FORGOT_PASSWORD_MESSAGE = "If an account uses that email, we've sent it a link to reset the password"
+
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 @router.post("/register")
 def register(user: UserCreate, session: Session = Depends(get_session)):
@@ -113,3 +127,62 @@ def update_password(
     session.commit()
 
     return {"message": "Password updated successfully"}
+
+
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    # Same answer whether or not the account exists, so this can't be used to find accounts
+    user = session.exec(select(User).where(User.email == data.email)).first()
+    if not user:
+        return {"message": FORGOT_PASSWORD_MESSAGE}
+
+    now = datetime.utcnow()
+    recent = session.exec(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.user_id)
+        .where(PasswordResetToken.created_at > now - RESET_EMAIL_COOLDOWN)
+    ).first()
+    if recent:
+        return {"message": FORGOT_PASSWORD_MESSAGE}
+
+    token = secrets.token_urlsafe(32)
+    minutes = password_reset_minutes()
+    session.add(PasswordResetToken(
+        user_id=user.user_id,
+        token_hash=hash_reset_token(token),
+        created_at=now,
+        expires_at=now + timedelta(minutes=minutes),
+    ))
+    session.commit()
+
+    background_tasks.add_task(send_email, build_password_reset_email(user.email, user.first_name, token, minutes))
+
+    return {"message": FORGOT_PASSWORD_MESSAGE}
+
+@router.post("/reset-password")
+def reset_password(data: PasswordReset, session: Session = Depends(get_session)):
+    # Locked so two requests with the same link can't both use it
+    reset = session.exec(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token_hash == hash_reset_token(data.token))
+        .with_for_update()
+    ).first()
+
+    if not reset or reset.used_at or reset.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired. Please request a new one")
+
+    user = session.get(User, reset.user_id)
+    user.hashed_password = hash_password(data.new_password)
+    session.add(user)
+
+    # The link works once, and any other links sent to this user stop working too
+    reset.used_at = datetime.utcnow()
+    session.add(reset)
+    session.exec(
+        delete(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.user_id)
+        .where(PasswordResetToken.token_id != reset.token_id)
+    )
+    session.commit()
+
+    return {"message": "Password reset. You can now sign in with your new password"}

@@ -64,3 +64,10 @@ class EmailUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     old_password: str
     new_password: NewPassword
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class PasswordReset(BaseModel):
+    token: str
+    new_password: NewPassword

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Security, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, Response
 from sqlmodel import Session, select
 from app.db.session import get_session
 from datetime import datetime
@@ -10,6 +10,8 @@ from sqlalchemy.orm import selectinload
 from app.models.product import Product
 from app.database.products import database_get_product_reads
 from app.auth.dependencies import admin_required
+from app.models.user import User
+from app.mail import build_shipping_notice_email, send_email
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -89,7 +91,7 @@ def update_order_status(order_id: int, status: str, session: Session = Depends(g
     return {"message": "Order status updated"}
 
 @router.put("/{order_id}/tracking", dependencies=[Depends(admin_required)])
-def update_tracking_information(order_id: int, tracking_number: str, tracking_carrier: str, tracking_url: str, session: Session = Depends(get_session)):
+def update_tracking_information(order_id: int, tracking_number: str, tracking_carrier: str, tracking_url: str, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
 
     order = session.get(Order, order_id)
 
@@ -107,6 +109,9 @@ def update_tracking_information(order_id: int, tracking_number: str, tracking_ca
     session.commit()
     session.refresh(order)
 
+    # Tell the buyer, including when an admin corrects the tracking details
+    buyer = session.get(User, order.user_id)
+    background_tasks.add_task(send_email, build_shipping_notice_email(buyer.email, order))
 
     return {"message": "Order tracking updated"}
 

@@ -8,7 +8,7 @@ from sqlmodel import SQLModel
 
 # Import every model so its table is registered on SQLModel.metadata
 # (OrderItem is defined in order.py)
-from app.models import address, cart, category, order, product, user  # noqa: F401
+from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

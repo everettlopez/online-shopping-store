@@ -3,6 +3,7 @@ from app.models.user import User
 from app.models.address import Address
 from app.models.cart import Cart, CartItem
 from app.models.order import Order
+from app.models.password_reset import PasswordResetToken
 
 def database_get_users(session: Session, sort: str | None = None):
 
@@ -33,13 +34,14 @@ def database_user_has_orders(session: Session, user_id: int) -> bool:
     return session.exec(select(Order).where(Order.user_id == user_id)).first() is not None
 
 def database_delete_user(session: Session, user: User):
-    """Delete a user along with their cart and addresses. Callers must check
+    """Delete a user along with their cart, addresses and reset links. Callers must check
     database_user_has_orders first, since orders reference the user."""
     cart_ids = session.exec(select(Cart.cart_id).where(Cart.user_id == user.user_id)).all()
     if cart_ids:
         session.exec(delete(CartItem).where(CartItem.cart_id.in_(cart_ids)))
     session.exec(delete(Cart).where(Cart.user_id == user.user_id))
     session.exec(delete(Address).where(Address.user_id == user.user_id))
+    session.exec(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.user_id))
 
     session.delete(user)
     session.commit()

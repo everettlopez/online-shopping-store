@@ -2,7 +2,8 @@
 
 Every test gets its own empty in-memory SQLite database, wired into the app by
 overriding the get_session dependency. Stripe is never called for real: payment
-tests monkeypatch the stripe functions they need.
+tests monkeypatch the stripe functions they need. Emails are never sent: the
+autouse sent_emails fixture records them instead.
 """
 import os
 
@@ -23,6 +24,9 @@ os.environ["SHIPPING_FLAT_RATE"] = "6.95"
 os.environ["FREE_SHIPPING_THRESHOLD"] = "75"
 os.environ["STRIPE_AUTOMATIC_TAX"] = "true"
 os.environ["STRIPE_PRODUCT_TAX_CODE"] = "txcd_30011000"
+os.environ["RESEND_API_KEY"] = ""
+os.environ["EMAIL_FROM"] = "Online Store <onboarding@resend.dev>"
+os.environ["PASSWORD_RESET_MINUTES"] = "30"
 
 import itertools
 from datetime import datetime, timedelta
@@ -37,7 +41,7 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from app.main import app
 from app.db.session import get_session
 from app.auth.core import create_access_token, hash_password
-from app.models import address, cart, category, order, product, user  # noqa: F401  (registers every table)
+from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401  (registers every table)
 from app.models.user import User
 from app.models.category import Category
 from app.models.product import Product
@@ -102,6 +106,14 @@ def stripe_customers(monkeypatch):
     monkeypatch.setattr(stripe.Customer, "create", create)
     monkeypatch.setattr(stripe.Customer, "modify", modify)
     return calls
+
+
+@pytest.fixture(autouse=True)
+def sent_emails(monkeypatch):
+    """Record every email the app sends (EmailMessage objects) instead of sending it."""
+    sent = []
+    monkeypatch.setattr("app.mail.deliver", sent.append)
+    return sent
 
 
 @pytest.fixture

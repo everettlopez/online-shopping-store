@@ -15,7 +15,9 @@ MIN_JWT_SECRET_LENGTH = 32
 DEFAULT_SHIPPING_FLAT_RATE = "6.95"
 DEFAULT_FREE_SHIPPING_THRESHOLD = "75"
 DEFAULT_PRODUCT_TAX_CODE = "txcd_30011000"
-DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+DEFAULT_EMAIL_FROM = "Online Store <onboarding@resend.dev>"
+DEFAULT_PASSWORD_RESET_MINUTES = 30
+DEFAULT_UPLOAD_DIR =os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -88,6 +90,23 @@ def product_tax_code() -> str:
     return os.getenv("STRIPE_PRODUCT_TAX_CODE") or DEFAULT_PRODUCT_TAX_CODE
 
 
+def resend_api_key() -> str:
+    """Resend API key. Without one, emails are printed to the console instead of sent
+    (fine locally; production must set it)."""
+    return os.getenv("RESEND_API_KEY", "").strip()
+
+
+def email_from() -> str:
+    """Sender address. Resend's onboarding@resend.dev only delivers to the Resend
+    account's own email; production uses an address on a domain verified in Resend."""
+    return os.getenv("EMAIL_FROM") or DEFAULT_EMAIL_FROM
+
+
+def password_reset_minutes() -> int:
+    """How long a password reset link works."""
+    return int(os.getenv("PASSWORD_RESET_MINUTES") or DEFAULT_PASSWORD_RESET_MINUTES)
+
+
 def check_required_settings():
     """Stop startup with a clear message instead of running with secrets that
     are missing or too weak to be safe."""
@@ -110,5 +129,14 @@ def check_required_settings():
         except InvalidOperation:
             problems.append(f"{name} must be a dollar amount such as 6.95")
 
+    try:
+        if password_reset_minutes() <= 0:
+            problems.append("PASSWORD_RESET_MINUTES must be positive")
+    except ValueError:
+        problems.append("PASSWORD_RESET_MINUTES must be a whole number of minutes")
+
     if problems:
         raise RuntimeError("Invalid configuration: " + "; ".join(problems) + ". See .env.example.")
+
+    if not resend_api_key():
+        print("RESEND_API_KEY is not set: emails are printed here instead of sent")

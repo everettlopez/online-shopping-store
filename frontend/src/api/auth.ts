@@ -56,3 +56,17 @@ export const updatePassword = async(oldPassword: string, newPassword: string) =>
 
     return response.data;
 };
+
+// Email a password reset link (the answer is the same whether or not the account exists)
+export const forgotPassword = async(email: string) => {
+    const response = await axiosClient.post("/auth/forgot-password", { email });
+    return response.data;
+};
+
+export const resetPassword = async(token: string, newPassword: string) => {
+    const response = await axiosClient.post("/auth/reset-password", {
+        token, new_password: newPassword,
+    });
+
+    return response.data;
+};

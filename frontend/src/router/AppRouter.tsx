@@ -3,6 +3,8 @@ import { useAuth } from "../context/AuthContext";
 
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import ForgotPassword from "../pages/ForgotPassword";
+import ResetPassword from "../pages/ResetPassword";
 import Landing from "../pages/Landing";
 import ProductsPage from "../pages/Products";
 import Admin from "../pages/admin/Admin";
@@ -80,6 +82,24 @@ export default function AppRouter() {
                 element={
                     <PublicOnlyRoute>
                         <Register />
+                    </PublicOnlyRoute>
+                }
+            />
+
+            <Route
+                path="/forgot-password"
+                element={
+                    <PublicOnlyRoute>
+                        <ForgotPassword />
+                    </PublicOnlyRoute>
+                }
+            />
+
+            <Route
+                path="/reset-password"
+                element={
+                    <PublicOnlyRoute>
+                        <ResetPassword />
                     </PublicOnlyRoute>
                 }
             />
