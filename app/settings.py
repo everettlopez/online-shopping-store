@@ -97,9 +97,25 @@ def resend_api_key() -> str:
 
 
 def email_from() -> str:
-    """Sender address. Resend's onboarding@resend.dev only delivers to the Resend
+    """Default sender address. Resend's onboarding@resend.dev only delivers to the Resend
     account's own email; production uses an address on a domain verified in Resend."""
     return os.getenv("EMAIL_FROM") or DEFAULT_EMAIL_FROM
+
+
+def orders_email_from() -> str:
+    """Sender of order confirmations and shipping notices (falls back to EMAIL_FROM)."""
+    return os.getenv("ORDERS_EMAIL_FROM") or email_from()
+
+
+def account_email_from() -> str:
+    """Sender of account emails such as password reset (falls back to EMAIL_FROM)."""
+    return os.getenv("ACCOUNT_EMAIL_FROM") or email_from()
+
+
+def email_reply_to() -> str | None:
+    """Where customers' replies go, whichever address sent the email. Unset means
+    replies go to the sender."""
+    return os.getenv("EMAIL_REPLY_TO", "").strip() or None
 
 
 def password_reset_minutes() -> int:
