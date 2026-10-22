@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
 import OrderAddressLines, { type OrderAddress } from "../components/OrderAddressLines";
+import OrderTotals from "../components/OrderTotals";
 
 export type OrderItem = {
   order_item_id: number;
@@ -11,13 +12,15 @@ export type OrderItem = {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  // null when the product has since been removed from the catalog
   product: {
     product_id: number;
-    name: string;
+    title: string;
     price: number;
-    size: string;
-    image_url?: string;
-  };
+    size: string | null;
+    thumbnail: string | null;
+    images?: string[] | null;
+  } | null;
 };
 
 export type Order = {
@@ -28,6 +31,9 @@ export type Order = {
   updated_at: string;
   order_date: string;
   total_amount: number;
+  subtotal_amount: number | null;
+  shipping_amount: number | null;
+  tax_amount: number | null;
   shipping_address: OrderAddress | null;
   billing_address: OrderAddress | null;
 
@@ -123,15 +129,18 @@ export default function OrderSuccess() {
             <div key={item.order_item_id} className="border flex gap-2 p-3 justify-between rounded-[10px]">
 
               <div className="flex gap-2">
-                <img src={item.product.image_url} className="h-20 w-20 object-cover"/>
+                {item.product?.thumbnail || item.product?.images?.[0]
+                  ? <img src={item.product.thumbnail || item.product.images?.[0]} className="h-20 w-20 object-cover"/>
+                  : <div className="h-20 w-20 bg-gray-100"/>}
                 <div className="flex flex-col">
-                  <p>{item.product.name}</p>
-                  <p className="text-sm text-gray-500">Size: {item.product.size}</p>
+                  <p>{item.product?.title ?? "Product no longer available"}</p>
+                  {item.product?.size && <p className="text-sm text-gray-500">Size: {item.product.size}</p>}
                   <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                 </div>
               </div>
 
-              <p>${item.product.price.toFixed(2)}</p>
+              {/* The price paid, not the product's current price */}
+              <p>${item.unit_price.toFixed(2)}</p>
             </div>
           ))}
 
@@ -140,9 +149,8 @@ export default function OrderSuccess() {
         <div className="flex flex-col py-4 gap-2">
           <div className="border"></div>
 
-          <div className="flex justify-between p-3">
-            <p>Total: </p>
-            <p>${order.total_amount.toFixed(2)}</p>
+          <div className="p-3">
+            <OrderTotals order={order} />
           </div>
 
           <div className="border"></div>

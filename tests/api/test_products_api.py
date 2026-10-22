@@ -105,6 +105,23 @@ def test_update_product_fields(admin_client, make_category, make_product):
     assert body["category"]["category_id"] == new_category.category_id
 
 
+def test_price_keeps_exact_cents(admin_client, make_category, upload_dir):
+    category = make_category()
+
+    response = admin_client.post("/api/products/", data={"category_id": category.category_id, "title": "X", "price": "19.99"})
+
+    assert response.json()["price"] == 19.99
+
+
+@pytest.mark.parametrize("price", ["19.999", "-1", "abc"])
+def test_price_must_be_dollars_and_cents(admin_client, make_category, make_product, upload_dir, price):
+    category = make_category()
+    product = make_product()
+
+    assert admin_client.post("/api/products/", data={"category_id": category.category_id, "title": "X", "price": price}).status_code == 422
+    assert admin_client.put(f"/api/products/{product.product_id}", data={"price": price}).status_code == 422
+
+
 def test_create_product_is_active_by_default(admin_client, make_category, upload_dir):
     category = make_category()
 

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
 from app.schemas.category import CategoryRead
 
 class Metadata(BaseModel):
@@ -10,7 +11,7 @@ class ProductCreate(BaseModel):
     category_id: int
     title: str
     description: str | None = None
-    price: float
+    price: Decimal
 
     size: str | None = None
     color: str | None = None

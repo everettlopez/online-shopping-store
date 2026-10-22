@@ -23,11 +23,14 @@ import TextField from '@mui/material/TextField';
 
 import Stepper from '@mui/material/Stepper';
 import OrderAddressLines, { type OrderAddress } from "../../components/OrderAddressLines";
+import OrderTotals from "../../components/OrderTotals";
 
 export type OrderItem = {
   order_item_id: number;
   order_id: number;
   quantity: number;
+  unit_price: number;   // what was paid, not the product's current price
+  subtotal: number;
   // null when the product has since been removed from the catalog
   product: {
     product_id: number;
@@ -55,6 +58,9 @@ export type Order = {
   status: string;
   order_date: string;
   total_amount: number;
+  subtotal_amount: number | null;
+  shipping_amount: number | null;
+  tax_amount: number | null;
 
   payment_intent_id: string | null;
   stripe_session_id: string | null;
@@ -578,19 +584,18 @@ export default function AdminOrders()
                                 : <div className="w-20 h-20 border rounded bg-gray-100"/>}
                               <div className="flex flex-col">
                                 <p className="text-lg tracking-wider">{item.product?.title ?? "Product no longer available"}</p>
-                                {item.product && <p className="text-gray-400 tracking-wider">${item.product.price.toFixed(2)}</p>}
+                                <p className="text-gray-400 tracking-wider">${item.unit_price.toFixed(2)}</p>
                                 <p className="text-gray-400 tracking-wider">Qty: {item.quantity}</p>
                               </div>
                             </div>
 
-                            {item.product && <p className="text-lg tracking-wider">{item.quantity} x ${item.product.price.toFixed(2)}</p>}
+                            <p className="text-lg tracking-wider">{item.quantity} x ${item.unit_price.toFixed(2)}</p>
                           </div>
                         ))}
                       </div>       
 
-                      <div className="flex gap-10 w-full justify-end pr-2 items-center">
-                        <p className="text-lg tracking-wider">TOTAL:</p>
-                        <p className="text-lg tracking-wider">${order.total_amount.toFixed(2)}</p>
+                      <div className="w-full max-w-xs self-end pr-2 tracking-wider">
+                        <OrderTotals order={order} />
                       </div>             
 
                     </div>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from sqlmodel import SQLModel, Field
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import Column, JSON
 from app.schemas.category import CategoryRead
 
@@ -13,7 +14,7 @@ class Product(SQLModel, table=True):
 
     title: str       # Changed from "name" to "title"
     description: str | None = None
-    price: float
+    price: Decimal = Field(max_digits=10, decimal_places=2)
 
     size: str | None = None
     color: str | None = None

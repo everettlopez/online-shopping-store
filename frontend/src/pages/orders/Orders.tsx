@@ -56,6 +56,9 @@ export type Order = {
   status: string;
   order_date: string;
   total_amount: number;
+  subtotal_amount: number | null;
+  shipping_amount: number | null;
+  tax_amount: number | null;
 
   payment_intent_id: string | null;
   stripe_session_id: string | null;

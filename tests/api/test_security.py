@@ -119,6 +119,8 @@ def test_valid_settings_pass():
     ("STRIPE_SECRET_KEY", "", "STRIPE_SECRET_KEY"),
     ("STRIPE_WEBHOOK_SECRET", " ", "STRIPE_WEBHOOK_SECRET"),
     ("COOKIE_SAMESITE", "sometimes", "COOKIE_SAMESITE"),
+    ("SHIPPING_FLAT_RATE", "-1", "SHIPPING_FLAT_RATE"),
+    ("FREE_SHIPPING_THRESHOLD", "free", "FREE_SHIPPING_THRESHOLD"),
 ])
 def test_bad_settings_stop_startup(monkeypatch, name, value, problem):
     monkeypatch.setenv(name, value)

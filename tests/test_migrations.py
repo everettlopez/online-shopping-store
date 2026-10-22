@@ -95,3 +95,33 @@ def test_migrations_downgrade_and_upgrade_again(database):
 
     upgrade_to_head()
     db_session.ensure_schema_is_current()
+
+
+def test_money_migration_keeps_amounts_and_backfills_totals(database):
+    # An order from before shipping and tax were charged, with FLOAT money columns
+    command.upgrade(Config(db_session.ALEMBIC_INI), "c3f9a1d2b7e4")
+    with database.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (user_id, email, hashed_password, first_name, last_name, created_at, is_admin) "
+            "VALUES (1, 'a@example.com', 'x', 'Ada', 'Lovelace', '2026-01-01', 0)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO addresses (address_id, user_id, full_name, line1, city, state, postal_code, country, address_type, created_at) "
+            "VALUES (7, 1, 'Ada Lovelace', '1 Main St', 'Springfield', 'IL', '62701', 'US', 'shipping', '2026-01-01')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO orders (order_id, user_id, created_at, updated_at, shipping_address_id, billing_address_id, "
+            "order_number, status, order_date, total_amount) "
+            "VALUES (1, 1, '2026-01-01', '2026-01-01', 7, 7, 'abc12345', 'placed', '2026-01-01', 59.97)"
+        )
+
+    upgrade_to_head()
+
+    with database.connect() as connection:
+        amounts = connection.exec_driver_sql(
+            "SELECT total_amount, subtotal_amount, shipping_amount, tax_amount FROM orders"
+        ).one()
+        customer_id = connection.exec_driver_sql("SELECT stripe_customer_id FROM users").scalar()
+
+    assert [float(a) for a in amounts] == [59.97, 59.97, 0, 0]
+    assert customer_id is None

@@ -2,6 +2,7 @@ from __future__ import annotations
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Column, JSON
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 
@@ -28,7 +29,12 @@ class Order(SQLModel, table=True):
     order_number: str = Field(index=True, unique=True)
     status: str = Field(default="pending")  # pending, paid, shipped, cancelled
     order_date: datetime = Field(default_factory=datetime.utcnow)
-    total_amount: float
+    # What the customer paid: total = subtotal (items) + shipping + tax. Orders from
+    # before shipping and tax were charged have subtotal = total and 0 for both
+    total_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    subtotal_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
+    shipping_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
+    tax_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
 
     payment_intent_id: str | None = Field(default=None, index=True)
     stripe_session_id: str | None = Field(default=None, index=True)
@@ -52,8 +58,8 @@ class OrderItem(SQLModel, table=True):
     order_id: int = Field(foreign_key="orders.order_id")
     product_id: int = Field(foreign_key="products.product_id")
     quantity: int
-    unit_price: float
-    subtotal: float
+    unit_price: Decimal = Field(max_digits=10, decimal_places=2)
+    subtotal: Decimal = Field(max_digits=10, decimal_places=2)
 
 
     

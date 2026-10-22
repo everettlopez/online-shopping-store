@@ -9,18 +9,79 @@ from datetime import datetime
 from app.db.session import get_session
 from app.schemas.checkout import CheckoutRequest
 from app.auth.core import CurrentUser
-from app.settings import frontend_url
+from app.settings import (
+    automatic_tax_enabled,
+    free_shipping_threshold,
+    frontend_url,
+    product_tax_code,
+    shipping_flat_rate,
+)
+from app.money import from_cents, to_cents
 from app.models.order import Order, OrderItem
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.models.address import Address
 from app.schemas.address import address_snapshot
+from app.routes.order import build_order_reads
 from app.models.user import User
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+# Stripe's tax code for shipping charges
+SHIPPING_TAX_CODE = "txcd_92010001"
+
+
+def shipping_cents(subtotal_cents: int) -> int:
+    """Flat-rate shipping, free once the items reach the free-shipping threshold."""
+    if subtotal_cents >= to_cents(free_shipping_threshold()):
+        return 0
+    return to_cents(shipping_flat_rate())
+
+
+def stripe_address(address: Address) -> dict:
+    return {
+        "line1": address.line1,
+        "line2": address.line2 or None,
+        "city": address.city,
+        "state": address.state,
+        "postal_code": address.postal_code,
+        "country": address.country,
+    }
+
+
+def get_stripe_customer(session: Session, user: User, shipping: Address, billing: Address) -> str:
+    """The user's Stripe Customer id, with its addresses set to this checkout's.
+    Stripe Tax works out the sales tax from the customer's shipping address."""
+    details = {
+        "email": user.email,
+        "name": f"{user.first_name} {user.last_name}",
+        "address": stripe_address(billing),
+        "shipping": {"name": shipping.full_name, "phone": shipping.phone, "address": stripe_address(shipping)},
+    }
+
+    if user.stripe_customer_id:
+        try:
+            stripe.Customer.modify(user.stripe_customer_id, **details)
+            return user.stripe_customer_id
+        except stripe.InvalidRequestError:
+            # Deleted in Stripe, or created with other keys (sandbox vs live): make a new one
+            pass
+
+    customer = stripe.Customer.create(**details, metadata={"user_id": user.user_id})
+    user.stripe_customer_id = customer.id
+    session.add(user)
+    session.commit()
+    return customer.id
+
+
+@router.get("/shipping")
+def get_shipping_rates():
+    """Shipping prices, so the checkout page can show them before payment."""
+    return {"flat_rate": float(shipping_flat_rate()), "free_shipping_threshold": float(free_shipping_threshold())}
+
 
 @router.post("/create-checkout-session")
 def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: Session = Depends(get_session)):
@@ -43,9 +104,13 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
     if not billing or billing.user_id != user.user_id or billing.deleted_at:
         raise HTTPException(status_code=400, detail="Invalid billing address")
 
+    if shipping.country != "US":
+        raise HTTPException(status_code=400, detail="We currently ship only within the US")
+
     # 3. Validate stock BEFORE Stripe Checkout
-    total_cents = 0
+    subtotal_cents = 0
     snapshot = []
+    line_items = []
 
     # Older carts can hold the same product in several rows, so total them per product
     wanted = {}
@@ -70,38 +135,62 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
                 detail=f"Not enough stock for {product.title}"
             )
 
-        unit_cents = round(product.price * 100)
-        total_cents += unit_cents * quantity
+        unit_cents = to_cents(product.price)
+        subtotal_cents += unit_cents * quantity
         snapshot.append([product_id, quantity, unit_cents])
+        line_items.append({
+            "price_data": {
+                "currency": "usd",
+                "unit_amount": unit_cents,
+                "product_data": {"name": product.title, "tax_code": product_tax_code()},
+                "tax_behavior": "exclusive",   # prices don't include tax; Stripe adds it
+            },
+            "quantity": quantity,
+        })
 
     # What the customer pays for, so fulfillment doesn't depend on the cart later
     items_metadata = json.dumps(snapshot, separators=(",", ":"))
     if len(items_metadata) > 500:  # Stripe's limit for one metadata value
         raise HTTPException(status_code=400, detail="Too many different items for one checkout")
 
-    # 4. Create Stripe Checkout Session
-    # Payment methods (card, etc.) are configured in the Stripe Dashboard
-    stripe_session = stripe.checkout.Session.create(
-        mode="payment",
-        line_items=[{
-            "price_data": {
-                "currency": "usd",
-                "product_data": {
-                    "name": "Order Payment"
-                },
-                "unit_amount": total_cents,
-            },
-            "quantity": 1,
-        }],
-        success_url=f"{frontend_url()}/order-success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{frontend_url()}/cart",
-        metadata={
-            "user_id": user.user_id,
-            "shipping_address_id": data.shipping_address_id,
-            "billing_address_id": data.billing_address_id,
-            "items": items_metadata
+    shipping_amount = shipping_cents(subtotal_cents)
+    shipping_option = {
+        "shipping_rate_data": {
+            "type": "fixed_amount",
+            "display_name": "Free shipping" if shipping_amount == 0 else "Standard shipping",
+            "fixed_amount": {"amount": shipping_amount, "currency": "usd"},
+            "tax_behavior": "exclusive",
+            "tax_code": SHIPPING_TAX_CODE,
         }
-    )
+    }
+
+    try:
+        # Sales tax comes from Stripe Tax, using the customer's shipping address
+        tax = {}
+        if automatic_tax_enabled():
+            tax = {"automatic_tax": {"enabled": True}, "customer": get_stripe_customer(session, user, shipping, billing)}
+
+        # 4. Create Stripe Checkout Session
+        # Payment methods (card, etc.) are configured in the Stripe Dashboard
+        stripe_session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=line_items,
+            shipping_options=[shipping_option],
+            **tax,
+            success_url=f"{frontend_url()}/order-success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{frontend_url()}/cart",
+            metadata={
+                "user_id": user.user_id,
+                "shipping_address_id": data.shipping_address_id,
+                "billing_address_id": data.billing_address_id,
+                "items": items_metadata
+            }
+        )
+    except stripe.StripeError as e:
+        # Stripe is down, or the account isn't set up (e.g. Stripe Tax without a head
+        # office address). The details are for us, not the shopper
+        print("Failed to create checkout session:", e)
+        raise HTTPException(status_code=502, detail="We couldn't start checkout. Please try again in a moment.")
 
     return {"checkoutUrl": stripe_session.url}
 
@@ -128,24 +217,7 @@ def get_order_from_session(session_id: str, user: CurrentUser, session: Session 
     if not order or (order.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # Load items
-    items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order.order_id)
-    ).all()
-
-    # Load product for each item
-    enriched_items = []
-    for item in items:
-        product = session.get(Product, item.product_id)
-        enriched_items.append({
-            **item.model_dump(),
-            "product": product.model_dump() if product else None
-        })
-
-    return {
-        **order.model_dump(),
-        "items": enriched_items
-    }
+    return build_order_reads(session, [order])[0]
 
 def summarize_payment_method(pmd: dict) -> dict:
     """Turn a charge's payment_method_details into how the customer paid.
@@ -249,20 +321,29 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
             select(CartItem).where(CartItem.cart_id == cart.cart_id).with_for_update()
         ).all()
 
-    # Fulfill what was paid for (snapshot taken at checkout), not whatever is in the cart now
+    # Fulfill what was paid for (snapshot taken at checkout), not whatever is in the cart now.
+    # (product_id, quantity, unit price in cents)
     if "items" in metadata:
-        purchased = [(int(pid), int(qty), cents / 100) for pid, qty, cents in json.loads(metadata["items"])]
+        purchased = [(int(pid), int(qty), int(cents)) for pid, qty, cents in json.loads(metadata["items"])]
     else:
         # Sessions created before the snapshot was added
-        purchased = [(i.product_id, i.quantity, session.get(Product, i.product_id).price) for i in cart_items]
+        purchased = [(i.product_id, i.quantity, to_cents(session.get(Product, i.product_id).price)) for i in cart_items]
 
     if not purchased:
         return None
 
-    if stripe_session.amount_total is not None:
-        total_amount = stripe_session.amount_total / 100
-    else:
-        total_amount = sum(price * qty for _, qty, price in purchased)
+    # What Stripe charged. Sessions without these (older ones, `stripe trigger`) had
+    # no shipping or tax, so the items are the whole amount
+    charged = stripe_session.to_dict()
+    totals = charged.get("total_details") or {}
+    shipping_cents_paid = totals.get("amount_shipping") or 0
+    tax_cents = totals.get("amount_tax") or 0
+    subtotal_cents = charged.get("amount_subtotal")
+    if subtotal_cents is None:
+        subtotal_cents = sum(cents * qty for _, qty, cents in purchased)
+    total_cents = charged.get("amount_total")
+    if total_cents is None:
+        total_cents = subtotal_cents + shipping_cents_paid + tax_cents
 
     pi_id = stripe_session.payment_intent
 
@@ -272,7 +353,10 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
         last_name=user_obj.last_name,
         shipping_address_id=shipping_id,
         billing_address_id=billing_id,
-        total_amount=total_amount,
+        total_amount=from_cents(total_cents),
+        subtotal_amount=from_cents(subtotal_cents),
+        shipping_amount=from_cents(shipping_cents_paid),
+        tax_amount=from_cents(tax_cents),
         order_number=str(uuid.uuid4())[:8],
         status="placed" if stripe_session.payment_status == "paid" else "pending",
         payment_intent_id=pi_id,
@@ -286,7 +370,7 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
     session.add(order)
     session.flush()  # assigns order.order_id; everything below commits together
 
-    for product_id, quantity, unit_price in purchased:
+    for product_id, quantity, unit_cents in purchased:
         product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
         if not product:
             print("WARNING: purchased product no longer exists:", product_id, "order:", order.order_id)
@@ -296,8 +380,8 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
             order_id=order.order_id,
             product_id=product_id,
             quantity=quantity,
-            unit_price=unit_price,
-            subtotal=unit_price * quantity
+            unit_price=from_cents(unit_cents),
+            subtotal=from_cents(unit_cents * quantity)
         ))
 
         # Stock was checked at checkout, but another buyer may have taken it since
