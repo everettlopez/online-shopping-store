@@ -435,6 +435,55 @@ def test_order_shows_the_price_paid_after_the_price_changes(send_webhook, sessio
     assert (order["subtotal_amount"], order["shipping_amount"], order["tax_amount"], order["total_amount"]) == (25.0, 0.0, 0.0, 25.0)
 
 
+def test_completed_checkout_emails_a_confirmation(send_webhook, session, shopper, make_product, sent_emails):
+    user, shipping, billing = shopper
+    shirt = make_product(title="Shirt", price=20.0)
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(shirt, 2)], amount_subtotal=4000, amount_total=4695,
+                                  total_details={"amount_shipping": 695, "amount_tax": 0}))
+
+    order_number = session.exec(select(Order)).one().order_number
+    [message] = sent_emails
+    assert message.to == user.email
+    assert message.subject == f"Order confirmation {order_number}"
+    assert "2 x Shirt @ $20.00 = $40.00" in message.text
+    assert "Shipping: $6.95" in message.text and "Total: $46.95" in message.text
+
+
+def test_confirmation_is_sent_once_per_order(client, auth_headers, send_webhook, shopper, make_product, monkeypatch, sent_emails):
+    user, shipping, billing = shopper
+    product = make_product()
+    stripe_session = checkout_session(user, shipping, billing, items=[(product, 1)])
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id: stripe_session)
+
+    # Success page first, then the webhook (twice, as Stripe retries)
+    client.get("/api/payments/session/cs_test_1", headers=auth_headers(user))
+    send_webhook(stripe_session)
+    send_webhook(stripe_session)
+
+    assert len(sent_emails) == 1
+
+
+def test_unpaid_order_gets_no_confirmation(send_webhook, shopper, make_product, sent_emails):
+    user, shipping, billing = shopper
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)], payment_status="unpaid"))
+
+    assert sent_emails == []
+
+
+def test_order_is_kept_when_the_email_fails(send_webhook, session, shopper, make_product, monkeypatch):
+    user, shipping, billing = shopper
+    def fail(message):
+        raise RuntimeError("provider down")
+    monkeypatch.setattr("app.mail.deliver", fail)
+
+    response = send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    assert response.status_code == 200
+    assert session.exec(select(Order)).one().status == "placed"
+
+
 def test_webhook_is_idempotent(send_webhook, session, shopper, make_product, add_to_cart):
     user, shipping, billing = shopper
     product = make_product(stock_quantity=5)

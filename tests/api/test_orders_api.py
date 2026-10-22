@@ -65,6 +65,18 @@ def test_update_tracking_marks_order_shipped(admin_client, user, make_order):
     assert admin_client.put("/api/orders/999/tracking", params=tracking).status_code == 404
 
 
+def test_update_tracking_emails_the_buyer(admin_client, user, make_order, sent_emails):
+    order = make_order(user)
+    tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": "https://ups.com/1Z999"}
+
+    admin_client.put(f"/api/orders/{order.order_id}/tracking", params=tracking)
+
+    [message] = sent_emails
+    assert message.to == user.email
+    assert message.subject == f"Your order {order.order_number} has shipped"
+    assert "1Z999" in message.text
+
+
 def test_delete_order_restores_stock(admin_client, session, user, make_product, make_order):
     product = make_product(stock_quantity=1)
     order_id = make_order(user, items=[(product, 4)]).order_id

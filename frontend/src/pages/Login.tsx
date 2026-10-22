@@ -61,6 +61,8 @@ function Login() {
                                     onChange = {(e) => setPassword(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
                             </div>
+
+                            <Link to="/forgot-password" className="self-end text-sm underline">Forgot password?</Link>
                         </div>
 
                         <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Login</button>

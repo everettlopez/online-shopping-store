@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlmodel import Session, select
 import stripe
 import uuid
@@ -24,6 +24,7 @@ from app.models.address import Address
 from app.schemas.address import address_snapshot
 from app.routes.order import build_order_reads
 from app.models.user import User
+from app.mail import build_order_confirmation_email, send_email
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -196,7 +197,7 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
 
 
 @router.get("/session/{session_id}")
-def get_order_from_session(session_id: str, user: CurrentUser, session: Session = Depends(get_session)):
+def get_order_from_session(session_id: str, user: CurrentUser, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     order = session.exec(
         select(Order).where(Order.stripe_session_id == session_id)
     ).first()
@@ -211,7 +212,7 @@ def get_order_from_session(session_id: str, user: CurrentUser, session: Session 
 
         owner_id = stripe_session.metadata.to_dict().get("user_id") if stripe_session and stripe_session.metadata else None
         if stripe_session and stripe_session.payment_status == "paid" and owner_id == str(user.user_id):
-            order = fulfill_checkout(session, stripe_session)
+            order = fulfill_checkout(session, stripe_session, background_tasks)
 
     # Only the buyer (or an admin) can see the order; 404 so session ids can't be probed
     if not order or (order.user_id != user.user_id and not user.is_admin):
@@ -261,7 +262,7 @@ def get_payment_details(payment_intent_id: str) -> dict:
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request, session: Session = Depends(get_session)):
+async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
@@ -278,14 +279,15 @@ async def stripe_webhook(request: Request, session: Session = Depends(get_sessio
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     if event["type"] == "checkout.session.completed":
-        fulfill_checkout(session, event["data"]["object"])
+        fulfill_checkout(session, event["data"]["object"], background_tasks)
 
     return {"received": True}
 
 
-def fulfill_checkout(session: Session, stripe_session) -> Order | None:
+def fulfill_checkout(session: Session, stripe_session, background_tasks: BackgroundTasks) -> Order | None:
     """Create the order for a completed Checkout Session. Called by the webhook and,
-    as a fallback, by the success page, so it must be safe to run more than once."""
+    as a fallback, by the success page, so it must be safe to run more than once.
+    The confirmation email goes out only when this call creates the order."""
 
     metadata = stripe_session.metadata.to_dict() if stripe_session.metadata else {}
 
@@ -370,6 +372,8 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
     session.add(order)
     session.flush()  # assigns order.order_id; everything below commits together
 
+    email_items = []  # (title, quantity, unit price, subtotal) for the confirmation email
+
     for product_id, quantity, unit_cents in purchased:
         product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
         if not product:
@@ -383,6 +387,7 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
             unit_price=from_cents(unit_cents),
             subtotal=from_cents(unit_cents * quantity)
         ))
+        email_items.append((product.title, quantity, from_cents(unit_cents), from_cents(unit_cents * quantity)))
 
         # Stock was checked at checkout, but another buyer may have taken it since
         if product.stock_quantity >= quantity:
@@ -410,5 +415,10 @@ def fulfill_checkout(session: Session, stripe_session) -> Order | None:
     session.refresh(order)
 
     print("Created order:", order.order_id, "status:", order.status)
+
+    # Sent after the response, so neither Stripe nor the shopper waits on the email
+    # provider. Unpaid (pending) orders get no confirmation
+    if order.status == "placed":
+        background_tasks.add_task(send_email, build_order_confirmation_email(user_obj.email, order, email_items))
 
     return order

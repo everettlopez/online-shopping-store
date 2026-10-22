@@ -121,6 +121,8 @@ def test_valid_settings_pass():
     ("COOKIE_SAMESITE", "sometimes", "COOKIE_SAMESITE"),
     ("SHIPPING_FLAT_RATE", "-1", "SHIPPING_FLAT_RATE"),
     ("FREE_SHIPPING_THRESHOLD", "free", "FREE_SHIPPING_THRESHOLD"),
+    ("PASSWORD_RESET_MINUTES", "0", "PASSWORD_RESET_MINUTES"),
+    ("PASSWORD_RESET_MINUTES", "half an hour", "PASSWORD_RESET_MINUTES"),
 ])
 def test_bad_settings_stop_startup(monkeypatch, name, value, problem):
     monkeypatch.setenv(name, value)
