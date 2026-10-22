@@ -50,6 +50,27 @@ def test_with_an_api_key_emails_go_to_resend(real_deliver, monkeypatch):
     }]
 
 
+def test_message_sender_and_reply_to_go_to_resend(real_deliver, monkeypatch):
+    calls = []
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("EMAIL_REPLY_TO", "support@shop.example")
+    monkeypatch.setattr(resend.Emails, "send", calls.append)
+
+    send_email(EmailMessage(to="pat@example.com", subject="Hello", text="t", html="h", sender="Shop <orders@shop.example>"))
+
+    [call] = calls
+    assert call["from"] == "Shop <orders@shop.example>"
+    assert call["reply_to"] == "support@shop.example"
+
+
+def test_printed_emails_show_the_sender(real_deliver, monkeypatch, capsys):
+    monkeypatch.setenv("ACCOUNT_EMAIL_FROM", "Shop <support@shop.example>")
+
+    send_email(build_password_reset_email("pat@example.com", "Pat", "tok", 30))
+
+    assert "from Shop <support@shop.example> to pat@example.com" in capsys.readouterr().out
+
+
 def test_send_failures_are_logged_not_raised(monkeypatch, capsys):
     def fail(message):
         raise RuntimeError("provider down")
@@ -112,3 +133,22 @@ def test_shipping_notice_links_only_web_addresses():
     order = make_order(tracking_carrier="UPS", tracking_number="1Z999", tracking_url="javascript:alert(1)")
 
     assert "javascript:" not in build_shipping_notice_email("pat@example.com", order).html
+
+
+def test_account_and_order_emails_use_their_own_senders(monkeypatch):
+    monkeypatch.setenv("EMAIL_FROM", "Shop <hello@shop.example>")
+    monkeypatch.setenv("ACCOUNT_EMAIL_FROM", "Shop <support@shop.example>")
+    monkeypatch.setenv("ORDERS_EMAIL_FROM", "Shop <orders@shop.example>")
+    order = make_order(tracking_carrier="UPS", tracking_number="1Z999", tracking_url="https://ups.com/1Z999")
+
+    assert build_password_reset_email("pat@example.com", "Pat", "tok", 30).sender == "Shop <support@shop.example>"
+    assert build_order_confirmation_email("pat@example.com", order, []).sender == "Shop <orders@shop.example>"
+    assert build_shipping_notice_email("pat@example.com", order).sender == "Shop <orders@shop.example>"
+
+
+def test_senders_fall_back_to_email_from(monkeypatch):
+    monkeypatch.setenv("EMAIL_FROM", "Shop <hello@shop.example>")
+    order = make_order()
+
+    assert build_password_reset_email("pat@example.com", "Pat", "tok", 30).sender == "Shop <hello@shop.example>"
+    assert build_order_confirmation_email("pat@example.com", order, []).sender == "Shop <hello@shop.example>"

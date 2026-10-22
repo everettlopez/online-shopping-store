@@ -11,7 +11,14 @@ from html import escape
 import resend
 
 from app.models.order import Order
-from app.settings import email_from, frontend_url, resend_api_key
+from app.settings import (
+    account_email_from,
+    email_from,
+    email_reply_to,
+    frontend_url,
+    orders_email_from,
+    resend_api_key,
+)
 
 
 @dataclass
@@ -20,6 +27,7 @@ class EmailMessage:
     subject: str
     text: str
     html: str
+    sender: str | None = None   # None sends from EMAIL_FROM
 
 
 def send_email(message: EmailMessage) -> bool:
@@ -35,21 +43,31 @@ def send_email(message: EmailMessage) -> bool:
 
 def deliver(message: EmailMessage):
     api_key = resend_api_key()
+    sender = message.sender or email_from()
+    reply_to = email_reply_to()
 
     # Local development: show the email instead of sending it. Flushed so it shows
     # right away even when output is piped (a preview pane, Docker logs)
     if not api_key:
-        print(f"--- Email to {message.to}: {message.subject} ---\n{message.text}\n--- End of email ---", flush=True)
+        print(
+            f"--- Email from {sender} to {message.to}: {message.subject} ---\n{message.text}\n--- End of email ---",
+            flush=True,
+        )
         return
 
-    resend.api_key = api_key
-    resend.Emails.send({
-        "from": email_from(),
+    params = {
+        "from": sender,
         "to": [message.to],
         "subject": message.subject,
         "text": message.text,
         "html": message.html,
-    })
+    }
+    # Replies go to a real inbox (support), whichever address sent the email
+    if reply_to:
+        params["reply_to"] = reply_to
+
+    resend.api_key = api_key
+    resend.Emails.send(params)
 
 
 # -----------------------------------------
@@ -88,7 +106,7 @@ def build_password_reset_email(to: str, first_name: str, token: str, minutes: in
         + html_button(link, "Choose a new password")
         + "<p>If you didn't ask for this, you can ignore this email; your password stays the same.</p>"
     ))
-    return EmailMessage(to=to, subject="Reset your password", text=text, html=html)
+    return EmailMessage(to=to, subject="Reset your password", text=text, html=html, sender=account_email_from())
 
 
 def address_lines(address: dict | None) -> list[str]:
@@ -140,7 +158,8 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
         f"<p><strong>Shipping to</strong><br>{'<br>'.join(escape(line) for line in address)}</p>"
         + html_button(link, "View your order")
     ))
-    return EmailMessage(to=to, subject=f"Order confirmation {order.order_number}", text=text, html=html)
+    return EmailMessage(to=to, subject=f"Order confirmation {order.order_number}", text=text, html=html,
+                        sender=orders_email_from())
 
 
 def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
@@ -163,4 +182,5 @@ def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
            if (order.tracking_url or "").lower().startswith(("https://", "http://")) else "")
         + f'<p><a href="{escape(link)}">View your order</a></p>'
     ))
-    return EmailMessage(to=to, subject=f"Your order {order.order_number} has shipped", text=text, html=html)
+    return EmailMessage(to=to, subject=f"Your order {order.order_number} has shipped", text=text, html=html,
+                        sender=orders_email_from())

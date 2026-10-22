@@ -26,6 +26,9 @@ os.environ["STRIPE_AUTOMATIC_TAX"] = "true"
 os.environ["STRIPE_PRODUCT_TAX_CODE"] = "txcd_30011000"
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = "Online Store <onboarding@resend.dev>"
+os.environ["ORDERS_EMAIL_FROM"] = ""
+os.environ["ACCOUNT_EMAIL_FROM"] = ""
+os.environ["EMAIL_REPLY_TO"] = ""
 os.environ["PASSWORD_RESET_MINUTES"] = "30"
 
 import itertools
