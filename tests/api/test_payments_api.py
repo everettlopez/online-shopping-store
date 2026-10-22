@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 import stripe
@@ -8,9 +9,11 @@ from sqlmodel import select
 from app.models.cart import CartItem
 from app.models.order import Order, OrderItem
 from app.models.product import Product
+from app.models.user import User
 
 
-def checkout_session(user=None, shipping=None, billing=None, items=None, session_id="cs_test_1", payment_status="paid", amount_total=None):
+def checkout_session(user=None, shipping=None, billing=None, items=None, session_id="cs_test_1", payment_status="paid",
+                     amount_total=None, amount_subtotal=None, total_details=None):
     """A Stripe Checkout Session as the webhook and Session.retrieve hand it over.
     items: (product, quantity) pairs, stored the way create-checkout-session does."""
     metadata = {}
@@ -29,6 +32,8 @@ def checkout_session(user=None, shipping=None, billing=None, items=None, session
         "payment_status": payment_status,
         "payment_intent": "pi_test_1",
         "amount_total": amount_total,
+        "amount_subtotal": amount_subtotal,
+        "total_details": total_details,
         "metadata": metadata,
     }, "sk_test")
 
@@ -82,7 +87,7 @@ def stripe_create(monkeypatch):
 
 
 def checkout_body(shipping, billing):
-    return {"total_amount": 0, "shipping_address_id": shipping.address_id, "billing_address_id": billing.address_id}
+    return {"shipping_address_id": shipping.address_id, "billing_address_id": billing.address_id}
 
 
 def test_create_checkout_session(user_client, shopper, make_product, add_to_cart, stripe_create):
@@ -98,7 +103,13 @@ def test_create_checkout_session(user_client, shopper, make_product, add_to_cart
     assert response.json() == {"checkoutUrl": "https://checkout.stripe.com/c/cs_test_1"}
 
     [call] = stripe_create
-    assert call["line_items"][0]["price_data"]["unit_amount"] == 2 * 1999 + 450
+    # One line per product, priced before tax so Stripe Tax adds it
+    assert call["line_items"] == [
+        {"price_data": {"currency": "usd", "unit_amount": 1999, "tax_behavior": "exclusive",
+                        "product_data": {"name": shirt.title, "tax_code": "txcd_30011000"}}, "quantity": 2},
+        {"price_data": {"currency": "usd", "unit_amount": 450, "tax_behavior": "exclusive",
+                        "product_data": {"name": socks.title, "tax_code": "txcd_30011000"}}, "quantity": 1},
+    ]
     assert call["metadata"]["user_id"] == user.user_id
     assert json.loads(call["metadata"]["items"]) == [[shirt.product_id, 2, 1999], [socks.product_id, 1, 450]]
 
@@ -187,7 +198,119 @@ def test_checkout_snapshot_has_one_entry_per_product(user_client, shopper, make_
     assert response.status_code == 200
     [call] = stripe_create
     assert json.loads(call["metadata"]["items"]) == [[product.product_id, 60, 4000]]
-    assert call["line_items"][0]["price_data"]["unit_amount"] == 60 * 4000
+    [line] = call["line_items"]
+    assert (line["price_data"]["unit_amount"], line["quantity"]) == (4000, 60)
+
+
+def shipping_charged(call):
+    [option] = call["shipping_options"]
+    return option["shipping_rate_data"]["fixed_amount"]["amount"]
+
+
+@pytest.mark.parametrize("price, expected", [(74.99, 695), (75.00, 0), (120.00, 0)])
+def test_checkout_charges_flat_shipping_below_threshold(user_client, shopper, make_product, add_to_cart, stripe_create, price, expected):
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product(price=price))
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    [call] = stripe_create
+    assert shipping_charged(call) == expected
+    rate = call["shipping_options"][0]["shipping_rate_data"]
+    assert (rate["tax_behavior"], rate["tax_code"]) == ("exclusive", "txcd_92010001")
+    assert rate["display_name"] == ("Free shipping" if expected == 0 else "Standard shipping")
+
+
+def test_shipping_amounts_come_from_settings(user_client, client, shopper, make_product, add_to_cart, stripe_create, monkeypatch):
+    monkeypatch.setenv("SHIPPING_FLAT_RATE", "9.50")
+    monkeypatch.setenv("FREE_SHIPPING_THRESHOLD", "200")
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product(price=150.0))
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    assert shipping_charged(stripe_create[0]) == 950
+    assert client.get("/api/payments/shipping").json() == {"flat_rate": 9.5, "free_shipping_threshold": 200.0}
+
+
+def test_checkout_uses_stripe_tax_with_the_buyers_customer(user_client, session, shopper, make_product, add_to_cart, stripe_create, stripe_customers):
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product())
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    first, second = stripe_create
+    assert first["automatic_tax"] == {"enabled": True}
+    assert first["customer"] == second["customer"] == "cus_test_1"
+
+    # Created once, then updated with this checkout's addresses (Stripe Tax uses the shipping one)
+    [created] = stripe_customers["create"]
+    assert created["email"] == user.email
+    assert created["shipping"] == {
+        "name": "Pat Doe", "phone": None,
+        "address": {"line1": "1 Main St", "line2": None, "city": "Springfield", "state": "IL", "postal_code": "62701", "country": "US"},
+    }
+    [(customer_id, modified)] = stripe_customers["modify"]
+    assert customer_id == "cus_test_1" and modified["shipping"] == created["shipping"]
+
+    session.expire_all()
+    assert session.get(User, user.user_id).stripe_customer_id == "cus_test_1"
+
+
+def test_customer_from_other_stripe_keys_is_replaced(user_client, session, shopper, make_product, add_to_cart, stripe_create, stripe_customers, monkeypatch):
+    # A customer id saved with sandbox keys doesn't exist once live keys are in use
+    user, shipping, billing = shopper
+    user.stripe_customer_id = "cus_from_sandbox"
+    session.add(user)
+    session.commit()
+    add_to_cart(user, make_product())
+
+    def missing(customer_id, **kwargs):
+        raise stripe.InvalidRequestError("No such customer", "id")
+    monkeypatch.setattr(stripe.Customer, "modify", missing)
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    assert stripe_create[0]["customer"] == "cus_test_1"
+    assert len(stripe_customers["create"]) == 1
+
+
+def test_automatic_tax_can_be_turned_off(user_client, shopper, make_product, add_to_cart, stripe_create, stripe_customers, monkeypatch):
+    monkeypatch.setenv("STRIPE_AUTOMATIC_TAX", "false")
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product())
+
+    user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    [call] = stripe_create
+    assert "automatic_tax" not in call and "customer" not in call
+    assert stripe_customers["create"] == []
+
+
+def test_stripe_errors_become_a_clear_message(user_client, shopper, make_product, add_to_cart, monkeypatch):
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product())
+
+    def refuse(**kwargs):
+        raise stripe.InvalidRequestError("You must have a valid head office address to enable automatic tax", None)
+    monkeypatch.setattr(stripe.checkout.Session, "create", refuse)
+
+    response = user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing))
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "We couldn't start checkout. Please try again in a moment."
+
+
+def test_checkout_ships_only_within_the_us(user_client, user, make_address, make_product, add_to_cart, stripe_create):
+    canadian = make_address(user, country="CA")
+    add_to_cart(user, make_product())
+
+    response = user_client.post("/api/payments/create-checkout-session", json=checkout_body(canadian, canadian))
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "We currently ship only within the US"
+    assert stripe_create == []
 
 
 def test_checkout_session_returns_to_configured_frontend(user_client, shopper, make_product, add_to_cart, stripe_create, monkeypatch):
@@ -275,6 +398,41 @@ def test_address_deleted_during_checkout_still_reaches_the_order(send_webhook, s
 
     [order] = session.exec(select(Order)).all()
     assert order.shipping_address["line1"] == "1 Main St"
+
+
+def test_order_records_shipping_and_tax_from_stripe(send_webhook, session, shopper, make_product, user_client):
+    user, shipping, billing = shopper
+    tee = make_product(price=19.99)
+    send_webhook(checkout_session(
+        user, shipping, billing, items=[(tee, 3)],
+        amount_subtotal=5997, amount_total=6407,
+        total_details={"amount_discount": 0, "amount_shipping": 0, "amount_tax": 410},
+    ))
+
+    [order] = session.exec(select(Order)).all()
+    assert (order.subtotal_amount, order.shipping_amount, order.tax_amount, order.total_amount) == (
+        Decimal("59.97"), Decimal("0.00"), Decimal("4.10"), Decimal("64.07"),
+    )
+    [item] = session.exec(select(OrderItem)).all()
+    assert (item.unit_price, item.subtotal) == (Decimal("19.99"), Decimal("59.97"))
+
+    shown = user_client.get(f"/api/orders/{order.order_number}").json()
+    assert (shown["subtotal_amount"], shown["shipping_amount"], shown["tax_amount"], shown["total_amount"]) == (59.97, 0.0, 4.1, 64.07)
+
+
+def test_order_shows_the_price_paid_after_the_price_changes(send_webhook, session, shopper, make_product, user_client):
+    user, shipping, billing = shopper
+    tee = make_product(price=12.50)
+    send_webhook(checkout_session(user, shipping, billing, items=[(tee, 2)]))
+    tee.price = Decimal("30.00")
+    session.add(tee)
+    session.commit()
+
+    [order] = user_client.get("/api/orders/me").json()
+    [item] = order["items"]
+    assert (item["unit_price"], item["subtotal"], item["product"]["price"]) == (12.5, 25.0, 30.0)
+    # Sessions without Stripe's breakdown had no shipping or tax
+    assert (order["subtotal_amount"], order["shipping_amount"], order["tax_amount"], order["total_amount"]) == (25.0, 0.0, 0.0, 25.0)
 
 
 def test_webhook_is_idempotent(send_webhook, session, shopper, make_product, add_to_cart):

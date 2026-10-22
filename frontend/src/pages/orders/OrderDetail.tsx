@@ -16,6 +16,7 @@ import Stepper from '@mui/material/Stepper';
 import { Chip, Step, StepLabel } from "@mui/material";
 import Navbar from "../../components/Navbar";
 import OrderAddressLines, { type OrderAddress } from "../../components/OrderAddressLines";
+import OrderTotals from "../../components/OrderTotals";
 
 export type OrderItem = {
   order_item_id: number;
@@ -24,13 +25,15 @@ export type OrderItem = {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  // null when the product has since been removed from the catalog
   product: {
     product_id: number;
-    name: string;
+    title: string;
     price: number;
-    size: string;
-    image_url?: string;
-  };
+    size: string | null;
+    thumbnail: string | null;
+    images?: string[] | null;
+  } | null;
 };
 
 export type Order = {
@@ -50,6 +53,9 @@ export type Order = {
   status: string;
   order_date: string;
   total_amount: number;
+  subtotal_amount: number | null;
+  shipping_amount: number | null;
+  tax_amount: number | null;
 
   payment_intent_id: string | null;
   stripe_session_id: string | null;
@@ -303,32 +309,32 @@ export default function OrderDetails() {
                   <div className="flex flex-col gap-2 py-3">
                       {/* Order Items */}
                       {currentOrder.items.map((item) => {
-                          const mainImage = item.product?.image_url;
+                          const mainImage = item.product?.thumbnail || item.product?.images?.[0];
                           return (
-                              <>
-                              {/* Order Item Card */}
-                              <div className="border p-4 flex justify-between bg-white rounded-[10px]">
-                                  
+                              /* Order Item Card */
+                              <div key={item.order_item_id} className="border p-4 flex justify-between bg-white rounded-[10px]">
+
                                   <div className="flex gap-2">
-                                      <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
-                                      
+                                      {mainImage
+                                          ? <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
+                                          : <div className="h-20 w-20 border rounded bg-gray-100"/>}
+
                                       <div className="flex flex-col">
-                                          <p className="text-lg">{item.product.name}</p>
-                                          <p>Size: {item.product.size}</p>
+                                          <p className="text-lg">{item.product?.title ?? "Product no longer available"}</p>
+                                          {item.product?.size && <p>Size: {item.product.size}</p>}
                                           <p>Qty: {item.quantity}</p>
                                       </div>
                                   </div>
-                                  
-                                  <p className="pr-3 tracking-wider">{item.quantity} x ${item.product.price.toFixed(2)}</p>
+
+                                  {/* The price paid, not the product's current price */}
+                                  <p className="pr-3 tracking-wider">{item.quantity} x ${item.unit_price.toFixed(2)}</p>
                               </div>
-                              </>
                           );
                       })}
                   </div>
 
-                  <div className="flex justify-evenly p-4">
-                      <p>Total: </p>
-                      <p>${currentOrder.total_amount.toFixed(2)}</p>
+                  <div className="p-4">
+                      <OrderTotals order={currentOrder} />
                   </div>
 
                   <a href={currentOrder.receipt_url ?? "#"} target="_blank" rel="noopener noreferrer" className="flex justify-center border w-fit mx-auto px-5 text-lg py-2 rounded-[10px]">View Receipt</a>

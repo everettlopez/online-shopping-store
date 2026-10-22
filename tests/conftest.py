@@ -19,11 +19,16 @@ os.environ["COOKIE_SAMESITE"] = "none"
 os.environ["COOKIE_SECURE"] = "true"
 os.environ["ENABLE_DOCS"] = "true"
 os.environ["SQL_ECHO"] = "false"
+os.environ["SHIPPING_FLAT_RATE"] = "6.95"
+os.environ["FREE_SHIPPING_THRESHOLD"] = "75"
+os.environ["STRIPE_AUTOMATIC_TAX"] = "true"
+os.environ["STRIPE_PRODUCT_TAX_CODE"] = "txcd_30011000"
 
 import itertools
 from datetime import datetime, timedelta
 
 import pytest
+import stripe
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
@@ -78,6 +83,25 @@ def client(engine):
     # Not used as a context manager, so the startup migration check doesn't run
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def stripe_customers(monkeypatch):
+    """Checkout creates or updates the buyer's Stripe Customer (for Stripe Tax).
+    Record those calls instead of reaching Stripe: {"create": [...], "modify": [...]}."""
+    calls = {"create": [], "modify": []}
+
+    def create(**kwargs):
+        calls["create"].append(kwargs)
+        return stripe.Customer.construct_from({"id": f"cus_test_{len(calls['create'])}"}, "sk_test")
+
+    def modify(customer_id, **kwargs):
+        calls["modify"].append((customer_id, kwargs))
+        return stripe.Customer.construct_from({"id": customer_id}, "sk_test")
+
+    monkeypatch.setattr(stripe.Customer, "create", create)
+    monkeypatch.setattr(stripe.Customer, "modify", modify)
+    return calls
 
 
 @pytest.fixture

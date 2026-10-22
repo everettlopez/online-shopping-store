@@ -18,4 +18,7 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     is_admin: bool = False
 
+    # The Stripe Customer used at checkout (Stripe Tax reads its shipping address)
+    stripe_customer_id: str | None = Field(default=None)
+
     

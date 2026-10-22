@@ -9,6 +9,9 @@ class OrderItemRead(BaseModel):
     order_id: int
     product: ProductRead | None = None
     quantity: int
+    # What was paid, which stays the same when the product's price changes later
+    unit_price: float
+    subtotal: float
 
     class Config:
         from_attributes = True
@@ -26,6 +29,9 @@ class OrderRead(BaseModel):
     updated_at: datetime
     order_date: datetime
     total_amount: float
+    subtotal_amount: float | None = None
+    shipping_amount: float | None = None
+    tax_amount: float | None = None
 
     payment_intent_id: str | None = None
     stripe_session_id: str | None = None

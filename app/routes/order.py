@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from sqlmodel import Session, select
 from app.db.session import get_session
-from app.models.user import User
 from datetime import datetime
 from app.auth.core import CurrentUser
 from app.schemas.order import OrderRead, OrderItemRead
@@ -9,7 +8,7 @@ from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
-from app.database.products import database_get_product_read, database_get_product_reads
+from app.database.products import database_get_product_reads
 from app.auth.dependencies import admin_required
 
 
@@ -33,6 +32,8 @@ def build_order_reads(session: Session, orders) -> list[OrderRead]:
                 order_item_id=item.order_item_id,
                 order_id=item.order_id,
                 quantity=item.quantity,
+                unit_price=item.unit_price,
+                subtotal=item.subtotal,
                 product=products.get(item.product_id)
             )
             for item in all_items if item.order_id == order.order_id
@@ -67,48 +68,7 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
     if not order or (order.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Order not found")
 
-    user_obj = session.get(User, order.user_id)
-
-    order_items = session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).all()
-
-    enriched_items = []
-
-    for oi in order_items:
-        product = database_get_product_read(session, oi.product_id)
-
-        enriched_items.append(OrderItemRead(
-            order_item_id=oi.order_item_id,
-            order_id=oi.order_id,
-            product=product,
-            quantity=oi.quantity
-        ))
-
-    return OrderRead(
-        order_id=order.order_id,
-        user_id=order.user_id,
-        first_name=user_obj.first_name,
-        last_name=user_obj.last_name,
-        order_number=order.order_number,
-        status=order.status,
-        created_at=order.created_at,
-        updated_at=order.updated_at,
-        order_date=order.order_date,
-        total_amount=order.total_amount,
-
-        payment_intent_id=order.payment_intent_id,
-        stripe_session_id=order.stripe_session_id,
-        payment_method_type=order.payment_method_type,
-        card_brand=order.card_brand,
-        card_last4=order.card_last4,
-        payment_status=order.payment_status,
-        receipt_url=order.receipt_url,
-        shipping_address=order.shipping_address,
-        billing_address=order.billing_address,
-        tracking_number=order.tracking_number,
-        tracking_carrier=order.tracking_carrier,
-        tracking_url=order.tracking_url,
-        items=enriched_items
-    )
+    return build_order_reads(session, [order])[0]
 
 @router.put("/{order_id}/status", dependencies=[Depends(admin_required)])
 def update_order_status(order_id: int, status: str, session: Session = Depends(get_session)):

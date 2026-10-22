@@ -4,6 +4,7 @@ Defaults match local development; production sets these in its environment.
 Each setting is read when it is used, so tests can change them with monkeypatch.
 """
 import os
+from decimal import Decimal, InvalidOperation
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,6 +12,9 @@ load_dotenv()
 DEFAULT_FRONTEND_URL = "http://localhost:5173"
 DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 MIN_JWT_SECRET_LENGTH = 32
+DEFAULT_SHIPPING_FLAT_RATE = "6.95"
+DEFAULT_FREE_SHIPPING_THRESHOLD = "75"
+DEFAULT_PRODUCT_TAX_CODE = "txcd_30011000"
 DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
 
@@ -63,6 +67,27 @@ def sql_echo() -> bool:
     return env_bool("SQL_ECHO", False)
 
 
+def shipping_flat_rate() -> Decimal:
+    """Shipping charged on orders below the free-shipping threshold, in dollars."""
+    return Decimal(os.getenv("SHIPPING_FLAT_RATE") or DEFAULT_SHIPPING_FLAT_RATE)
+
+
+def free_shipping_threshold() -> Decimal:
+    """Orders whose items total at least this much (in dollars) ship free."""
+    return Decimal(os.getenv("FREE_SHIPPING_THRESHOLD") or DEFAULT_FREE_SHIPPING_THRESHOLD)
+
+
+def automatic_tax_enabled() -> bool:
+    """Have Stripe Tax add sales tax at checkout. Needs Stripe Tax set up in the
+    Dashboard; turn off only for local development before that."""
+    return env_bool("STRIPE_AUTOMATIC_TAX", True)
+
+
+def product_tax_code() -> str:
+    """Stripe tax code for the products sold (default: General - Clothing)."""
+    return os.getenv("STRIPE_PRODUCT_TAX_CODE") or DEFAULT_PRODUCT_TAX_CODE
+
+
 def check_required_settings():
     """Stop startup with a clear message instead of running with secrets that
     are missing or too weak to be safe."""
@@ -77,6 +102,13 @@ def check_required_settings():
 
     if cookie_samesite() not in ("lax", "strict", "none"):
         problems.append("COOKIE_SAMESITE must be lax, strict or none")
+
+    for name, read in (("SHIPPING_FLAT_RATE", shipping_flat_rate), ("FREE_SHIPPING_THRESHOLD", free_shipping_threshold)):
+        try:
+            if read() < 0:
+                problems.append(f"{name} can't be negative")
+        except InvalidOperation:
+            problems.append(f"{name} must be a dollar amount such as 6.95")
 
     if problems:
         raise RuntimeError("Invalid configuration: " + "; ".join(problems) + ". See .env.example.")

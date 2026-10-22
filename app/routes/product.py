@@ -17,6 +17,7 @@ from fastapi import Request
 import os
 import json
 import uuid
+from decimal import Decimal
 
 # app/uploads locally, or the UPLOAD_DIR volume in production (served at /uploads)
 UPLOAD_DIR = upload_dir()
@@ -85,7 +86,7 @@ def create_product(
     category_id: int = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    price: float = Form(..., ge=0),
+    price: Decimal = Form(..., ge=0, max_digits=10, decimal_places=2),
     size: str = Form(""),
     color: str = Form(""),
     thumbnail: UploadFile | None = File(None),
@@ -179,7 +180,7 @@ def update_product(
     title: str = Form(None),
     category_id: int | None = Form(None),
     description: str = Form(None),
-    price: float = Form(None, ge=0),
+    price: Decimal | None = Form(None, ge=0, max_digits=10, decimal_places=2),
     size: str = Form(None),
     color: str = Form(None),
     thumbnail: str | None = Form(None),
