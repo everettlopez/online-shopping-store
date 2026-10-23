@@ -37,6 +37,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f('ix_password_reset_tokens_user_id'), table_name='password_reset_tokens')
-    op.drop_index(op.f('ix_password_reset_tokens_token_hash'), table_name='password_reset_tokens')
+    # Dropping the table drops its indexes; MySQL refuses to drop the user_id index
+    # on its own while the foreign key needs it
     op.drop_table('password_reset_tokens')
