@@ -59,6 +59,8 @@ from app.models.order import Order, OrderItem
 from app.schemas.address import address_snapshot
 
 TEST_PASSWORD = "Password123!"
+# Uploads must start the way their image type does; this is enough of a PNG for that
+TEST_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
 
 @pytest.fixture

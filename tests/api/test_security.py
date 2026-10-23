@@ -70,6 +70,25 @@ def test_cross_site_reads_are_allowed(user_client):
     assert user_client.get("/api/auth/me", headers={"Origin": "https://evil.example"}).status_code == 200
 
 
+def test_uploads_are_never_sniffed(client):
+    # Served from the API's own address, so the browser must not guess one is a page
+    response = client.get("/uploads/missing.png")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_checkout_session_lookups_are_rate_limited(client, monkeypatch):
+    # Each unknown session id costs a call to Stripe
+    monkeypatch.setenv("LOOKUP_RATE_LIMIT_PER_MINUTE", "2")
+    def unknown(session_id):
+        raise payments.stripe.InvalidRequestError("No such checkout.session", "id")
+    monkeypatch.setattr(payments.stripe.checkout.Session, "retrieve", unknown)
+
+    codes = [client.get(f"/api/payments/session/cs_test_{n}").status_code for n in range(3)]
+
+    assert codes[2] == 429 and 429 not in codes[:2]
+
+
 # -----------------------------------------
 # Stripe webhook
 # -----------------------------------------

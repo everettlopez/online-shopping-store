@@ -1035,6 +1035,36 @@ def test_oversold_alert_waits_for_the_order_to_be_saved(session, shopper, make_p
     assert tasks.tasks == []
 
 
+def test_order_number_skips_one_already_taken(send_webhook, session, shopper, make_product, make_order, monkeypatch):
+    user, shipping, billing = shopper
+    make_order(user, order_number="aaaaaaaaaaaa")
+    numbers = iter(["aaaaaaaaaaaa", "bbbbbbbbbbbb"])
+    monkeypatch.setattr("app.routes.payments.secrets.token_hex", lambda n: next(numbers))
+
+    response = send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)], session_id="cs_new"))
+
+    assert response.status_code == 200
+    order = session.exec(select(Order).where(Order.stripe_session_id == "cs_new")).one()
+    assert order.order_number == "bbbbbbbbbbbb"
+
+
+def test_a_failed_insert_that_is_not_a_race_raises(session, shopper, make_product, monkeypatch):
+    """Only a duplicate stripe_session_id means another fulfillment saved the order; any
+    other constraint failure must raise (the webhook then answers 500 and Stripe
+    retries) rather than return as if the order existed, or the paid order is lost."""
+    from fastapi import BackgroundTasks
+    from app.routes import payments
+
+    user, shipping, billing = shopper
+    stripe_session = checkout_session(user, shipping, billing, items=[(make_product(), 1)])
+    def collide(*args, **kwargs):
+        raise IntegrityError("INSERT", {}, Exception("duplicate order_number"))
+    monkeypatch.setattr(session, "commit", collide)
+
+    with pytest.raises(IntegrityError):
+        payments.fulfill_checkout(session, stripe_session, BackgroundTasks())
+
+
 def test_deleted_product_in_a_paid_order_alerts_the_owner(send_webhook, session, shopper, owner, sent_emails):
     user, shipping, billing = shopper
     stripe_session = checkout_session(user, shipping, billing)

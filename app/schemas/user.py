@@ -61,6 +61,9 @@ class EmailUpdate(BaseModel):
     new_email: EmailStr
     current_password: str
 
+class AccountDelete(BaseModel):
+    current_password: str
+
 class PasswordUpdate(BaseModel):
     old_password: str
     new_password: NewPassword

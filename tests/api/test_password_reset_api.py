@@ -121,9 +121,26 @@ def test_using_a_link_cancels_older_links(client, session, user, sent_emails):
     assert reset(client, old_token, "another-password").status_code == 400
 
 
+def test_a_new_link_clears_out_spent_ones(client, session, user):
+    request_reset(client, user.email)
+    expired = session.exec(select(PasswordResetToken)).one()
+    expired.created_at -= timedelta(minutes=5)
+    expired.expires_at = datetime.utcnow() - timedelta(minutes=1)
+    session.add(expired)
+    session.commit()
+    expired_hash = expired.token_hash
+
+    request_reset(client, user.email)
+
+    session.expire_all()
+    hashes = [t.token_hash for t in session.exec(select(PasswordResetToken)).all()]
+    assert len(hashes) == 1 and expired_hash not in hashes
+
+
 def test_account_with_a_reset_link_can_be_deleted(client, auth_headers, session, user):
     user_id = user.user_id
     request_reset(client, user.email)
 
-    assert client.delete("/api/auth/me", headers=auth_headers(user)).status_code == 200
+    response = client.request("DELETE", "/api/auth/me", json={"current_password": TEST_PASSWORD}, headers=auth_headers(user))
+    assert response.status_code == 200
     assert session.exec(select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)).all() == []

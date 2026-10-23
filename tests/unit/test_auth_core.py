@@ -94,7 +94,7 @@ def test_token_for_deleted_user_is_rejected(session):
     with pytest.raises(HTTPException) as error:
         get_current_user(token=token, session=session)
 
-    assert error.value.status_code == 404
+    assert error.value.status_code == 401
 
 
 def test_admin_required(user, admin):

@@ -3,7 +3,6 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import Session, select
 import stripe
-import uuid
 import json
 import os
 import logging
@@ -261,7 +260,8 @@ def create_checkout_session(data: CheckoutRequest, user: OptionalUser, session: 
     return {"checkoutUrl": stripe_session.url}
 
 
-@router.get("/session/{session_id}", response_model=CheckoutOrderRead)
+# Rate limited: each unknown id costs a call to Stripe
+@router.get("/session/{session_id}", response_model=CheckoutOrderRead, dependencies=[rate_limit("lookup")])
 def get_order_from_session(session_id: str, user: OptionalUser, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     order = session.exec(
         select(Order).where(Order.stripe_session_id == session_id)
@@ -443,13 +443,28 @@ def confirmation_items(session: Session, order: Order) -> list[tuple[str, int, D
     ]
 
 
-def already_fulfilled(session: Session, stripe_session_id: str) -> Order | None:
+def new_order_number(session: Session) -> str:
+    """A random order number no other order has. Customers type it into the lookup
+    form, so it stays short; 48 bits keeps collisions out of reach for any store."""
+    while True:
+        number = secrets.token_hex(6)
+        if not session.exec(select(Order.order_id).where(Order.order_number == number)).first():
+            return number
+
+
+def already_fulfilled(session: Session, stripe_session_id: str, error: Exception) -> Order | None:
     """A concurrent fulfillment of the same session got there first (guests have no cart
     row to wait on): the unique stripe_session_id rejects our insert, or MySQL picks us
     as the victim of the deadlock their gap locks cause. Drop ours, including its stock
     changes, and use theirs (None if it hasn't committed yet; the success page retries)."""
     session.rollback()
-    return session.exec(select(Order).where(Order.stripe_session_id == stripe_session_id)).first()
+    order = session.exec(select(Order).where(Order.stripe_session_id == stripe_session_id)).first()
+    if order is None and isinstance(error, IntegrityError):
+        # A duplicate stripe_session_id only fails once the other order has committed,
+        # so this was another constraint (such as a taken order number). Raising makes
+        # the webhook answer 500 and Stripe retry, instead of losing a paid order
+        raise error
+    return order
 
 
 def fulfill_checkout(session: Session, stripe_session, background_tasks: BackgroundTasks) -> Order | None:
@@ -553,7 +568,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         subtotal_amount=from_cents(subtotal_cents),
         shipping_amount=from_cents(shipping_cents_paid),
         tax_amount=from_cents(tax_cents),
-        order_number=str(uuid.uuid4())[:8],
+        order_number=new_order_number(session),
         status="placed" if stripe_session.payment_status == "paid" else "pending",
         payment_intent_id=pi_id,
         stripe_session_id=stripe_session.id,
@@ -565,8 +580,8 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     session.add(order)
     try:
         session.flush()  # assigns order.order_id; everything below commits together
-    except (IntegrityError, OperationalError):
-        return already_fulfilled(session, stripe_session.id)
+    except (IntegrityError, OperationalError) as error:
+        return already_fulfilled(session, stripe_session.id, error)
 
     # Problems with this order for the owner, sent once the order is saved. Keyed per
     # order: every order that hit one needs someone to act on it
@@ -620,8 +635,8 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     try:
         session.commit()
-    except (IntegrityError, OperationalError):
-        return already_fulfilled(session, stripe_session.id)
+    except (IntegrityError, OperationalError) as error:
+        return already_fulfilled(session, stripe_session.id, error)
 
     session.refresh(order)
 

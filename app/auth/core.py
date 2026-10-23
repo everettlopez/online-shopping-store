@@ -110,8 +110,9 @@ def user_from_token(token: str, session: Session) -> User:
 
     user = session.exec(select(User).where(User.user_id == user_id)).first()
 
+    # The account was deleted: the token no longer logs anyone in
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     # Signed out everywhere (or the password changed) since this token was issued
     if version != user.token_version:

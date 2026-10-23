@@ -31,6 +31,20 @@ ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 
+def is_image(extension: str, contents: bytes) -> bool:
+    """Whether the file starts the way that image type does, so a page renamed .png
+    isn't stored and served back from the API's own address."""
+    if extension in (".jpg", ".jpeg"):
+        return contents.startswith(b"\xff\xd8\xff")
+    if extension == ".png":
+        return contents.startswith(b"\x89PNG\r\n\x1a\n")
+    if extension == ".gif":
+        return contents.startswith((b"GIF87a", b"GIF89a"))
+    if extension == ".webp":
+        return contents[:4] == b"RIFF" and contents[8:12] == b"WEBP"
+    return False
+
+
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
@@ -82,6 +96,8 @@ def save_uploads(request: Request, files: list[UploadFile]) -> list[str]:
         contents = file.file.read(MAX_UPLOAD_BYTES + 1)
         if len(contents) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail="Images must be 5 MB or smaller")
+        if not is_image(extension, contents):
+            raise HTTPException(status_code=400, detail=f"{file.filename} isn't a {extension} image")
 
         checked.append((extension, contents))
 

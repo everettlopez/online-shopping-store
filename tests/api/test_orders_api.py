@@ -79,6 +79,30 @@ def test_update_tracking_marks_order_shipped(admin_client, user, make_order):
     assert admin_client.put("/api/orders/999/tracking", params=tracking).status_code == 404
 
 
+@pytest.mark.parametrize("typed, saved", [
+    ("ups.com/1Z999", "https://ups.com/1Z999"),       # the order pages always assumed https
+    (" http://ups.com/1Z999 ", "http://ups.com/1Z999"),
+    ("", ""),
+])
+def test_tracking_link_is_saved_as_a_web_address(admin_client, session, user, make_order, typed, saved):
+    order = make_order(user)
+    order_id = order.order_id
+    tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": typed}
+
+    assert admin_client.put(f"/api/orders/{order_id}/tracking", params=tracking).status_code == 200
+
+    session.expire_all()
+    assert session.get(Order, order_id).tracking_url == saved
+
+
+@pytest.mark.parametrize("url", ["javascript://ups.com/%0Aalert(1)", "ftp://ups.com/1Z999", "data://text/html,x"])
+def test_tracking_link_must_be_a_web_address(admin_client, user, make_order, url):
+    order = make_order(user)
+    tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": url}
+
+    assert admin_client.put(f"/api/orders/{order.order_id}/tracking", params=tracking).status_code == 400
+
+
 def test_update_tracking_emails_the_buyer(admin_client, user, make_order, sent_emails):
     order = make_order(user)
     tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": "https://ups.com/1Z999"}

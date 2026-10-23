@@ -133,3 +133,24 @@ def test_a_bad_log_level_falls_back_to_info(root_logger, monkeypatch):
     configure_logging()
 
     assert root_logger.level == logging.INFO
+
+
+def test_access_log_leaves_out_order_secrets(root_logger, caplog):
+    configure_logging()
+    configure_logging()
+    access = logging.getLogger("uvicorn.access")
+    line = '%s - "%s %s HTTP/%s" %d'
+
+    with caplog.at_level(logging.INFO):
+        for path in ("/api/orders/track/ab12cd34ef56?token=secret-token",
+                     "/api/payments/session/cs_live_secret",
+                     "/api/orders/5/tracking?tracking_number=1Z999&tracking_carrier=UPS&tracking_url=https%3A%2F%2Fups.example",
+                     "/api/products/active?size=M"):
+            access.info(line, "203.0.113.5:4000", "GET", path, "1.1", 200)
+
+    assert "secret" not in caplog.text and "1Z999" not in caplog.text and "ups.example" not in caplog.text
+    assert "/api/orders/track/ab12cd34ef56?token=REDACTED" in caplog.text
+    assert "/api/payments/session/REDACTED" in caplog.text
+    assert "tracking_carrier=UPS" in caplog.text
+    assert "/api/products/active?size=M" in caplog.text
+    assert len(access.filters) == 1
