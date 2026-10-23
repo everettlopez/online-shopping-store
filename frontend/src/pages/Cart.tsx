@@ -2,6 +2,7 @@ import { useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { useAuth } from "../context/AuthContext";
 import { cartErrorMessage, MAX_CART_QUANTITY, useCart } from "../context/CartContext";
+import type { CartLine } from "../api/cart";
 
 import { Link, useNavigate } from "react-router-dom";
 import AddressModal from "../components/AddressModal";
@@ -20,6 +21,16 @@ interface Address {
   county?: string;
   address_type: string;
   created_at: string; // or Date if you convert it
+}
+
+
+// Why a cart line can't be bought as it is, or null when it can
+function lineProblem(item: CartLine): string | null {
+    if (!item.product) return null;
+    if (!item.product.is_active) return "No longer available";
+    if (item.product.stock_quantity <= 0) return "Sold out";
+    if (item.quantity > item.product.stock_quantity) return `Only ${item.product.stock_quantity} left`;
+    return null;
 }
 
 
@@ -45,6 +56,9 @@ export default function Cart() {
     }
 
     if (loading) return <p>Loading cart...</p>;
+
+    // Checkout would refuse these lines, so say so here and hold the button until they're fixed
+    const unavailable = items.some((item) => lineProblem(item) !== null);
 
     // In cents, so the sum doesn't pick up float rounding errors
     const cartTotalCents = items.reduce((sum, item) => {
@@ -97,6 +111,7 @@ export default function Cart() {
                 {items.map((item) => {
                     const mainImage = item.product?.thumbnail || item.product?.images?.[0];
                     const maxQuantity = Math.min(MAX_CART_QUANTITY, item.product?.stock_quantity ?? MAX_CART_QUANTITY);
+                    const problem = lineProblem(item);
 
                     return (
                         <div
@@ -109,6 +124,7 @@ export default function Cart() {
                                     <h2 className="w-60 text-xl">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
                                     <p>${item.product?.price.toFixed(2)}</p>
+                                    {problem && <p className="text-sm text-red-600">{problem}</p>}
 
                                     <div className="flex items-center gap-3">
                                         <button
@@ -150,10 +166,17 @@ export default function Cart() {
         {/* Checkout Button */}
         <button
             onClick={handleCheckout}
-            className="py-2 px-3 bg-black text-white mx-auto rounded-[10px] text-lg"
+            disabled={unavailable}
+            className="py-2 px-3 bg-black text-white mx-auto rounded-[10px] text-lg disabled:opacity-40"
         >
             Checkout
         </button>
+
+        {unavailable && (
+            <p className="text-center text-sm text-red-600">
+                Some items can't be bought right now. Remove them or lower their quantity to check out.
+            </p>
+        )}
 
         {!isAuthenticated && (
             <p className="text-center text-sm text-gray-500">

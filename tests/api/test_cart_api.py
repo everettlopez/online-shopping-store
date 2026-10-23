@@ -103,6 +103,15 @@ def test_quantity_cannot_exceed_stock(user_client, user, make_product, add_to_ca
     assert user_client.get("/api/cart/items").json()[0]["quantity"] == 1
 
 
+def test_quantity_above_stock_can_be_lowered(user_client, user, make_product, add_to_cart):
+    # Stock fell after the shopper added 3 (another order, or an admin edit)
+    item = add_to_cart(user, make_product(stock_quantity=1), quantity=3)
+
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 2}).status_code == 200
+    assert user_client.put(f"/api/cart/items/{item.cart_item_id}", json={"quantity": 3}).status_code == 400
+    assert user_client.get("/api/cart/items").json()[0]["quantity"] == 2
+
+
 def test_remove_item(user_client, user, make_product, add_to_cart):
     item = add_to_cart(user, make_product())
 

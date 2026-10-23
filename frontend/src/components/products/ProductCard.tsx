@@ -16,7 +16,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 <p className="text-lg leading-tight tracking-wider">{product.title.toUpperCase()}</p>
                 <div>
                     <p className="tracking-wider text-gray-500">${product.price.toFixed(2)}</p>
-                    <p className="tracking-wider text-gray-500">Size: {product.size}</p>
+                    {product.size && <p className="tracking-wider text-gray-500">Size: {product.size}</p>}
                 </div>
             </div>
         </div>

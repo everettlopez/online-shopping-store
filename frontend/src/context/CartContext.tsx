@@ -147,7 +147,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     if (quantity < 1) throw new Error("Quantity must be at least 1");
-    if (line.product) checkQuantity(line.product, quantity);
+    // Stock can drop below what's in the cart, so lowering a quantity is always allowed
+    if (line.product && quantity > line.quantity) checkQuantity(line.product, quantity);
     saveGuestLines(items.map((l) => (l.product_id === productId ? { ...l, quantity } : l)));
   };
 

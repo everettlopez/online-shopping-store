@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import AdminProductEditModal from "../../components/admin/products/AdminProductEditModal";
 import AdminNav from "../../components/admin/AdminNav";
@@ -9,6 +9,8 @@ import { createProduct, getAllProducts } from "../../api/products";
 import { FormControlLabel, FormGroup, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import AddCircleOutlinedIcon from '@mui/icons-material/AddCircleOutlined';
 import NumberField from "../../components/NumberField";
+import SizeField from "../../components/admin/products/SizeField";
+import ColorField from "../../components/admin/products/ColorField";
 import Switch from '@mui/material/Switch';
 
 
@@ -50,8 +52,8 @@ export default function AdminProductsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(0);
-  const [size, setSize] = useState("0");
-  const [color, setColor] = useState("0");
+  const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
   const [price, setPrice] = useState<number | null>(null);
   const [stock, setStock] = useState<number | null>(1);
   const [isActive, setIsActive] = useState(true);
@@ -69,7 +71,11 @@ export default function AdminProductsPage() {
     {field: "name", headerName: "Name", width: 300, resizable: false,},
     {field: "price", headerName: "Price ($)", width: 100, resizable: false,},
     {field: "size", headerName: "Size", width: 100, resizable: false},
-    {field: "stock", headerName: "Stock", width: 100, resizable: false},
+    {field: "color", headerName: "Color", width: 120, resizable: false},
+    // Sold-out products are hidden from the storefront until they're restocked
+    {field: "stock", headerName: "Stock", width: 100, resizable: false, renderCell: ({ value }: { value?: number }) => (
+      value && value > 0 ? value : <span className="text-red-600">Sold out</span>
+    )},
     {field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params: any) => (
       <button className="text-blue-600 underline"
         onClick={() => {
@@ -83,6 +89,7 @@ export default function AdminProductsPage() {
   ];
 
   const [rows, setRows] = useState([]);
+  const usedColors = useMemo(() => products.map((product) => product.color), [products]);
 
   async function fetchProducts()
   {
@@ -99,6 +106,7 @@ export default function AdminProductsPage() {
         name: product.title,
         price: product.price.toFixed(2),
         size: product.size,
+        color: product.color,
         stock: product.stock_quantity,
       }));
 
@@ -125,8 +133,8 @@ export default function AdminProductsPage() {
       setTitle("");
       setDescription("");
       setCategory(0);
-      setSize("0");
-      setColor("0");
+      setSize("");
+      setColor("");
       setPrice(null);
       setStock(1);
       setIsActive(true);
@@ -226,28 +234,16 @@ export default function AdminProductsPage() {
                   </Select>
                 </FormGroup>
 
-                {/* Size Selection */}
+                {/* Size: a preset or anything typed */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel>Size</InputLabel>
-                  <Select value={size} defaultValue="0" onChange={(e) => setSize(e.target.value)}>
-                    <MenuItem disabled value="0">Select a size</MenuItem>
-                    <MenuItem value="1SZ">1SZ</MenuItem>
-                    <MenuItem value="XS">XS</MenuItem>
-                    <MenuItem value="S">S</MenuItem>
-                    <MenuItem value="M">M</MenuItem>
-                    <MenuItem value="L">L</MenuItem>
-                    <MenuItem value="XL">XL</MenuItem>
-                  </Select>
+                  <SizeField value={size} onChange={setSize}/>
                 </FormGroup>
 
-                {/* Color Selection */}
+                {/* Color: a suggestion or anything typed */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel>Color</InputLabel>
-                  <Select value={color} defaultValue="0" onChange={(e) => setColor(e.target.value)}>
-                    <MenuItem disabled value="0">Select a color</MenuItem>
-                    <MenuItem value="black">Black</MenuItem>
-                    <MenuItem value="blue">Blue</MenuItem>
-                  </Select>
+                  <ColorField value={color} onChange={setColor} usedColors={usedColors}/>
                 </FormGroup>
 
                 {/* Price Wheel */}
@@ -298,6 +294,7 @@ export default function AdminProductsPage() {
         isOpen={isProductDetailModalOpen}
         product={selectedProduct}
         categories={categories}
+        usedColors={usedColors}
         onClose={() => {
           setIsProductDetailModalOpen(false);
           setSelectedProduct(null);

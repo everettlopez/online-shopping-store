@@ -11,15 +11,44 @@ def ids(response):
     return [p["product_id"] for p in response.json()]
 
 
-def test_list_products_includes_inactive(client, make_product):
+def test_list_products_includes_inactive_and_sold_out(admin_client, make_product):
     active = make_product()
     inactive = make_product(is_active=False)
+    sold_out = make_product(stock_quantity=0)
 
-    response = client.get("/api/products/")
+    response = admin_client.get("/api/products/")
 
     assert response.status_code == 200
-    assert ids(response) == [active.product_id, inactive.product_id]
+    assert ids(response) == [active.product_id, inactive.product_id, sold_out.product_id]
     assert response.json()[0]["category"]["category_id"] == active.category_id
+
+
+def test_list_products_is_admin_only(client, user, auth_headers, make_product):
+    make_product(is_active=False)
+
+    assert client.get("/api/products/").status_code == 401
+    assert client.get("/api/products/", headers=auth_headers(user)).status_code == 403
+
+
+def test_active_products_leave_out_sold_out(admin_client, make_product):
+    in_stock = make_product()
+    sold_out = make_product(stock_quantity=0)
+
+    assert ids(admin_client.get("/api/products/active")) == [in_stock.product_id]
+
+    # Restocking brings it back without touching is_active
+    admin_client.put(f"/api/products/{sold_out.product_id}", data={"stock_quantity": "2"})
+    assert ids(admin_client.get("/api/products/active")) == [in_stock.product_id, sold_out.product_id]
+
+
+def test_get_product_returns_sold_out(client, make_product):
+    # Guest carts look products up by id, and need to see that one sold out
+    product = make_product(stock_quantity=0)
+
+    response = client.get(f"/api/products/{product.product_id}")
+
+    assert response.status_code == 200
+    assert response.json()["stock_quantity"] == 0
 
 
 def test_active_products(client, make_category, make_product):
@@ -76,6 +105,57 @@ def test_create_product_without_thumbnail(admin_client, make_category, upload_di
 
     assert response.status_code == 200
     assert response.json()["thumbnail"] is None
+
+
+@pytest.mark.parametrize("size, color", [("32x30", "Black/White"), ("US M 10.5", "Olive"), ("XXL", "multicolor")])
+def test_create_product_accepts_any_size_and_color(admin_client, make_category, upload_dir, size, color):
+    category = make_category()
+
+    response = admin_client.post("/api/products/", data={
+        "category_id": category.category_id, "title": "X", "price": "1", "size": f"  {size} ", "color": color,
+    })
+
+    assert response.status_code == 200
+    assert (response.json()["size"], response.json()["color"]) == (size, color)
+
+
+def test_create_product_stores_blank_size_and_color_as_null(admin_client, make_category, upload_dir):
+    category = make_category()
+
+    response = admin_client.post("/api/products/", data={
+        "category_id": category.category_id, "title": "X", "price": "1", "size": "", "color": "   ",
+    })
+
+    assert (response.json()["size"], response.json()["color"]) == (None, None)
+
+
+def test_size_and_color_length_is_capped(admin_client, make_category, make_product, upload_dir):
+    category = make_category()
+    product = make_product(size="M")
+    too_long = "x" * 51
+
+    for field in ("size", "color"):
+        assert admin_client.post("/api/products/", data={
+            "category_id": category.category_id, "title": "X", "price": "1", field: too_long,
+        }).status_code == 422
+        assert admin_client.put(f"/api/products/{product.product_id}", data={field: too_long}).status_code == 422
+
+    assert admin_client.post("/api/products/", data={
+        "category_id": category.category_id, "title": "X", "price": "1", "size": "x" * 50,
+    }).status_code == 200
+
+
+def test_update_size_and_color(admin_client, make_product):
+    product = make_product(size="M", color="Black")
+
+    kept = admin_client.put(f"/api/products/{product.product_id}", data={"title": "Renamed"}).json()
+    assert (kept["size"], kept["color"]) == ("M", "Black")
+
+    changed = admin_client.put(f"/api/products/{product.product_id}", data={"size": " 34x32 ", "color": "Navy"}).json()
+    assert (changed["size"], changed["color"]) == ("34x32", "Navy")
+
+    cleared = admin_client.put(f"/api/products/{product.product_id}", data={"size": "", "color": ""}).json()
+    assert (cleared["size"], cleared["color"]) == (None, None)
 
 
 def test_create_product_unknown_category(admin_client, upload_dir):

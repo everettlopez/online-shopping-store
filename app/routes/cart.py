@@ -172,7 +172,9 @@ def update_cart_item(
     if not item or item.cart_id != cart.cart_id:
         raise HTTPException(status_code=404, detail="Cart item not found")
 
-    ensure_quantity_allowed(session.get(Product, item.product_id), data.quantity)
+    # Stock can drop below what's in the cart, so lowering a quantity is always allowed
+    if data.quantity > item.quantity:
+        ensure_quantity_allowed(session.get(Product, item.product_id), data.quantity)
 
     item.quantity = data.quantity
     session.add(item)
