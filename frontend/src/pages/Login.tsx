@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 
 console.log("DEBUG: Login component loaded");
@@ -8,6 +8,8 @@ console.log("DEBUG: Login component loaded");
 
 function Login() {
     const { login } = useAuth();
+    // Carried to register, so either way the shopper returns where they started
+    const { state } = useLocation();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -69,6 +71,7 @@ function Login() {
                         {message && <p className="text-center text-sm">{message}</p>}
                         <Link
                             to="/register"
+                            state={state}
                             className="flex justify-center items-center px-5 py-2 rounded-full border hover:bg-gray-100 transition"
                             >
                             Create new account

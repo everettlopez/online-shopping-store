@@ -125,3 +125,37 @@ def test_money_migration_keeps_amounts_and_backfills_totals(database):
 
     assert [float(a) for a in amounts] == [59.97, 59.97, 0, 0]
     assert customer_id is None
+
+
+def test_guest_order_migration_backfills_email_and_tracking_tokens(database):
+    # Orders from before guest checkout all belonged to an account
+    command.upgrade(Config(db_session.ALEMBIC_INI), "072b6f643f76")
+    with database.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (user_id, email, hashed_password, first_name, last_name, created_at, is_admin) "
+            "VALUES (1, 'a@example.com', 'x', 'Ada', 'Lovelace', '2026-01-01', 0)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO addresses (address_id, user_id, full_name, line1, city, state, postal_code, country, address_type, created_at) "
+            "VALUES (7, 1, 'Ada Lovelace', '1 Main St', 'Springfield', 'IL', '62701', 'US', 'shipping', '2026-01-01')"
+        )
+        for order_id in (1, 2):
+            connection.exec_driver_sql(
+                "INSERT INTO orders (order_id, user_id, created_at, updated_at, shipping_address_id, billing_address_id, "
+                "order_number, status, order_date, total_amount) "
+                f"VALUES ({order_id}, 1, '2026-01-01', '2026-01-01', 7, 7, 'abc1234{order_id}', 'placed', '2026-01-01', 10)"
+            )
+
+    upgrade_to_head()
+
+    with database.begin() as connection:
+        rows = connection.exec_driver_sql("SELECT email, access_token FROM orders").all()
+        # Guest orders have no account or saved addresses
+        connection.exec_driver_sql(
+            "INSERT INTO orders (order_id, created_at, updated_at, order_number, status, order_date, total_amount) "
+            "VALUES (3, '2026-01-01', '2026-01-01', 'guest123', 'placed', '2026-01-01', 10)"
+        )
+
+    assert [email for email, _ in rows] == ["a@example.com", "a@example.com"]
+    tokens = [token for _, token in rows]
+    assert all(len(token) >= 40 for token in tokens) and tokens[0] != tokens[1]

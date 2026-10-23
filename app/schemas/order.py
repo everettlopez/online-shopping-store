@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List
 from app.schemas.product import ProductRead
@@ -19,10 +19,11 @@ class OrderItemRead(BaseModel):
 
 class OrderRead(BaseModel):
     order_id: int
-    user_id: int
+    user_id: int | None = None   # None for guest orders
 
-    first_name: str
-    last_name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
     order_number: str
     status: str
     created_at: datetime
@@ -53,3 +54,19 @@ class OrderRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CheckoutOrderRead(OrderRead):
+    """The order on the checkout success page, with the secret for its tracking link.
+    Other order responses leave the token out."""
+    access_token: str | None = None
+
+
+class OrderLookup(BaseModel):
+    order_number: str = Field(min_length=1, max_length=50)
+    email: str = Field(min_length=1, max_length=255)
+
+
+class OrderTrackingLink(BaseModel):
+    order_number: str
+    access_token: str

@@ -43,7 +43,9 @@ export type OrderItem = {
 
 export type Order = {
   order_id: number;
-  user_id: number;
+  // None for guest orders
+  user_id: number | null;
+  email: string | null;
 
   first_name: string | null;
   last_name: string | null;
@@ -51,8 +53,8 @@ export type Order = {
   created_at: string;
   updated_at: string;
 
-  shipping_address_id: number;
-  billing_address_id: number;
+  shipping_address_id: number | null;
+  billing_address_id: number | null;
 
   order_number: string;
   status: string;
@@ -230,6 +232,7 @@ export default function AdminOrders()
     { field: "id", headerName: "Order ID", width: 100, resizable: false,},
     { field: "order_number", headerName: "Order #", width: 150, resizable: false,},
     { field: "user_id", headerName: "User ID", width: 100, resizable: false,},
+    { field: "email", headerName: "Email", width: 200, resizable: false,},
     { field: "first_name", headerName: "First Name", width: 150, resizable: false,},
     { field: "last_name", headerName: "Last Name", width: 150, resizable: false,},
     { field: "status", headerName: "Order Status", width: 150, resizable: false, editable: true, renderCell: (params: any) => {
@@ -441,7 +444,8 @@ export default function AdminOrders()
 
       const formatted = data.map((order: Order) => ({
         id: order.order_id,
-        user_id: order.user_id,
+        user_id: order.user_id ?? "Guest",
+        email: order.email,
         first_name: order.first_name,
         last_name: order.last_name,
         order_number: order.order_number.toUpperCase(),
@@ -533,7 +537,8 @@ export default function AdminOrders()
                       <div className="flex flex-col">
                         <p className="text-gray-400 text-sm tracking-wider">USER</p>
                         <p>{order.first_name} {order.last_name}</p>
-                        <p>User ID: {order.user_id}</p>
+                        <p>{order.user_id == null ? "Guest checkout" : `User ID: ${order.user_id}`}</p>
+                        {order.email && <p>{order.email}</p>}
                       </div>
 
                       <div className="border"/>

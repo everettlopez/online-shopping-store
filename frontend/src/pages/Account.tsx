@@ -91,7 +91,7 @@ export default function AccountPage() {
 
             <div className="flex flex-col items-end">
                 <Link to="/orders" className="text-xl tracking-widest">ORDERS</Link>
-                <Link to="" className="tracking-wider">TRACK</Link>
+                <Link to="/orders" className="tracking-wider">TRACK</Link>
                 <Link to="" className="tracking-wider">HISTORY</Link>
             </div>
 

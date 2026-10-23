@@ -77,6 +77,102 @@ def test_update_tracking_emails_the_buyer(admin_client, user, make_order, sent_e
     assert "1Z999" in message.text
 
 
+def test_update_tracking_emails_a_guest(admin_client, make_order, sent_emails):
+    order = make_order(None)
+    tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": "https://ups.com/1Z999"}
+
+    assert admin_client.put(f"/api/orders/{order.order_id}/tracking", params=tracking).status_code == 200
+
+    [message] = sent_emails
+    assert message.to == order.email
+    # The link opens the order without an account
+    assert f"/track/{order.order_number}?token={order.access_token}" in message.text
+
+
+def test_order_emails_go_to_the_address_on_the_order(admin_client, user, make_order, sent_emails):
+    # Recorded at checkout, so a later change of the account's email doesn't matter
+    order = make_order(user, email="then@example.com")
+    tracking = {"tracking_number": "1Z999", "tracking_carrier": "UPS", "tracking_url": "https://ups.com/1Z999"}
+
+    admin_client.put(f"/api/orders/{order.order_id}/tracking", params=tracking)
+
+    assert [m.to for m in sent_emails] == ["then@example.com"]
+
+
+# -----------------------------------------
+# Tracking without an account
+# -----------------------------------------
+
+def test_track_order_with_its_token(client, make_product, make_order):
+    order = make_order(None, items=[(make_product(title="Lamp"), 2)], status="shipped", tracking_number="1Z999")
+
+    response = client.get(f"/api/orders/track/{order.order_number.upper()}", params={"token": order.access_token})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tracking_number"] == "1Z999"
+    assert body["items"][0]["product"]["title"] == "Lamp"
+    assert body["shipping_address"]["line1"] == "2 Oak Ave"
+    assert "access_token" not in body
+
+
+def test_tracking_works_for_account_orders_too(client, user, make_order):
+    order = make_order(user)
+
+    assert client.get(f"/api/orders/track/{order.order_number}", params={"token": order.access_token}).status_code == 200
+
+
+def test_track_order_needs_the_right_token(client, make_order):
+    order = make_order(None)
+    tokenless = make_order(None, access_token=None)
+
+    assert client.get(f"/api/orders/track/{order.order_number}").status_code == 404
+    assert client.get(f"/api/orders/track/{order.order_number}", params={"token": "wrong"}).status_code == 404
+    assert client.get(f"/api/orders/track/{order.order_number}", params={"token": make_order(None).access_token}).status_code == 404
+    assert client.get("/api/orders/track/nope", params={"token": order.access_token}).status_code == 404
+    assert client.get(f"/api/orders/track/{tokenless.order_number}", params={"token": ""}).status_code == 404
+
+
+def test_look_up_order_by_number_and_email(client, make_order):
+    order = make_order(None)
+
+    response = client.post("/api/orders/lookup", json={"order_number": f" {order.order_number.upper()} ", "email": order.email.upper()})
+
+    assert response.status_code == 200
+    assert response.json() == {"order_number": order.order_number, "access_token": order.access_token}
+
+
+def test_look_up_order_needs_both_to_match(client, make_order):
+    order = make_order(None)
+    other = make_order(None)
+    not_found = "We couldn't find an order with that number and email"
+
+    for body in (
+        {"order_number": order.order_number, "email": other.email},
+        {"order_number": "nope", "email": order.email},
+        {"order_number": other.order_number, "email": order.email},
+    ):
+        response = client.post("/api/orders/lookup", json=body)
+        assert (response.status_code, response.json()["detail"]) == (404, not_found)
+
+    assert client.post("/api/orders/lookup", json={"order_number": "", "email": ""}).status_code == 422
+
+
+def test_tracking_rejects_non_ascii_input_with_404(client, make_order):
+    order = make_order(None)
+
+    assert client.get(f"/api/orders/track/{order.order_number}", params={"token": "tökén"}).status_code == 404
+    assert client.post("/api/orders/lookup", json={"order_number": order.order_number, "email": "jösé@example.com"}).status_code == 404
+
+
+def test_order_listings_leave_out_the_token(admin_client, user, make_order):
+    make_order(user)
+    make_order(None)
+
+    assert all("access_token" not in o for o in admin_client.get("/api/orders/").json())
+    assert all(o["user_id"] is None or o["email"] for o in admin_client.get("/api/orders/").json())
+
+
 def test_delete_order_restores_stock(admin_client, session, user, make_product, make_order):
     product = make_product(stock_quantity=1)
     order_id = make_order(user, items=[(product, 4)]).order_id

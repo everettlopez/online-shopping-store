@@ -2,56 +2,38 @@ import { useSearchParams, Link} from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
-import OrderAddressLines, { type OrderAddress } from "../components/OrderAddressLines";
+import OrderAddressLines from "../components/OrderAddressLines";
 import OrderTotals from "../components/OrderTotals";
+import Navbar from "../components/Navbar";
+import type { Order } from "../components/orders/OrderView";
+import { removePurchasedFromGuestCart, useCart } from "../context/CartContext";
 
-export type OrderItem = {
-  order_item_id: number;
-  order_id: number;
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  // null when the product has since been removed from the catalog
-  product: {
-    product_id: number;
-    title: string;
-    price: number;
-    size: string | null;
-    thumbnail: string | null;
-    images?: string[] | null;
-  } | null;
-};
+// The checkout success page also gets the secret for the order's tracking link
+type CheckoutOrder = Order & { access_token: string | null };
 
-export type Order = {
-  order_id: number;
-  order_number: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  order_date: string;
-  total_amount: number;
-  subtotal_amount: number | null;
-  shipping_amount: number | null;
-  tax_amount: number | null;
-  shipping_address: OrderAddress | null;
-  billing_address: OrderAddress | null;
+// Guest orders whose items were already taken out of the browser cart (the latest few)
+const CLEARED_ORDERS_KEY = "guest_cart_cleared_orders";
 
-  payment_method_type: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
-  payment_status: string | null;
-  receipt_url: string | null;
-
-  items: OrderItem[];
-};
+// True if this order's items were already taken out of the browser cart; marks it if not
+function alreadyClearedFor(orderNumber: string): boolean {
+  try {
+    const cleared: unknown = JSON.parse(localStorage.getItem(CLEARED_ORDERS_KEY) ?? "[]");
+    const orders = Array.isArray(cleared) ? cleared : [];
+    if (orders.includes(orderNumber)) return true;
+    localStorage.setItem(CLEARED_ORDERS_KEY, JSON.stringify([...orders, orderNumber].slice(-20)));
+  } catch {
+    // Storage blocked: the browser cart isn't saved either, so there's nothing to repeat
+  }
+  return false;
+}
 
 
 export default function OrderSuccess() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
 
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<CheckoutOrder | null>(null);
+  const { reload: reloadCart } = useCart();
   const [loading, setLoading] = useState(Boolean(sessionId));
 
 
@@ -62,8 +44,15 @@ export default function OrderSuccess() {
       try {
         const res = await axiosClient.get(`/payments/session/${sessionId}`);
 
-        const data = Array.isArray(res.data) ? res.data[0] : res.data;
-        if (!cancelled) setOrder(data);
+        const data: CheckoutOrder = Array.isArray(res.data) ? res.data[0] : res.data;
+        if (cancelled) return;
+        setOrder(data);
+        // What was bought is no longer in the cart (the server already updated an account
+        // cart). Only once per order, so revisiting this page keeps items added since
+        if (data.user_id == null && !alreadyClearedFor(data.order_number)) {
+          removePurchasedFromGuestCart(data.items.map((item) => ({ product_id: item.product?.product_id ?? item.product_id, quantity: item.quantity })));
+        }
+        reloadCart();
       } catch (err: any) {
         // Stripe's webhook can land a moment after the redirect, so retry while the order is created
         if (err.response?.status === 404 && attempt < 5) {
@@ -78,17 +67,26 @@ export default function OrderSuccess() {
     if (sessionId) fetchOrder(1);
 
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [sessionId, reloadCart]);
 
   if (loading) return <p>Loading order...</p>;
   if (!order) return <p>Order not found.</p>;
 
+  // Account orders are in the order history; guests use the private tracking link
+  const trackLink = order.user_id != null
+    ? `/orders/${order.order_number}`
+    : `/track/${encodeURIComponent(order.order_number)}?token=${encodeURIComponent(order.access_token ?? "")}`;
+
   return (
     <>
+    <Navbar />
     <div className="flex flex-col justify-center items-center min-h-screen min-w-screen p-5 bg-gray-100">
 
       <div className="border flex flex-col justify-center p-8 rounded-[10px] gap-8 w-[500px] bg-white">
         <h1 className="text-4xl tracking-wider text-center">THANK YOU FOR YOUR PURCHASE</h1>
+        {order.email && (
+          <p className="text-center text-gray-500">A confirmation with a link to track your order is on its way to {order.email}.</p>
+        )}
 
         {/* Order Information */}
         <div className="flex justify-between">
@@ -158,7 +156,7 @@ export default function OrderSuccess() {
 
         <div className="flex justify-evenly">
           <a href={order.receipt_url || "#"} target="_blank" rel="noopener noreferrer" className="border py-2 px-5 rounded-[5px]">View Receipt</a>
-          <Link to="/orders" className="border py-2 px-5 rounded-[5px]">Track Order</Link>
+          <Link to={trackLink} className="border py-2 px-5 rounded-[5px]">Track Order</Link>
         </div>
       </div>
 

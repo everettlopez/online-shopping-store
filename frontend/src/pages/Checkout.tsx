@@ -1,23 +1,12 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 import axiosClient from "../api/axiosClient";
+import { apiErrorMessage } from "../api/errors";
 import Navbar from "../components/Navbar";
-
-interface CheckoutProduct {
-  title: string;
-  price: number;
-  size?: string;
-  thumbnail?: string;
-  images?: string[];
-}
-
-interface CheckoutCartItem {
-  cart_item_id: number;
-  quantity: number;
-  product: CheckoutProduct | null;
-}
+import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 interface ShippingRates {
   flat_rate: number;
@@ -26,6 +15,8 @@ interface ShippingRates {
 
 export default function Checkout() {
   const location = useLocation();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { items, loading: cartLoading, guestItems } = useCart();
   const [checkoutError, setCheckoutError] = useState("");
   const [shippingRates, setShippingRates] = useState<ShippingRates | null>(null);
 
@@ -38,27 +29,34 @@ export default function Checkout() {
   async function handlePlaceOrder() {
     setCheckoutError("");
     try {
-        // The server works out the amount from the cart; only the addresses are sent
-        const response = await axiosClient.post("/payments/create-checkout-session", {
-        shipping_address_id: shippingAddress.address_id,
-        billing_address_id: billingAddress.address_id
-        });
+        // The server works out the amount itself. A logged-in shopper's cart is on the
+        // server, so only the addresses are sent; a guest sends what's in their cart
+        const body = isAuthenticated
+          ? { shipping_address_id: shippingAddress.address_id, billing_address_id: billingAddress.address_id }
+          : { items: guestItems() };
+        const response = await axiosClient.post("/payments/create-checkout-session", body);
 
         window.location.href = response.data.checkoutUrl;
 
-    } catch (err: any) {
+    } catch (err) {
         console.error("Failed to start checkout:", err);
-        setCheckoutError(err.response?.data?.detail ?? "Something went wrong starting checkout. Please try again.");
+        setCheckoutError(apiErrorMessage(err, "Something went wrong starting checkout. Please try again."));
     }
     }
 
 
 
 
-  const { shippingAddress, billingAddress, cart } = location.state || {};
+  const { shippingAddress, billingAddress } = location.state || {};
+
+  if (authLoading || cartLoading) return <p>Loading...</p>;
+  // Nothing to buy, or a logged-in shopper who came here without picking addresses
+  if (items.length === 0 || (isAuthenticated && (!shippingAddress || !billingAddress))) {
+    return <Navigate to="/cart" replace />;
+  }
 
   // In cents, so the sums don't pick up float rounding errors
-  const subtotalCents = cart.items.reduce((sum: number, item: CheckoutCartItem) => {
+  const subtotalCents = items.reduce((sum, item) => {
     return sum + item.quantity * Math.round((item.product?.price ?? 0) * 100);
   }, 0);
 
@@ -86,12 +84,12 @@ export default function Checkout() {
         <div className="flex flex-col">
             
             <div className="flex flex-col p-3 gap-2">
-                {cart.items.map((item: CheckoutCartItem) => {
+                {items.map((item) => {
                     const mainImage = item.product?.thumbnail || item.product?.images?.[0];
 
                     return (
                         <div 
-                            key={item.cart_item_id} 
+                            key={item.product_id} 
                             className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-70">
                                 
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
@@ -99,7 +97,7 @@ export default function Checkout() {
                                 <div className="flex flex-col">
                                     <h2 className="w-60 text-xl">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
-                                    <p>${item.product?.price.toFixed(2)}</p>
+                                    <p>${item.product?.price.toFixed(2)}{item.quantity > 1 && ` × ${item.quantity}`}</p>
                                 </div>
                         </div>
                     );
@@ -137,6 +135,12 @@ export default function Checkout() {
                             </p>
                         )}
                     </div>
+
+                    {!isAuthenticated && (
+                        <p className="text-sm text-gray-500 text-center px-10">
+                            You'll enter your email, shipping and billing address on the secure payment page.
+                        </p>
+                    )}
 
                     {checkoutError && <p className="text-center text-sm text-red-600">{checkoutError}</p>}
 

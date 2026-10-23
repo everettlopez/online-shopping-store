@@ -7,7 +7,7 @@ from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.schemas.product import ProductRead
 from app.schemas.cart import CartRead, CartItemRead
-from app.schemas.cart_item import CartItemCreate, CartItemUpdate, MAX_CART_QUANTITY
+from app.schemas.cart_item import CartItemCreate, CartItemUpdate, CartMerge, MAX_CART_QUANTITY
 from app.models.category import Category
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
@@ -198,6 +198,33 @@ def remove_cart_item(
     session.commit()
 
     return {"message": "Item removed from cart"}
+
+@router.post("/merge", response_model=CartRead)
+def merge_cart(data: CartMerge, user: CurrentUser, session: Session = Depends(get_session)):
+    """Add a guest's browser cart to the account cart after login. Products that are
+    gone or inactive are skipped, and quantities are capped at stock and the maximum,
+    so one stale item doesn't lose the rest of the cart."""
+    cart = get_or_create_cart(user.user_id, session)
+
+    for line in data.items:
+        product = session.get(Product, line.product_id)
+        if not product or not product.is_active:
+            continue
+
+        cart_item = session.exec(
+            select(CartItem).where(CartItem.cart_id == cart.cart_id, CartItem.product_id == product.product_id)
+        ).first() or CartItem(cart_id=cart.cart_id, product_id=product.product_id, quantity=0)
+
+        quantity = min(cart_item.quantity + line.quantity, MAX_CART_QUANTITY, product.stock_quantity)
+        if quantity < 1:
+            continue
+
+        cart_item.quantity = quantity
+        session.add(cart_item)
+
+    session.commit()
+
+    return get_cart(user, session)
 
 @router.delete("/clear")
 def clear_cart(user: CurrentUser, session: Session = Depends(get_session)):

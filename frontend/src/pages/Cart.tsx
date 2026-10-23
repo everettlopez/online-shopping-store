@@ -1,23 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { useAuth } from "../context/AuthContext";
+import { cartErrorMessage, MAX_CART_QUANTITY, useCart } from "../context/CartContext";
 
 import { Link, useNavigate } from "react-router-dom";
 import AddressModal from "../components/AddressModal";
 import Navbar from "../components/Navbar";
-
-interface Product {
-  product_id: number;
-  title: string;
-  description?: string;
-  price: number;
-  size?: string;
-  color?: string;
-  thumbnail?: string;
-  images?: string[];
-  stock_quantity: number;
-  is_active: boolean;
-}
 
 interface Address {
   address_id: number;
@@ -35,29 +23,14 @@ interface Address {
 }
 
 
-
-interface CartItem {
-    cart_item_id: number;
-    product_id: number;
-    quantity: number;
-    product: Product | null;
-}
-
-interface Cart {
-    cart_id: number;
-    user_id: number;
-    items: CartItem[];
-}
-
 export default function Cart() {
 
     const { isAuthenticated } = useAuth();
+    const { items, loading, updateQuantity, remove } = useCart();
     const navigate = useNavigate();
+    const [error, setError] = useState("");
 
-    const [cart, setCart] = useState<Cart | null>(null);
-    const [loading, setLoading] = useState(true);
-    
-    // Address Modal
+    // Address Modal (logged-in shoppers check out with their saved addresses)
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
     const [addresses, setAddresses] = useState<Address[]>([]);
 
@@ -71,53 +44,29 @@ export default function Cart() {
         }
     }
 
-
-
-    useEffect(() => {
-        if (!isAuthenticated) {
-            setCart(null);
-            setLoading(false);
-            return;
-        }
-
-        const fetchCart = async () => {
-            try {
-                const res = await axiosClient.get("/cart", {withCredentials: true});
-                setCart(res.data);
-            } catch (err){
-                console.error("Failed to load cart:", err);
-                setCart(null)
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCart();
-        fetchAddresses();
-
-    }, [isAuthenticated]);
-
     if (loading) return <p>Loading cart...</p>;
-    if(!cart) return <p>No cart found.</p>;
 
-    const cartTotal = cart.items.reduce((sum, item) => {
-        const price = item.product?.price ?? 0;
-        return sum + price * item.quantity;
+    // In cents, so the sum doesn't pick up float rounding errors
+    const cartTotalCents = items.reduce((sum, item) => {
+        return sum + Math.round((item.product?.price ?? 0) * 100) * item.quantity;
     }, 0);
 
-    async function handleRemoveCartItem(item_id: number)
-    {
-        try
-        {
-            await axiosClient.delete(`/cart/items/${item_id}`, {
-                withCredentials: true,
-            });
-
-            setCart((prev) => prev ? {...prev, items: prev.items.filter((i) => i.cart_item_id !== item_id)} : prev);
+    async function change(action: () => Promise<void>) {
+        setError("");
+        try {
+            await action();
+        } catch (err) {
+            setError(cartErrorMessage(err, "We couldn't update your cart. Please try again."));
         }
-        catch (err)
-        {
-            console.error("Failed to remove item: ", err);
+    }
+
+    function handleCheckout() {
+        if (isAuthenticated) {
+            fetchAddresses();
+            setIsAddressModalOpen(true);
+        } else {
+            // Guests enter their email and addresses on Stripe's payment page
+            navigate("/checkout");
         }
     }
 
@@ -137,54 +86,83 @@ export default function Cart() {
         <div className="flex flex-col">
             <div className="flex text-center justify-center text-3xl tracking-widest text-gray-400 border py-4"><h2>CART</h2></div>
 
-            {cart.items.length === 0 && <p>Your cart is empty.</p>}
+            {items.length === 0 && (
+                <p className="text-center p-6">
+                    Your cart is empty. <Link to="/products" className="underline">Keep shopping</Link>
+                </p>
+            )}
 
             <div className="flex flex-col p-3 gap-2">
-                
-                {cart.items.map((item) => {
+
+                {items.map((item) => {
                     const mainImage = item.product?.thumbnail || item.product?.images?.[0];
+                    const maxQuantity = Math.min(MAX_CART_QUANTITY, item.product?.stock_quantity ?? MAX_CART_QUANTITY);
 
                     return (
-                        <div 
-                            key={item.cart_item_id} 
+                        <div
+                            key={item.product_id}
                             className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-70">
-                                
+
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
 
-                                <div className="flex flex-col">
+                                <div className="flex flex-col gap-1">
                                     <h2 className="w-60 text-xl">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
                                     <p>${item.product?.price.toFixed(2)}</p>
 
-                                    <button 
-                                        onClick={() => handleRemoveCartItem(item.cart_item_id)}
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => change(() => updateQuantity(item.product_id, item.quantity - 1))}
+                                            disabled={item.quantity <= 1}
+                                            aria-label="Decrease quantity"
+                                            className="border w-7 rounded disabled:opacity-40">−</button>
+                                        <span>{item.quantity}</span>
+                                        <button
+                                            onClick={() => change(() => updateQuantity(item.product_id, item.quantity + 1))}
+                                            disabled={item.quantity >= maxQuantity}
+                                            aria-label="Increase quantity"
+                                            className="border w-7 rounded disabled:opacity-40">+</button>
+                                    </div>
+
+                                    <button
+                                        onClick={() => change(() => remove(item.product_id))}
                                         className="flex w-fit hover:bg-gray-400">Remove</button>
                                 </div>
                         </div>
                     );
-                })};
+                })}
 
             </div>
 
         </div>
 
+        {items.length > 0 && (
         <div className="flex flex-col mx-auto justify-center p-6 gap-6">
 
+        {error && <p className="text-center text-sm text-red-600">{error}</p>}
 
         {/* Cart Total */}
         <div className="flex justify-center gap-20 text-lg">
             <p>Total:</p>
-            <p>${cartTotal.toFixed(2)}</p>
+            <p>${(cartTotalCents / 100).toFixed(2)}</p>
         </div>
 
         {/* Checkout Button */}
         <button
-            onClick={() => {fetchAddresses(); setIsAddressModalOpen(true)}}
+            onClick={handleCheckout}
             className="py-2 px-3 bg-black text-white mx-auto rounded-[10px] text-lg"
         >
             Checkout
         </button>
+
+        {!isAuthenticated && (
+            <p className="text-center text-sm text-gray-500">
+                No account needed. Have one?{" "}
+                <Link to="/login" state={{ from: "/cart" }} className="underline">Log in</Link> to use your saved addresses.
+            </p>
+        )}
         </div>
+        )}
 
 
         <AddressModal
@@ -192,7 +170,7 @@ export default function Cart() {
             onClose={() => setIsAddressModalOpen(false)}
             onSaved={({ shipping, billing }) => {
                 navigate("/checkout", {
-                state: { shippingAddress: shipping, billingAddress: billing, cart }
+                state: { shippingAddress: shipping, billingAddress: billing }
                 });
             }}
             addresses={addresses}

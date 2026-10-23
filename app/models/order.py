@@ -9,17 +9,24 @@ from typing import Optional
 class Order(SQLModel, table=True):
     __tablename__ = "orders"
     order_id: int | None = Field(default = None, primary_key = True)
-    user_id: int = Field(foreign_key = "users.user_id")
+    # None for guest checkouts
+    user_id: int | None = Field(default=None, foreign_key = "users.user_id")
 
     first_name: str | None = Field(default=None)
     last_name: str | None = Field(default=None)
+    # Where order emails go: the account's email, or the one a guest gave Stripe
+    email: str | None = Field(default=None)
+
+    # Secret in the emailed tracking link, which opens the order without logging in
+    access_token: str | None = Field(default=None, max_length=64, unique=True, index=True)
 
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    shipping_address_id: int = Field(foreign_key="addresses.address_id")
-    billing_address_id: int = Field(foreign_key="addresses.address_id")
+    # The saved addresses used at checkout; None for guests, whose addresses Stripe collects
+    shipping_address_id: int | None = Field(default=None, foreign_key="addresses.address_id")
+    billing_address_id: int | None = Field(default=None, foreign_key="addresses.address_id")
 
     # Copies of the addresses when the order was placed (OrderAddress shape); the
     # saved addresses above can be edited or deleted afterwards
@@ -37,7 +44,7 @@ class Order(SQLModel, table=True):
     tax_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
 
     payment_intent_id: str | None = Field(default=None, index=True)
-    stripe_session_id: str | None = Field(default=None, index=True)
+    stripe_session_id: str | None = Field(default=None, unique=True, index=True)
 
     payment_method_type: str | None = Field(default=None)
     card_brand: str | None = Field(default=None)

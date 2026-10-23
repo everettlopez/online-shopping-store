@@ -25,25 +25,11 @@ export interface Product {
   created_at: string;
 }
 
-interface CartItem {
-    cart_item_id: number;
-    product_id: number;
-    quantity: number;
-    product: Product | null;
-}
-
-interface Cart {
-    cart_id: number;
-    user_id: number;
-    items: CartItem[];
-}
-
 export default function Products() {
 
     // Products are tagged with the URL query they were fetched for, so switching
     // categories never shows the previous category's products under the new heading
     const [loaded, setLoaded] = useState<{ key: string; products: Product[] } | null>(null);
-    const [cart, setCart] = useState<Cart | null>(null);
     const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -95,15 +81,6 @@ export default function Products() {
 
         return () => { cancelled = true; };
     }, [categoryId, categoryParam, isNewArrivals, productsKey]);
-
-    // Fetch Cart
-    useEffect(() => {
-        axiosClient.get("/cart")
-            .then((response) => setCart(response.data))
-            .catch((err) => console.error("Failed to fetch cart: ", err));
-    }, []);
-
-
 
     return (
         <>
@@ -158,7 +135,6 @@ export default function Products() {
         <UserProductDetailModal 
             isOpen={isProductDetailModalOpen}
             product={selectedProduct}
-            cart={cart}
             onClose={() => setIsProductDetailModalOpen(false)}/>
 
         </>

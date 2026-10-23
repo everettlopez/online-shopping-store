@@ -54,7 +54,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const logout = async () => {
         await apiLogout();
         setUser(null);
-        window.location.href = "/login";
+        // Shopping doesn't need an account, so go back to the store
+        window.location.href = "/";
     };
 
 

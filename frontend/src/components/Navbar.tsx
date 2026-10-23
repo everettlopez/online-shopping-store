@@ -1,5 +1,7 @@
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useCategories } from "../context/CategoriesContext";
+import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 // "New Arrivals" is a fixed link to the newest products, so hide any leftover
 // category with that name to avoid showing it twice
@@ -11,6 +13,8 @@ interface NavbarProps {
 
 export default function Navbar({ className = "" }: NavbarProps) {
     const { categories } = useCategories();
+    const { isAuthenticated } = useAuth();
+    const { count } = useCart();
     const { pathname } = useLocation();
     const [searchParams] = useSearchParams();
 
@@ -26,12 +30,22 @@ export default function Navbar({ className = "" }: NavbarProps) {
 
             {/* Right-side icons */}
             <div className="absolute right-5 top-5 flex items-center gap-6 text-2xl">
-                <Link to="/account" className="hover:text-gray-600 transition">
+                {/* Order tracking works without an account */}
+                <Link to="/track" className={`${linkClass(pathname.startsWith("/track"))} hover:text-gray-600 transition`}>
+                    TRACK ORDER
+                </Link>
+
+                <Link to={isAuthenticated ? "/account" : "/login"} aria-label={isAuthenticated ? "Account" : "Log in"} className="hover:text-gray-600 transition">
                     <i className="fa-regular fa-user"></i>
                 </Link>
 
-                <Link to="/cart" className="hover:text-gray-600 transition">
+                <Link to="/cart" aria-label={`Cart, ${count} items`} className="relative hover:text-gray-600 transition">
                     <i className="fa-solid fa-bag-shopping"></i>
+                    {count > 0 && (
+                        <span className="absolute -top-2 -right-3 min-w-5 h-5 px-1 rounded-full bg-black text-white text-xs flex items-center justify-center">
+                            {count > 99 ? "99+" : count}
+                        </span>
+                    )}
                 </Link>
             </div>
 

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import axiosClient from "../../api/axiosClient";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { cartErrorMessage, useCart } from "../../context/CartContext";
 
 
 type Product = {
@@ -16,91 +17,83 @@ type Product = {
     is_active: boolean;
 };
 
-interface CartItem {
-    cart_item_id: number;
-    product_id: number;
-    quantity: number;
-    product: Product | null;
-}
-
-interface Cart {
-    cart_id: number;
-    user_id: number;
-    items: CartItem[];
-}
-
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
-  cart: Cart | null;
 }
 
 
-export default function ProductDetailModal({isOpen, onClose, product, cart}: Props) 
+export default function ProductDetailModal({isOpen, onClose, product}: Props)
 {
-  if (!isOpen) return null;
+  const { items, add } = useCart();
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+  // The error belongs to the product it was shown for
+  const [errorFor, setErrorFor] = useState<number | null>(null);
 
-  const [alreadyAdded, setAlreadyAdded] = useState(false);
+  if (!isOpen || !product) return null;
 
-  useEffect(() => {
-    if (!cart || !product) return;
-
-    let found = false;
-    for (let i = 0; i < cart.items.length; i++) {
-      if (cart.items[i].product_id === product.product_id) {
-        found = true;
-        break;
-      }
-    }
-
-    console.log("manual found:", found);
-    setAlreadyAdded(found);
-  }, [cart, product]);
+  const inCart = items.find((line) => line.product_id === product.product_id)?.quantity ?? 0;
+  const shownError = errorFor === product.product_id ? error : "";
 
   async function handleAddToCart()
   {
     if (!product) return;
+    setAdding(true);
+    setError("");
 
-    try 
+    try
     {
-      const response = await axiosClient.post(`/cart/items?product_id=${product.product_id}`);
-
-
-      console.log(response.data);
+      await add(product);
     }
     catch (err)
     {
-      console.error("Failed to add product to cart: ", err);
+      setError(cartErrorMessage(err, "We couldn't add this to your cart. Please try again."));
+      setErrorFor(product.product_id);
+    }
+    finally
+    {
+      setAdding(false);
     }
   }
-  
+
   return (
     <>
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
       <div className="flex bg-white gap-6 rounded-lg p-4">
-        <img src={product?.thumbnail} className="border object-cover h-[400px] rounded-lg"/>
+        <img src={product.thumbnail} className="border object-cover h-[400px] rounded-lg"/>
 
         <div className="flex flex-col w-[600px] p-2 gap-8">
-          
+
           {/* Close Button */}
           <div className="w-full flex justify-end">
             <button onClick={onClose} className="px-4 py-2">CLOSE</button>
           </div>
 
           <div className="flex flex-col">
-            <h1 className="text-4xl tracking-wide">{product?.title.toUpperCase()}</h1>
-            <p className="text-gray-400 text-lg py-2">${product?.price.toFixed(2)}</p>
-            <p className="text-lg">{product?.description}</p>
+            <h1 className="text-4xl tracking-wide">{product.title.toUpperCase()}</h1>
+            <p className="text-gray-400 text-lg py-2">${product.price.toFixed(2)}</p>
+            <p className="text-lg">{product.description}</p>
           </div>
 
           {/* Cart Button*/}
-          <div className="flex h-full items-end justify-center p-2">
-            {alreadyAdded ? (
-              <><button disabled className="border px-5 py-1 rounded-full bg-gray-100">Added to Cart</button></>) : (<><button onClick={() => {handleAddToCart(); setAlreadyAdded(true);}} className="border px-5 py-1 rounded-full transition-all duration-1000 hover:bg-gray-100">Add to Cart</button></>)}
+          <div className="flex flex-col h-full items-center justify-end gap-2 p-2">
+            <button
+              onClick={handleAddToCart}
+              disabled={adding}
+              className="border px-5 py-1 rounded-full transition-all duration-1000 hover:bg-gray-100 disabled:opacity-50">
+                {adding ? "Adding..." : "Add to Cart"}
+            </button>
+            {inCart > 0 && (
+              <p className="text-sm text-gray-500">
+                {inCart} in your cart · <Link to="/cart" className="underline">View cart</Link>
+              </p>
+            )}
+            {shownError && <p className="text-sm text-red-600">{shownError}</p>}
           </div>
         </div>
-        
+
       </div>
     </div>
     </>

@@ -8,7 +8,9 @@ A full-stack, database-driven online shopping platform designed to demonstrate m
 4. [Author](#author)
 
 ## Overview
-This application models a real‑world e‑commerce workflow, including product browsing, dynamic filtering, user authentication, and administrative management. The system is built with a modular architecture that supports future expansion into checkout, payments, analytics, and user‑centric features.
+This application models a real‑world e‑commerce workflow, including product browsing, dynamic filtering, a cart, Stripe Checkout, order tracking, user accounts, and administrative management. The system is built with a modular architecture that supports future expansion into analytics and user‑centric features.
+
+No account is needed to shop. Anyone can browse, fill a cart (kept in the browser until they log in, when it joins their account cart), and pay through Stripe Checkout, which asks guests for their email and US shipping and billing addresses. Order confirmation and shipping emails link to a private tracking page that opens without logging in, and the **Track order** page finds an order by its number and the email it was placed with. An account adds saved addresses and an order history.
 
 ## Tech Stack
 ### Frontend
