@@ -154,11 +154,12 @@ const getStatusChipProps = (status: string): {
 const steps = ["Placed", "Processing", "Shipped", "Delivered"];
 const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
 
-function OrderStepper({order}: {order: Order}) {
-    const activeStep = stepIndexMap[order.status as OrderStatus];
+// The order's progress from placed to delivered; the account's order list uses it too
+export function OrderStepper({ status }: { status: string }) {
+    const activeStep = stepIndexMap[status as OrderStatus];
 
     return (
-      <div className="p-8">
+      <div className="py-4 sm:p-8">
         <Stepper activeStep={activeStep} alternativeLabel>
           {steps.map((label) => (
             <Step key={label}>
@@ -177,23 +178,23 @@ export default function OrderView({ order }: { order: Order }) {
     const safeUrl = order.tracking_url?.startsWith("http://") || order.tracking_url?.startsWith("https://") ? order.tracking_url : `https://${order.tracking_url}`; 
 
     return (
-              <div className="flex flex-col border p-8 rounded-[10px] gap-5 bg-white">
+              <div className="flex flex-col border p-4 sm:p-8 rounded-[10px] gap-5 bg-white">
                   {/* Order Header */}
-                  <div className="flex gap-5 items-center">
-                      <h1 className="text-3xl tracking-wider">ORDER: #{order.order_number.toUpperCase()}</h1>
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 items-center">
+                      <h1 className="text-2xl sm:text-3xl tracking-wider break-all">ORDER: #{order.order_number.toUpperCase()}</h1>
                       <Chip size="small" color={chipProps.color} icon={chipProps.icon} label={chipProps.label} />
                   </div>
 
                   {order.status !== "completed" && (
-                      <OrderStepper order={order}/>
+                      <OrderStepper status={order.status}/>
                   )}
 
-                  {/* Order Information */}
-                  <div className="flex justify-evenly py-4">
+                  {/* Order Information: two columns on phones, four in a row from 768 px */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 md:divide-x [&>div]:md:px-4">
 
                       {/* User Information */}
                       <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Placed By</p>
+                          <p className="text-sm text-gray-500">Placed By</p>
                           <p className="text-lg">{order.first_name} {order.last_name}</p>
                           <p>
                           {new Date(order.order_date).toLocaleDateString("en-US", {
@@ -204,27 +205,22 @@ export default function OrderView({ order }: { order: Order }) {
                           </p>
                       </div>
 
-                      <div className="border"/>
                       
                       {/* Shipping */}
                       <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Shipping</p>
+                          <p className="text-sm text-gray-500">Shipping</p>
                           <OrderAddressLines address={order.shipping_address} />
                       </div>
 
-                      <div className="border"/>
-
                       {/* Billing */}
                       <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Billing</p>
+                          <p className="text-sm text-gray-500">Billing</p>
                           <OrderAddressLines address={order.billing_address} />
                       </div>
 
-                      <div className="border"/>
-
                       {/* Payment */}
                       <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Payment</p>
+                          <p className="text-sm text-gray-500">Payment</p>
                           <p>${order.total_amount.toFixed(2)} with {paymentMethodLabel(order.payment_method_type)}</p>
                           {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
 
@@ -238,9 +234,9 @@ export default function OrderView({ order }: { order: Order }) {
                           <div className="flex flex-col">
                               <p>Tracking #: {order.tracking_number?.toUpperCase()}</p>
                               <p>Shipping Carrier: {order.tracking_carrier}</p>
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-x-2">
                                   <p>Tracking URL:</p>
-                                  <a href={safeUrl} className="text-gray-400">{order.tracking_url}</a>
+                                  <a href={safeUrl} className="text-gray-600 underline break-all">{order.tracking_url}</a>
                               </div>
                           </div>
                       </div>
@@ -253,14 +249,14 @@ export default function OrderView({ order }: { order: Order }) {
                           const mainImage = item.product?.thumbnail || item.product?.images?.[0];
                           return (
                               /* Order Item Card */
-                              <div key={item.order_item_id} className="border p-4 flex justify-between bg-white rounded-[10px]">
+                              <div key={item.order_item_id} className="border p-3 sm:p-4 flex flex-wrap justify-between gap-2 bg-white rounded-[10px]">
 
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2 min-w-0">
                                       {mainImage
-                                          ? <img src={mainImage} className="h-20 w-20 object-cover border rounded-sm"/>
-                                          : <div className="h-20 w-20 border rounded-sm bg-gray-100"/>}
+                                          ? <img src={mainImage} alt={item.product?.title ?? ""} loading="lazy" className="h-20 w-20 object-cover border rounded-sm shrink-0"/>
+                                          : <div className="h-20 w-20 border rounded-sm bg-gray-100 shrink-0"/>}
 
-                                      <div className="flex flex-col">
+                                      <div className="flex flex-col min-w-0">
                                           <p className="text-lg">{item.product?.title ?? "Product no longer available"}</p>
                                           {item.product?.size && <p>Size: {item.product.size}</p>}
                                           <p>Qty: {item.quantity}</p>

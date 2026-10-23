@@ -30,6 +30,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await new Promise((res) => setTimeout(res, 50));
         
         const data = await getCurrentUser();
+        // The login worked but the browser didn't keep its cookie (blocked cross-site cookies)
+        if (!data) throw new Error("Your browser blocked the sign-in cookie. Allow cookies for this site and try again.");
         setUser(data);
     };
 

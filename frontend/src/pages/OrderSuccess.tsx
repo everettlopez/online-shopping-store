@@ -6,6 +6,7 @@ import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
 import OrderAddressLines from "../components/OrderAddressLines";
 import OrderTotals from "../components/OrderTotals";
 import Navbar from "../components/Navbar";
+import { EmptyState, LoadingState } from "../components/Status";
 import type { Order } from "../components/orders/OrderView";
 import { useCart } from "../context/useCart";
 import { removePurchasedFromGuestCart } from "../context/guestCart";
@@ -71,8 +72,19 @@ export default function OrderSuccess() {
     return () => { cancelled = true; };
   }, [sessionId, reloadCart]);
 
-  if (loading) return <p>Loading order...</p>;
-  if (!order) return <p>Order not found.</p>;
+  if (loading) return <><Navbar /><LoadingState label="Confirming your order" page /></>;
+  if (!order) {
+    return (
+      <>
+      <Navbar />
+      <EmptyState
+        title="We couldn't find this order"
+        message="If you were charged, a confirmation email is on its way. You can also look the order up with its number and your email."
+        action={{ to: "/track", label: "Find my order" }}
+      />
+      </>
+    );
+  }
 
   // Account orders are in the order history; guests use the private tracking link
   const trackLink = order.user_id != null
@@ -82,19 +94,20 @@ export default function OrderSuccess() {
   return (
     <>
     <Navbar />
-    <div className="flex flex-col justify-center items-center min-h-screen min-w-screen p-5 bg-gray-100">
+    <main>
+    <div className="flex flex-col justify-center items-center min-h-screen p-3 sm:p-5 bg-gray-100">
 
-      <div className="border flex flex-col justify-center p-8 rounded-[10px] gap-8 w-[500px] bg-white">
-        <h1 className="text-4xl tracking-wider text-center">THANK YOU FOR YOUR PURCHASE</h1>
+      <div className="border flex flex-col justify-center p-5 sm:p-8 rounded-[10px] gap-8 w-full max-w-[500px] bg-white">
+        <h1 className="text-3xl sm:text-4xl tracking-wider text-center">THANK YOU FOR YOUR PURCHASE</h1>
         {order.email && (
           <p className="text-center text-gray-500">A confirmation with a link to track your order is on its way to {order.email}.</p>
         )}
 
         {/* Order Information */}
-        <div className="flex justify-between">
+        <div className="flex flex-wrap justify-between gap-4">
 
           <div className="flex flex-col">
-            <p className="text-gray-400">Date</p>
+            <p className="text-gray-500">Date</p>
             <p className="flex justify-center">
               {new Date(order.order_date).toLocaleDateString("en-US", {
                 year: "numeric",
@@ -106,12 +119,12 @@ export default function OrderSuccess() {
           </div>
 
           <div className="flex flex-col">
-            <p className="text-gray-400">Order Number</p>
-            <p className="flex justify-center">{order.order_number}</p>
+            <p className="text-gray-500">Order Number</p>
+            <p className="flex justify-center break-all">{order.order_number}</p>
           </div>
           
           <div className="flex flex-col">
-            <p className="text-gray-400">Payment Method</p>
+            <p className="text-gray-500">Payment Method</p>
             <p className="flex justify-center">{paymentMethodLabel(order.payment_method_type)}</p>
             {paymentCardSummary(order) && <p className="flex justify-center">{paymentCardSummary(order)}</p>}
           </div>
@@ -119,7 +132,7 @@ export default function OrderSuccess() {
 
         {/* Billing Address */}
         <div className="flex flex-col">
-          <p className="text-gray-400">Billing Address</p>
+          <p className="text-gray-500">Billing Address</p>
           <OrderAddressLines address={order.billing_address} />
         </div>
 
@@ -128,10 +141,10 @@ export default function OrderSuccess() {
           {order.items.map(item => (
             <div key={item.order_item_id} className="border flex gap-2 p-3 justify-between rounded-[10px]">
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 min-w-0">
                 {item.product?.thumbnail || item.product?.images?.[0]
-                  ? <img src={item.product.thumbnail || item.product.images?.[0]} className="h-20 w-20 object-cover"/>
-                  : <div className="h-20 w-20 bg-gray-100"/>}
+                  ? <img src={item.product.thumbnail || item.product.images?.[0]} alt={item.product.title} className="h-20 w-20 object-cover shrink-0"/>
+                  : <div className="h-20 w-20 bg-gray-100 shrink-0"/>}
                 <div className="flex flex-col">
                   <p>{item.product?.title ?? "Product no longer available"}</p>
                   {item.product?.size && <p className="text-sm text-gray-500">Size: {item.product.size}</p>}
@@ -156,13 +169,14 @@ export default function OrderSuccess() {
           <div className="border"></div>
         </div>
 
-        <div className="flex justify-evenly">
+        <div className="flex flex-wrap justify-evenly gap-3">
           <a href={order.receipt_url || "#"} target="_blank" rel="noopener noreferrer" className="border py-2 px-5 rounded-[5px]">View Receipt</a>
           <Link to={trackLink} className="border py-2 px-5 rounded-[5px]">Track Order</Link>
         </div>
       </div>
 
     </div>
+    </main>
     </>
   );
 }

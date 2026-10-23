@@ -85,3 +85,25 @@
     background-color: white;
   }
 }
+
+/* A visible keyboard focus ring on links and controls (mouse clicks don't show it).
+   Fields that draw their own focus, like TextField's box, opt out with outline-hidden */
+@layer base {
+  :focus-visible {
+    outline: 2px solid black;
+    outline-offset: 2px;
+  }
+}
+
+/* The store is designed light: a white page whatever the visitor's dark-mode setting,
+   and browser-drawn parts (form controls, scrollbars) to match */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background-color: white;
+    color: black;
+  }
+}

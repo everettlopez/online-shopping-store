@@ -7,11 +7,13 @@ import { store } from "../config/store";
 import { useCart } from "../context/useCart";
 import { cartErrorMessage } from "../context/guestCart";
 import NotFound from "./NotFound";
+import { ErrorState, LoadingState } from "../components/Status";
 import type { Product } from "./Products";
 
+// Keyed by the id and attempt it was fetched for, so a new id or "Try again" shows loading
 type Loaded =
-    | { id: string; status: "found"; product: Product }
-    | { id: string; status: "missing" | "error" };
+    | { key: string; status: "found"; product: Product }
+    | { key: string; status: "missing" | "error" };
 
 // Product cards pass the grid they were clicked on (with its filters) as `from`;
 // only addresses on this site are followed
@@ -26,28 +28,30 @@ export default function ProductDetail() {
     const { id = "" } = useParams();
     const validId = /^\d+$/.test(id);
     const [loaded, setLoaded] = useState<Loaded | null>(null);
+    const [attempt, setAttempt] = useState(0);
+    const key = `${id}|${attempt}`;
 
     useEffect(() => {
         if (!validId) return;
 
         let cancelled = false;
         axiosClient.get<Product>(`/products/${id}`)
-            .then((response) => { if (!cancelled) setLoaded({ id, status: "found", product: response.data }); })
+            .then((response) => { if (!cancelled) setLoaded({ key, status: "found", product: response.data }); })
             .catch((err) => {
                 if (cancelled) return;
                 const missing = axios.isAxiosError(err) && err.response?.status === 404;
                 if (!missing) console.error("Failed to fetch product: ", err);
-                setLoaded({ id, status: missing ? "missing" : "error" });
+                setLoaded({ key, status: missing ? "missing" : "error" });
             });
 
         return () => { cancelled = true; };
-    }, [id, validId]);
+    }, [id, key, validId]);
 
-    if (!validId || (loaded?.id === id && loaded.status === "missing")) {
+    if (!validId || (loaded?.key === key && loaded.status === "missing")) {
         return <NotFound heading="PRODUCT NOT FOUND" message="This product doesn't exist or has been removed." />;
     }
 
-    const current = loaded?.id === id ? loaded : null;
+    const current = loaded?.key === key ? loaded : null;
 
     return (
         <>
@@ -56,9 +60,9 @@ export default function ProductDetail() {
             {current?.status === "found" ? (
                 <ProductView key={current.product.product_id} product={current.product} />
             ) : current?.status === "error" ? (
-                <p className="tracking-wider text-gray-500 py-10 text-center">We couldn't load this product. Please refresh to try again.</p>
+                <ErrorState message="We couldn't load this product." onRetry={() => setAttempt((n) => n + 1)} />
             ) : (
-                <p className="tracking-wider text-gray-500 py-10 text-center">Loading...</p>
+                <LoadingState label="Loading product" page />
             )}
         </main>
         </>
@@ -122,7 +126,7 @@ function ProductView({ product }: { product: Product }) {
                                     aria-pressed={index === photo}
                                     className={`shrink-0 w-16 h-20 rounded-lg border-2 overflow-hidden ${index === photo ? "border-black" : "border-transparent"}`}
                                 >
-                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                    <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
                                 </button>
                             ))}
                         </div>

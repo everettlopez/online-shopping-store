@@ -55,7 +55,7 @@ export default function ProductFilters({ filters, sizeOptions, colorOptions, can
                 <button
                     onClick={onClear}
                     disabled={!canClear}
-                    className="text-xs tracking-wider underline disabled:no-underline disabled:text-gray-300"
+                    className="text-xs tracking-wider underline disabled:no-underline disabled:text-gray-500 disabled:cursor-default"
                 >
                     CLEAR
                 </button>
@@ -89,7 +89,7 @@ export default function ProductFilters({ filters, sizeOptions, colorOptions, can
                         onChange={(e) => onChange({ ...filters, minPrice: e.target.value })}
                         className="border rounded-lg px-2 py-1 text-sm w-full"
                     />
-                    <span className="text-gray-400">–</span>
+                    <span className="text-gray-500" aria-hidden="true">–</span>
                     <input
                         type="number"
                         min={0}

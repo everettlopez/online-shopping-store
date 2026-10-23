@@ -1,5 +1,6 @@
 // This file should have been AdminProductModal
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
+import { useDialog } from "../../useDialog";
 import TextField from '@mui/material/TextField';
 import NumberField from "../../NumberField";
 import FormGroup from '@mui/material/FormGroup';
@@ -56,6 +57,9 @@ export default function ProductModal(props: Props) {
 }
 
 function ProductForm({ onClose, product, categories, usedColors }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(panelRef, true, onClose);
 
   // Edit Product Constants, prefilled from the product
   const [title, setTitle] = useState(product?.title ?? "");
@@ -120,21 +124,28 @@ function ProductForm({ onClose, product, categories, usedColors }: Props) {
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-      <div className="flex flex-col bg-white p-8 rounded-lg shadow-xl justify-center items-center gap-5 w-[1000px]">
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex flex-col bg-white p-5 md:p-8 rounded-lg shadow-xl items-center gap-5 w-full max-w-[1000px] max-h-full overflow-y-auto"
+      >
 
         {/* Title and Close */}
         <div className="flex justify-between w-full items-center">
           <div className="px-6"/>
-          <h1 className="text-4xl">EDIT PRODUCT</h1>
-          <button onClick={onClose} className="border">Close</button>
+          <h1 id={titleId} className="text-2xl md:text-4xl">EDIT PRODUCT</h1>
+          <button onClick={onClose} className="border px-3 py-1 rounded-full">Close</button>
         </div>
 
         {/* Thumbnail and Form Row */}
-        <div className="flex gap-4  w-full">
+        <div className="flex flex-col md:flex-row gap-4 w-full">
 
           {/* Thumbnail */}
-          <img src={product?.thumbnail ?? undefined} className="h-80 object-cover"/>
+          <img src={product?.thumbnail ?? undefined} alt={product?.title ?? ""} className="h-60 md:h-80 object-cover self-center md:self-start"/>
 
           {/* Form */}
           <div className="flex flex-col w-full gap-3">

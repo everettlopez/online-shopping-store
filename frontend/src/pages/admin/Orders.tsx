@@ -314,7 +314,7 @@ export default function AdminOrders()
           <div className="p-8 flex flex-col gap-5">
             <div className="flex flex-col">
               <p className="text-2xl tracking-wider">ORDER HAS BEEN PLACED</p>
-              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="text-gray-500">{formatDateTime(order.updated_at)}</p>
               <p className="tracking-wider">In order to continue with the ordering process, we must ensure the items in the order are available and ready to be processed.</p>
             </div>
 
@@ -329,7 +329,7 @@ export default function AdminOrders()
           <div className="p-8 flex flex-col gap-5">
             <div className="flex flex-col">
               <p className="text-2xl tracking-wider">PROCESSING ORDER</p>
-              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="text-gray-500">{formatDateTime(order.updated_at)}</p>
               <p className="tracking-wider">We must now update our current order with the proper tracking information such as <strong>tracking number</strong>, <strong>shipping carrier</strong>, as well as <strong>tracking url</strong> for easy tracking.</p>
             </div>
 
@@ -382,7 +382,7 @@ export default function AdminOrders()
           <div className="p-8 flex flex-col gap-5">
             <div className="flex flex-col">
               <p className="text-2xl tracking-wider">ORDER SHIPPED</p>
-              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="text-gray-500">{formatDateTime(order.updated_at)}</p>
             </div>
             <div className="flex flex-col gap-1">
               <p className="tracking-wider">Tracking Number: {order.tracking_number}</p>
@@ -406,7 +406,7 @@ export default function AdminOrders()
           <div className="p-8 flex flex-col gap-5">
             <div className="flex flex-col">
               <p className="text-2xl tracking-wider">ORDER SHIPPED</p>
-              <p className="text-gray-400">{formatDateTime(order.updated_at)}</p>
+              <p className="text-gray-500">{formatDateTime(order.updated_at)}</p>
             </div>
           </div>
         );
@@ -519,10 +519,10 @@ export default function AdminOrders()
     <>
     <AdminNav />
 
-      <div className="flex flex-col max-h-screen max-w-screen p-10 gap-4">
+      <div className="flex flex-col max-h-screen max-w-screen p-4 md:p-10 gap-4">
 
         {/* Orders Table */}
-        <h1 className="text-4xl tracking-wider">ORDERS</h1>
+        <h1 className="text-2xl md:text-4xl tracking-wider">ORDERS</h1>
         <div className="h-fit"> 
           <DataGrid
             rows={rows}
@@ -567,7 +567,7 @@ export default function AdminOrders()
                     <div className="flex justify-evenly items-center py-6">
                       {/* User Information */}
                       <div className="flex flex-col">
-                        <p className="text-gray-400 text-sm tracking-wider">USER</p>
+                        <p className="text-gray-500 text-sm tracking-wider">USER</p>
                         <p>{order.first_name} {order.last_name}</p>
                         <p>{order.user_id == null ? "Guest checkout" : `User ID: ${order.user_id}`}</p>
                         {order.email && <p>{order.email}</p>}
@@ -577,7 +577,7 @@ export default function AdminOrders()
 
                       {/* Shipping */}
                       <div className="flex flex-col">
-                        <p className="text-gray-400 text-sm tracking-wider">SHIPPING</p>
+                        <p className="text-gray-500 text-sm tracking-wider">SHIPPING</p>
                         <OrderAddressLines address={order.shipping_address} />
                       </div>
 
@@ -585,7 +585,7 @@ export default function AdminOrders()
 
                       {/* Billing */}
                       <div className="flex flex-col">
-                        <p className="text-gray-400 text-sm tracking-wider">BILLING</p>
+                        <p className="text-gray-500 text-sm tracking-wider">BILLING</p>
                         <OrderAddressLines address={order.billing_address} />
                       </div>
 
@@ -593,7 +593,7 @@ export default function AdminOrders()
 
                       {/* Payment */}
                       <div className="flex flex-col">
-                        <p className="text-gray-400 text-sm tracking-wider">PAYMENT</p>
+                        <p className="text-gray-500 text-sm tracking-wider">PAYMENT</p>
                         <p>${order.total_amount.toFixed(2)} paid with {paymentMethodLabel(order.payment_method_type)}</p>
                         {order.refunded_amount > 0 && <p>${order.refunded_amount.toFixed(2)} refunded</p>}
                         {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
@@ -618,12 +618,12 @@ export default function AdminOrders()
                           <div key={item.order_item_id} className="flex justify-between w-full p-3 items-center rounded-[10px]">
                             <div className="flex gap-4">
                               {item.product?.thumbnail
-                                ? <img src={item.product.thumbnail} className="w-20 h-20 object-cover border rounded-sm"/>
+                                ? <img src={item.product.thumbnail} alt={item.product.title} className="w-20 h-20 object-cover border rounded-sm"/>
                                 : <div className="w-20 h-20 border rounded-sm bg-gray-100"/>}
                               <div className="flex flex-col">
                                 <p className="text-lg tracking-wider">{item.product?.title ?? "Product no longer available"}</p>
-                                <p className="text-gray-400 tracking-wider">${item.unit_price.toFixed(2)}</p>
-                                <p className="text-gray-400 tracking-wider">Qty: {item.quantity}</p>
+                                <p className="text-gray-500 tracking-wider">${item.unit_price.toFixed(2)}</p>
+                                <p className="text-gray-500 tracking-wider">Qty: {item.quantity}</p>
                               </div>
                             </div>
 

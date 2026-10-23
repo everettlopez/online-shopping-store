@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 
@@ -9,33 +10,35 @@ import Landing from "../pages/Landing";
 import ProductsPage from "../pages/Products";
 import ProductDetailPage from "../pages/ProductDetail";
 import NotFound from "../pages/NotFound";
-import Admin from "../pages/admin/Admin";
 import AccountPage from "../pages/Account";
-import AdminProducts from "../pages/admin/Products";
-import AdminUsers from "../pages/admin/Users";
-import AdminCategories from "../pages/admin/Categories";
 import CartPage from "../pages/Cart";
 import CheckoutPage from "../pages/Checkout";
 import OrderSuccessPage from "../pages/OrderSuccess";
-import OrdersPage from "../pages/orders/Orders";
-import OrderDetailPage from "../pages/orders/OrderDetail";
-import AdminOrdersPage from "../pages/admin/Orders";
 import TrackOrderPage from "../pages/TrackOrder";
-import TrackedOrderPage from "../pages/TrackedOrder";
 import PrivacyPolicy from "../pages/legal/PrivacyPolicy";
 import Terms from "../pages/legal/Terms";
 import ShippingReturns from "../pages/legal/ShippingReturns";
 import Contact from "../pages/legal/Contact";
 import Footer from "../components/Footer";
+import { LoadingState } from "../components/Status";
 
-// TODO: Add routes as needed
+// The pages that use MUI (admin, and the order pages' accordions and progress bars) load
+// on first visit, so shoppers browsing the store don't download MUI
+const Admin = lazy(() => import("../pages/admin/Admin"));
+const AdminProducts = lazy(() => import("../pages/admin/Products"));
+const AdminUsers = lazy(() => import("../pages/admin/Users"));
+const AdminCategories = lazy(() => import("../pages/admin/Categories"));
+const OrdersPage = lazy(() => import("../pages/orders/Orders"));
+const OrderDetailPage = lazy(() => import("../pages/orders/OrderDetail"));
+const AdminOrdersPage = lazy(() => import("../pages/admin/Orders"));
+const TrackedOrderPage = lazy(() => import("../pages/TrackedOrder"));
 
 // Account pages only. Shopping, checkout and order tracking work without an account
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <LoadingState page />;
     // Come back here after logging in
     if(!isAuthenticated) return <Navigate to="/login" state={{ from: location.pathname + location.search }}/>;
 
@@ -53,7 +56,7 @@ function PublicOnlyRoute({children}: {children: React.ReactNode }) {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <LoadingState page />;
     if (isAuthenticated) return <Navigate to={returnPath(location.state)} replace />;
 
     return children;
@@ -62,7 +65,7 @@ function PublicOnlyRoute({children}: {children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
     const { user, isAuthenticated, loading } = useAuth();
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <LoadingState page />;
     if (!isAuthenticated) return <Navigate to="/login" />;
 
     // user.is_admin must come from your JWT payload
@@ -76,6 +79,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 export default function AppRouter() {
     return (
         <BrowserRouter>
+        <Suspense fallback={<LoadingState page />}>
         <Routes>
             {/* Public Routes */}
 
@@ -234,6 +238,7 @@ export default function AppRouter() {
             <Route path="*" element={<NotFound />} />
 
         </Routes>
+        </Suspense>
         <Footer />
         </BrowserRouter>
     );

@@ -10,7 +10,7 @@ interface Props {
 export default function ConfirmDeleteModal({ open, message, onClose, onConfirm }: Props) {
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="bg-white p-6 rounded-lg shadow-xl w-[400px] mx-auto mt-[20vh]">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-[400px] max-w-[calc(100vw-32px)] mx-auto mt-[20vh]">
         <h2 className="text-xl mb-4">Confirm Delete</h2>
 
         <p className="mb-6">{message}</p>

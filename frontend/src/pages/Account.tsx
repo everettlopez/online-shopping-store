@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import Navbar from "../components/Navbar";
+import AccountNav from "../components/AccountNav";
 import { updateEmail, updatePassword, deleteAccount, logoutEverywhere } from "../api/auth";
 import { apiErrorMessage } from "../api/errors";
 
@@ -83,52 +83,33 @@ export default function AccountPage() {
 
       {/* HEADER */}
       <Navbar className="bg-white shadow-xs" />
+      <main>
 
       {/* MAIN CONTENT */}
-      <div className="w-full p-8 flex bg-white gap-10">
+      <div className="w-full max-w-5xl mx-auto px-4 py-6 md:p-8 flex flex-col md:flex-row bg-white gap-6 md:gap-10">
 
-        {/* Account / User Navigation */}
-        <div className="flex flex-col h-screen p-10 gap-4">
+        <AccountNav />
 
-            <div className="flex flex-col items-end">
-                <Link to="/account" className="text-xl tracking-widest">ACCOUNT</Link>
-                <Link to="/" className="tracking-wider">SETTINGS</Link>
-                {user?.is_admin === true ? (
-                        <Link to="/admin">ADMIN</Link>
-                    ) : (
-                        <div>
-                        </div>
-                    )}
-            </div>
-
-            <div className="flex flex-col items-end">
-                <Link to="/orders" className="text-xl tracking-widest">ORDERS</Link>
-                <Link to="/orders" className="tracking-wider">TRACK</Link>
-                <Link to="" className="tracking-wider">HISTORY</Link>
-            </div>
-
-        </div>
-
-        <div className="flex flex-col justify-center w-screen">
+        <div className="flex flex-col flex-1 min-w-0">
           {/* Title */}
-          <h1 className="text-5xl font-light text-center mb-12 tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-light text-center mb-8 md:mb-12 tracking-tight">
             your account.
           </h1>
 
           {/* Profile Card */}
-          <div className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200">
+          <div className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl mb-8 md:mb-12 border border-gray-200">
             <h2 className="text-xl font-medium mb-6 tracking-tight">Profile</h2>
 
             <div className="space-y-2 text-gray-700">
 
               <div className="flex flex-col border rounded-[10px] p-2">
-                <p className="text-sm text-gray-400">Name</p>
+                <p className="text-sm text-gray-500">Name</p>
                 <p className="text-lg">{user?.first_name} {user?.last_name}</p>
               </div>
 
               <div className="flex flex-col border rounded-[10px] p-2">
-                <p className="text-sm text-gray-400">Email</p>
-                <p className="text-lg">{user?.email}</p>
+                <p className="text-sm text-gray-500">Email</p>
+                <p className="text-lg break-all">{user?.email}</p>
               </div>
 
               <p>
@@ -140,7 +121,7 @@ export default function AccountPage() {
             </div>
 
             {/* Logout Buttons */}
-            <div className="mt-6 flex gap-6">
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
               <button
                 onClick={logout}
                 className="text-sm text-gray-500 underline hover:text-black transition"
@@ -163,7 +144,7 @@ export default function AccountPage() {
           {/* Update Email */}
           <form
             onSubmit={handleEmailUpdate}
-            className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200"
+            className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl mb-8 md:mb-12 border border-gray-200"
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Email</h2>
 
@@ -171,7 +152,9 @@ export default function AccountPage() {
 
             <input
               type="email"
+              autoComplete="email"
               placeholder="New email"
+              aria-label="New email"
               className="border p-3 rounded-sm w-full mb-4"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
@@ -181,6 +164,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="Current password"
+              aria-label="Current password"
               className="border p-3 rounded-sm w-full mb-4"
               value={emailPassword}
               onChange={(e) => setEmailPassword(e.target.value)}
@@ -196,7 +180,7 @@ export default function AccountPage() {
           {/* Update Password */}
           <form
             onSubmit={handlePasswordUpdate}
-            className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200"
+            className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl mb-8 md:mb-12 border border-gray-200"
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Password</h2>
 
@@ -205,6 +189,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="Old password"
+              aria-label="Old password"
               className="border p-3 rounded-sm w-full mb-4"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
@@ -215,6 +200,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="New password (at least 8 characters)"
+              aria-label="New password (at least 8 characters)"
               className="border p-3 rounded-sm w-full mb-4"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -229,7 +215,7 @@ export default function AccountPage() {
           </form>
 
           {/* Delete Account */}
-          <div className="bg-white shadow-xs p-8 rounded-2xl text-center border border-gray-200">
+          <div className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl text-center border border-gray-200">
             <Message message={deleteMessage} />
             <button
               onClick={handleDeleteAccount}
@@ -241,6 +227,7 @@ export default function AccountPage() {
         </div>
 
       </div>
+      </main>
     </div>
   );
 }

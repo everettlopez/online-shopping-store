@@ -116,7 +116,8 @@ Everything that identifies a store is a setting, so you run your own store witho
   - `VITE_HERO_HEADLINE` and `VITE_HERO_IMAGE_URL` set the headline and photo at the top.
   - `VITE_BANNER_IMAGE_URL` adds a full-width photo further down.
   - `VITE_EVENTS_URL` adds an Events link and button.
-  - Put your photos in [`frontend/public/custom/`](frontend/public/custom/README.md) (git ignores them) and use `/custom/<file name>`.
+- **Icon and link previews:** `VITE_FAVICON_URL` sets the browser-tab icon (default: a shopping bag). Links shared on social media and in messages preview with the store name, `VITE_STORE_DESCRIPTION` and `VITE_SHARE_IMAGE_URL` (default: the hero photo).
+  - Put your photos (and icon) in [`frontend/public/custom/`](frontend/public/custom/README.md) (git ignores them) and use `/custom/<file name>`.
 - **Categories and products** come from the admin pages. A new store starts with a few example categories, which you can rename or delete.
 
 ### Policy pages

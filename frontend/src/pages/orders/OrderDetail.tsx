@@ -1,75 +1,62 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axios from "axios";
 import axiosClient from "../../api/axiosClient";
-import { useAuth } from "../../context/useAuth";
 
 import Navbar from "../../components/Navbar";
+import AccountNav from "../../components/AccountNav";
+import { EmptyState, ErrorState, LoadingState } from "../../components/Status";
 import OrderView, { type Order } from "../../components/orders/OrderView";
 
 export default function OrderDetails() {
-    const { user } = useAuth();
     const { order_number } = useParams();
-    const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Keyed by the order and attempt it was fetched for, so a new order or "Try again" shows loading
+    const [loaded, setLoaded] = useState<{ key: string; order: Order | null; failed: boolean } | null>(null);
+    const [attempt, setAttempt] = useState(0);
+    const key = `${order_number}|${attempt}`;
 
     useEffect(() => {
-        async function fetchOrder() {
-            try
-            {
-                const response = await axiosClient.get(`/orders/${order_number}`);
-                setCurrentOrder(response.data);
-            }
-            catch (err)
-            {
-                console.error("Failed to load current order: ", err);
-            }
-            finally
-            {
-                setLoading(false);
-            }
-        }
+        if (!order_number) return;
 
-        if (order_number) fetchOrder();
-    }, [order_number]);
+        let cancelled = false;
+        axiosClient.get<Order>(`/orders/${order_number}`)
+            .then((response) => { if (!cancelled) setLoaded({ key, order: response.data, failed: false }); })
+            .catch((err) => {
+                if (cancelled) return;
+                // A 404 is an order that isn't this account's; anything else can be retried
+                const missing = axios.isAxiosError(err) && err.response?.status === 404;
+                if (!missing) console.error("Failed to load current order: ", err);
+                setLoaded({ key, order: null, failed: !missing });
+            });
 
-    if (loading) return <p>Loading order...</p>;
-    if (!currentOrder) return <p>Order not found.</p>;
+        return () => { cancelled = true; };
+    }, [order_number, key]);
+
+    const current = loaded?.key === key ? loaded : null;
 
     return (
         <>
         {/* Header */}
         <Navbar />
+        <main>
 
         {/* Column Setup */}
-        <div className="flex h-screen p-8 gap-5">
+        <div className="flex flex-col md:flex-row px-4 py-6 md:p-8 gap-6">
+            <AccountNav />
 
-            {/* Account / User Navigation */}
-            <div className="flex flex-col h-screen p-10 gap-4">
-
-                <div className="flex flex-col items-end">
-                    <Link to="/account" className="text-xl tracking-widest">ACCOUNT</Link>
-                    <Link to="/" className="tracking-wider">SETTINGS</Link>
-                    {user?.is_admin === true ? (
-                            <Link to="/admin">ADMIN</Link>
-                        ) : (
-                            <div>
-                            </div>
-                        )}
-                </div>
-
-                <div className="flex flex-col items-end">
-                    <Link to="/orders" className="text-xl tracking-widest">ORDERS</Link>
-                    <Link to="/orders" className="tracking-wider">TRACK</Link>
-                    <Link to="" className="tracking-wider">HISTORY</Link>
-                </div>
-
+            <div className="flex flex-col flex-1 min-w-0 h-fit gap-5 bg-gray-100 p-3 sm:p-8 rounded-[10px]">
+                {!current ? (
+                    <LoadingState label="Loading order" />
+                ) : current.order ? (
+                    <OrderView order={current.order} />
+                ) : current.failed ? (
+                    <ErrorState message="We couldn't load this order." onRetry={() => setAttempt((n) => n + 1)} />
+                ) : (
+                    <EmptyState title="We couldn't find that order" action={{ to: "/orders", label: "See your orders" }} />
+                )}
             </div>
-
-            <div className="flex flex-col w-screen h-fit gap-5 bg-gray-100 p-8">
-                <OrderView order={currentOrder} />
-            </div>
-
         </div>
+        </main>
         </>
     );
 }

@@ -39,7 +39,7 @@ function UserForm({ user, onClose, onSave }: Props & { user: AdminUser }) {
 
   return (
     <Modal open onClose={onClose}>
-      <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] mx-auto mt-[15vh] flex flex-col gap-4">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] max-w-[calc(100vw-32px)] mx-auto mt-[15vh] flex flex-col gap-4">
         <h2 className="text-2xl tracking-wider">EDIT USER</h2>
 
         <TextField required label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}/>

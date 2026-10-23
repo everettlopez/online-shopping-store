@@ -64,6 +64,23 @@ def test_me(user_client, user):
     assert "hashed_password" not in body
 
 
+def test_session_returns_the_logged_in_user(user_client, user):
+    response = user_client.get("/api/auth/session")
+
+    assert response.status_code == 200
+    assert response.json()["email"] == user.email
+    assert "hashed_password" not in response.json()
+
+
+def test_session_is_null_for_guests_and_bad_tokens(client):
+    assert client.get("/api/auth/session").json() is None
+
+    # A stale or forged token is a guest too, never an error
+    response = client.get("/api/auth/session", headers={"Authorization": "Bearer not-a-token"})
+    assert response.status_code == 200
+    assert response.json() is None
+
+
 def test_update_email(user_client):
     response = user_client.put("/api/auth/me/email", json={"new_email": "changed@example.com", "current_password": TEST_PASSWORD})
 

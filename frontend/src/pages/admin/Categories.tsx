@@ -128,12 +128,12 @@ export default function AdminCategories() {
         <>
         <AdminNav />
 
-        <div className="p-10 flex flex-col gap-6">
+        <div className="p-4 md:p-10 flex flex-col gap-6">
 
             {/* Create Category */}
             <div className="flex flex-col gap-3">
-                <h1 className="text-4xl tracking-wider">CREATE NEW CATEGORY</h1>
-                <div className="flex gap-2 items-center border rounded-lg p-2">
+                <h1 className="text-2xl md:text-4xl tracking-wider">CREATE NEW CATEGORY</h1>
+                <div className="flex flex-wrap gap-2 items-center border rounded-lg p-2">
                     <TextField required label="Name" value={newName} onChange={(e) => setNewName(e.target.value)}/>
                     <TextField label="Description" className="flex-1" value={newDescription} onChange={(e) => setNewDescription(e.target.value)}/>
                     <button disabled={!newName.trim()} onClick={handleCreate} className="border rounded-full px-5 py-1 disabled:bg-gray-100 disabled:text-gray-400">Create</button>

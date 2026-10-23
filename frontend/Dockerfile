@@ -25,6 +25,10 @@ ARG VITE_HERO_HEADLINE
 ARG VITE_HERO_IMAGE_URL
 ARG VITE_BANNER_IMAGE_URL
 ARG VITE_EVENTS_URL
+# The icon and link previews; VITE_SITE_URL makes the preview image's address absolute
+ARG VITE_FAVICON_URL
+ARG VITE_SHARE_IMAGE_URL
+ARG VITE_SITE_URL
 RUN test -n "$VITE_API_URL" || (echo "Pass --build-arg VITE_API_URL=https://<api host>/api" && exit 1)
 RUN npm run build
 

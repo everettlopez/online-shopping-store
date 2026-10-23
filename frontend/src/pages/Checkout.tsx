@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
-import backIcon from "../assets/backIcon.svg";
 import axiosClient from "../api/axiosClient";
 import { apiErrorMessage } from "../api/errors";
 import Navbar from "../components/Navbar";
+import { LoadingState } from "../components/Status";
 import { useAuth } from "../context/useAuth";
 import { useCart } from "../context/useCart";
 import { getShippingRates, type ShippingRates } from "../api/shipping";
@@ -45,7 +45,7 @@ export default function Checkout() {
 
   const { shippingAddress, billingAddress } = location.state || {};
 
-  if (authLoading || cartLoading) return <p>Loading...</p>;
+  if (authLoading || cartLoading) return <><Navbar /><LoadingState page /></>;
   // Nothing to buy, or a logged-in shopper who came here without picking addresses
   if (items.length === 0 || (isAuthenticated && (!shippingAddress || !billingAddress))) {
     return <Navigate to="/cart" replace />;
@@ -67,15 +67,17 @@ export default function Checkout() {
     <>
     {/* Header */}
     <Navbar />
+    <main>
 
-    <div className="flex text-center items-center gap-3 px-10 py-4">
-        <Link to="/cart" className="flex items-center gap-3">
-            <img src={backIcon} className="w-8 h-8"/>
-            <p className="tracking-wider text-lg">BACK TO CART</p>
+    <div className="flex text-center items-center gap-3 px-4 sm:px-10 py-4">
+        <Link to="/cart" className="flex items-center gap-3 tracking-wider text-lg hover:text-gray-600">
+            <i className="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            BACK TO CART
         </Link>
     </div>
 
-    <div className="flex justify-evenly">
+    {/* Items, then the summary below them on phones; side by side from 1024 px */}
+    <div className="flex flex-col lg:flex-row lg:justify-evenly gap-4 px-1 sm:px-4">
         {/* Left Column */}
         <div className="flex flex-col">
             
@@ -86,12 +88,12 @@ export default function Checkout() {
                     return (
                         <div 
                             key={item.product_id} 
-                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5">
-                                
-                                <img src={mainImage} className="w-40 h-40 object-cover"/>
+                            className="flex items-center border w-full max-w-xl mx-auto p-3 sm:p-5 rounded-[10px] gap-4 sm:gap-5">
 
-                                <div className="flex flex-col">
-                                    <h2 className="w-60 text-xl">{item.product?.title}</h2>
+                                <img src={mainImage} alt={item.product?.title ?? ""} loading="lazy" className="w-24 h-24 sm:w-40 sm:h-40 object-cover shrink-0"/>
+
+                                <div className="flex flex-col min-w-0 flex-1">
+                                    <h2 className="text-lg sm:text-xl break-words">{item.product?.title}</h2>
                                     <p>{item.product?.size}</p>
                                     <p>${item.product?.price.toFixed(2)}{item.quantity > 1 && ` × ${item.quantity}`}</p>
                                 </div>
@@ -105,10 +107,10 @@ export default function Checkout() {
         {/* Right Column */}
         <div className="flex flex-col">
             <div className="flex flex-col p-3 gap-2">
-                <div className="flex flex-col justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-[500px]">
+                <div className="flex flex-col justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-full max-w-[500px]">
                     <h1 className="text-xl">CHECKOUT</h1>
 
-                    <div className="flex flex-col w-full gap-1 px-10">
+                    <div className="flex flex-col w-full gap-1 sm:px-10">
                         <div className="flex justify-between">
                             <p>Subtotal</p>
                             <p>{dollars(subtotalCents)}</p>
@@ -133,12 +135,12 @@ export default function Checkout() {
                     </div>
 
                     {!isAuthenticated && (
-                        <p className="text-sm text-gray-500 text-center px-10">
+                        <p className="text-sm text-gray-500 text-center sm:px-10">
                             You'll enter your email, shipping and billing address on the secure payment page.
                         </p>
                     )}
 
-                    {checkoutError && <p className="text-center text-sm text-red-600">{checkoutError}</p>}
+                    {checkoutError && <p role="alert" className="text-center text-sm text-red-600">{checkoutError}</p>}
 
                     <button
                         onClick={handlePlaceOrder}
@@ -147,6 +149,7 @@ export default function Checkout() {
             </div>
         </div>
     </div>
+    </main>
     </>
   );
 }

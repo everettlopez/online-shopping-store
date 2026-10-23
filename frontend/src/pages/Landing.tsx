@@ -36,6 +36,7 @@ function Landing() {
         <>
         {/* Header */}
         <Navbar />
+        <main>
 
         
         {/* Hero Section */}
@@ -106,6 +107,7 @@ function Landing() {
             </div>
         </div>
 
+        </main>
         </>
     );
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { apiErrorMessage } from "../api/errors";
 import { useNavigate, useLocation, Link } from  "react-router-dom";
-import backIcon from "../assets/backIcon.svg";
+import { AuthCard, TextField } from "../components/AuthCard";
 
 
 function Register() {
@@ -36,70 +36,24 @@ function Register() {
     };
 
     return (
-        <>
-        {/* Register Frame */}
-        <div className="min-h-screen flex justify-center items-center bg-gray-100">
-
-            <div className="relative">
-                <div className="absolute right-full top-0 mr-6 p-5">
-                <Link to="/" className="flex items-center gap-2">
-                    <img src={backIcon} className="h-6 w-6"/>
-                    <p className="text-lg tracking-wider">BACK</p>
-                </Link>
+        <AuthCard title="Create New Account" backTo="/">
+            <form onSubmit={handleRegister} className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                    <TextField label="First Name" placeholder="Jane" autoComplete="given-name" required
+                        value={firstName} onChange={setFirstName} />
+                    <TextField label="Last Name" placeholder="Doe" autoComplete="family-name" required
+                        value={lastName} onChange={setLastName} />
+                    <TextField label="Email" type="email" placeholder="you@example.com" autoComplete="email" required
+                        value={email} onChange={setEmail} />
+                    <TextField label="Password" type="password" placeholder="at least 8 characters" autoComplete="new-password"
+                        minLength={8} required value={password} onChange={setPassword} />
                 </div>
 
-            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
-                <h1 className="text-4xl">Create New Account</h1>
-
-                <form onSubmit={handleRegister}>
-
-                    <div className="flex flex-col gap-5">
-
-                        <div className="flex flex-col gap-2">
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">First Name</label>
-                                <input type="text" placeholder="Jane"
-                                    value={firstName}
-                                    onChange = {(e) => setFirstName(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0"/>
-                            </div>
-
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">Last Name</label>
-                                <input type="text" placeholder="Doe"
-                                    value={lastName}
-                                    onChange = {(e) => setLastName(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">Email</label>
-                                <input type="text" placeholder="you@example.com"
-                                    value={email}
-                                    onChange = {(e) => setEmail(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">Password</label>
-                                <input type="password" placeholder="at least 8 characters"
-                                    value={password}
-                                    minLength={8}
-                                    required
-                                    onChange = {(e) => setPassword(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-                        </div>
-
-                        <button type="submit" className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Register</button>
-                        {message && <p className="text-center text-sm">{message}</p>}
-                        <Link to="/login" className="flex justify-center items-center ">Already Have An Account? Sign In</Link>
-                    </div>
-                </form>
-            </div>
-            </div>
-        </div>
-        </>
+                <button type="submit" className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Register</button>
+                {message && <p role="status" className="text-center text-sm">{message}</p>}
+                <Link to="/login" state={state} className="flex justify-center items-center underline">Already have an account? Sign in</Link>
+            </form>
+        </AuthCard>
     );
 
 }
