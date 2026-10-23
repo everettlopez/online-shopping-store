@@ -23,6 +23,8 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# No other site may show these pages in a frame (clickjacking)
 		X-Frame-Options "DENY"
+		# Browser features the store never uses stay off, even for a script that sneaks in
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		-Server
 	}
 }
@@ -32,10 +34,13 @@
 	# Which sources the storefront may load from. CSP_HEADER starts as
 	# Content-Security-Policy-Report-Only, so violations only show in the browser
 	# console; once the console is clean, set it to Content-Security-Policy in
-	# deploy/.env to enforce it. MUI adds inline styles, hence 'unsafe-inline' for styles.
-	header {$CSP_HEADER:Content-Security-Policy-Report-Only} "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://{$API_DOMAIN}; connect-src 'self' https://{$API_DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+	# deploy/.env to enforce it. Browsers also send each violation to the API's
+	# /api/csp-report, which logs it ("csp violation" in the API's logs), so you can
+	# see what enforcing would block before you do. MUI adds inline styles, hence
+	# 'unsafe-inline' for styles.
+	header {$CSP_HEADER:Content-Security-Policy-Report-Only} "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://{$API_DOMAIN}; connect-src 'self' https://{$API_DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; report-uri https://{$API_DOMAIN}/api/csp-report"
 	encode zstd gzip
-	reverse_proxy web:80
+	reverse_proxy web:8080
 }
 
 www.{$STORE_DOMAIN} {

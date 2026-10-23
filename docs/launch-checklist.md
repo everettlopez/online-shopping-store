@@ -39,7 +39,7 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
 
 ## 3. Check it by hand
 
-Use a normal browser window unless a step says otherwise. Keep the browser's console open (F12) throughout and note any `Content-Security-Policy` messages for step 4.
+Use a normal browser window unless a step says otherwise. Keep the browser's console open (F12) throughout and note any `Content-Security-Policy` messages for step 4. Browsers also send each policy violation to the API, which logs it, so step 4 can check every visitor's browser, not only yours.
 
 **Storefront**
 - [ ] The header, page title and footer show your store's name; the policy and contact pages show your details, with no `example.com` or blank spots.
@@ -77,7 +77,12 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 
 ## 4. Lock it down
 
-- [ ] If the console showed no `Content-Security-Policy` messages, set `CSP_HEADER=Content-Security-Policy` in `deploy/.env`, run `docker compose -f deploy/docker-compose.yml up -d`, and click through the store, checkout and the admin pages once more. If something breaks, set it back to `Content-Security-Policy-Report-Only` and note what the console reports.
+- [ ] After a few days of real visitors, check what the policy would block:
+  ```bash
+  docker compose -f deploy/docker-compose.yml logs --since 72h api | grep "csp violation"
+  ```
+  Each line names the rule (`directive=`), what it blocked and on which page. Lines blocking browser extensions (`blocked=chrome-extension` and similar) are harmless; anything blocking the store's own pages, Stripe or your image host needs fixing first.
+- [ ] If the log and your console showed no `Content-Security-Policy` problems, set `CSP_HEADER=Content-Security-Policy` in `deploy/.env`, run `docker compose -f deploy/docker-compose.yml up -d`, and click through the store, checkout and the admin pages once more. If something breaks, set it back to `Content-Security-Policy-Report-Only` and note what the console reports.
 - [ ] Run `sh deploy/check.sh` again: all PASS, with no WARN.
 
 ## 5. Keep watch
