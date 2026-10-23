@@ -4,7 +4,9 @@ item sold twice, a webhook that failed, a Stripe error, a server error.
 Each alert has a key naming the problem; repeats of a key within 15 minutes are held
 back, so a problem that happens on every request sends one email, not hundreds. Like
 the rate limits, this is kept in the process's memory, so each uvicorn worker holds
-back its own repeats. Run `python -m app.alerts` to send a test alert.
+back its own repeats. Run `python -m app.alerts` to send a test alert, or
+`python -m app.alerts "Subject" "First line" ...` to send one from a script
+(deploy/backup.sh does when a backup fails).
 """
 import logging
 import sys
@@ -55,15 +57,20 @@ def alert_admin(key: str, subject: str, details: list[str], background_tasks: Ba
     return True
 
 
-def main() -> int:
+def main(args: list[str] | None = None) -> int:
+    """With no arguments, a test alert; otherwise the subject and then its lines."""
+    args = sys.argv[1:] if args is None else args
     if not alert_email():
         print("ALERT_EMAIL is not set, so there's nowhere to send alerts.")
         return 1
-    message = build_alert_email(alert_email(), "Test alert", ["This is a test. Alerts from your store will arrive like this."])
-    if not send_email(message):
-        print("Sending the test alert failed; the error is above.")
+    if args:
+        subject, details = args[0], args[1:]
+    else:
+        subject, details = "Test alert", ["This is a test. Alerts from your store will arrive like this."]
+    if not send_email(build_alert_email(alert_email(), subject, details)):
+        print("Sending the alert failed; the error is above.")
         return 1
-    print(f"Sent a test alert to {alert_email()}. If it doesn't arrive, check Resend's email log.")
+    print(f"Sent \"{subject}\" to {alert_email()}. If it doesn't arrive, check Resend's email log.")
     return 0
 
 

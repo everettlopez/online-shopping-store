@@ -104,7 +104,7 @@ jobs:
       # The production stack's compose file and Caddyfile parse with the example settings
       - run: cp deploy/.env.example deploy/.env && touch deploy/.env.api
       - run: docker compose -f deploy/docker-compose.yml config --quiet
-      - run: shellcheck docker/start-api.sh deploy/check.sh
+      - run: shellcheck docker/start-api.sh deploy/check.sh deploy/backup.sh
       - run: >
           docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro"
           -e STORE_DOMAIN=shop.example.com -e API_DOMAIN=api.shop.example.com -e ACME_EMAIL=you@example.com

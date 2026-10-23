@@ -21,7 +21,7 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
   ```bash
   git tag "deploy-$(date +%Y%m%d-%H%M)" && git push --tags
   ```
-- [ ] Back up the database (a managed database: take a manual backup or snapshot; MySQL on the server: the `mysqldump` command in [hosting.md](hosting.md#mysql-on-the-server)).
+- [ ] Back up the store: `sh deploy/backup.sh` (the database and the product images; see [hosting.md](hosting.md#running-the-store)).
 - [ ] Start or update the store:
   ```bash
   docker compose -f deploy/docker-compose.yml up -d --build
@@ -84,8 +84,9 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 
 - [ ] `ALERT_EMAIL` is set in `deploy/.env.api`, and `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts` delivers a test alert to that inbox.
 - [ ] An uptime monitor checks `https://<API_DOMAIN>/api/health` and the storefront and alerts you (for example UptimeRobot or Better Stack).
-- [ ] Backups: the managed database shows automatic backups, or a nightly `mysqldump` job copies off the server. Product images are covered by server snapshots or a regular copy of the uploads volume ([hosting.md](hosting.md#running-the-store)).
-- [ ] You've practiced a restore once (for example, restore yesterday's backup into a new managed database and look at it), so you know it works before you need it.
+- [ ] Backups: `sh deploy/backup.sh` succeeds, `BACKUP_REMOTE` copies each backup off the server (check the bucket), and the nightly cron job is in `crontab -l` ([hosting.md](hosting.md#running-the-store)). A managed database also shows its own automatic backups.
+- [ ] A failed backup reaches you: with `ALERT_EMAIL` set, temporarily set `BACKUP_REMOTE=missing:nowhere` in `deploy/.env`, run `sh deploy/backup.sh`, and check that the "Backup failed" alert arrives. Then put the setting back.
+- [ ] You've practiced a restore once, before you have customers: `sh deploy/backup.sh --restore <date_time>` with the backup you just made, then look around the store. Products, images and accounts should be as they were.
 - [ ] You know where to look when something goes wrong: `docker compose -f deploy/docker-compose.yml logs`, Stripe's webhook deliveries, Resend's email log, and [Troubleshooting](hosting.md#troubleshooting).
 
 The store is live.
@@ -94,7 +95,7 @@ The store is live.
 
 ## After every deploy
 
-- [ ] Before: tag the version (step 1), and back up the database if the update adds files to `alembic/versions/`.
+- [ ] Before: tag the version (step 1), and run `sh deploy/backup.sh` if the update adds files to `alembic/versions/`.
 - [ ] `docker compose -f deploy/docker-compose.yml up -d --build`
 - [ ] `sh deploy/check.sh`: all PASS.
 - [ ] Log in, add something to the cart and open checkout (stop before paying).
@@ -111,5 +112,5 @@ If an update breaks the store and a quick fix isn't obvious, go back to the last
    docker compose -f deploy/docker-compose.yml up -d --build
    sh deploy/check.sh
    ```
-3. The database normally stays as it is. Migrations so far only add tables and columns, which older code ignores. Restore the backup from before the update only if the update damaged data. A restore loses orders placed since the backup, so check Stripe for payments made in between.
+3. The database normally stays as it is. Migrations so far only add tables and columns, which older code ignores. Restore the backup from before the update (`sh deploy/backup.sh --restore <date_time>`) only if the update damaged data. A restore loses orders placed since the backup, so check Stripe for payments made in between.
 4. Fix the problem on a branch, then deploy again with the checklist above. Run `git checkout main` before pulling new versions.
