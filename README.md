@@ -63,7 +63,7 @@ From the project root:
 python -m venv venv
 venv\Scripts\activate      # Windows
 source venv/bin/activate   # macOS/Linux
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # the app, plus the tests and auto-reload
 ```
 
 Then create or update the database tables with Alembic (it reads `DATABASE_URL` from `.env`):
@@ -124,7 +124,7 @@ Everything that identifies a store is a setting, so you run your own store witho
 The storefront has Privacy Policy, Terms of Service, Shipping & Returns and Contact pages (`/privacy`, `/terms`, `/shipping-returns`, `/contact`), linked from the footer and filled in from the settings above. **Their wording is a general starting point, not legal advice.** Read them and have them reviewed for your business before you take real orders. If you have your own policies (from a lawyer or a policy service), set `VITE_PRIVACY_POLICY_URL`, `VITE_TERMS_URL` and `VITE_SHIPPING_POLICY_URL`, and the footer links there instead. Stripe expects a live store to show a refund policy and a way to contact you.
 
 ## Deployment
-The quickest way to run a live store is the deploy kit in `deploy/`: one server running the API, the storefront and [Caddy](https://caddyserver.com) (which gets HTTPS certificates and adds security headers) with Docker Compose. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and both images, and checks the kit's files on every push and pull request.
+The quickest way to run a live store is the deploy kit in `deploy/`: one server running the API, the storefront and [Caddy](https://caddyserver.com) (which gets HTTPS certificates and adds security headers) with Docker Compose. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and both images, and checks the kit's files on every push and pull request. It also runs the migrations on MySQL 8.4 (up, a model check, down and up again), audits the Python and npm dependencies and both images for known vulnerabilities, scans the history for committed secrets and lints the shell scripts.
 
 ### Host your store on a server
 **[docs/hosting.md](docs/hosting.md)** walks through the whole setup on any Linux server (a VPS with at least 2 GB of RAM), using only settings files:
