@@ -7,6 +7,8 @@ interface ProductFiltersProps {
     canClear: boolean;
     onChange: (filters: ProductFilterState) => void;
     onClear: () => void;
+    // In the phone drawer, which has its own title and frame
+    inDrawer?: boolean;
 }
 
 const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
@@ -16,7 +18,7 @@ const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
     { value: "price-desc", label: "Price: high to low" },
 ];
 
-export default function ProductFilters({ filters, sizeOptions, colorOptions, canClear, onChange, onClear }: ProductFiltersProps) {
+export default function ProductFilters({ filters, sizeOptions, colorOptions, canClear, onChange, onClear, inDrawer = false }: ProductFiltersProps) {
 
     function toggle(group: "sizes" | "colors", value: string) {
         const selected = filters[group];
@@ -47,9 +49,9 @@ export default function ProductFilters({ filters, sizeOptions, colorOptions, can
     }
 
     return (
-        <aside className="border rounded-2xl flex flex-col gap-6 p-6 w-60 shrink-0 self-start">
-            <div className="flex items-center justify-between">
-                <h2 className="text-lg tracking-widest">FILTER</h2>
+        <aside className={inDrawer ? "flex flex-col gap-6" : "hidden md:flex border rounded-2xl flex-col gap-6 p-6 w-60 shrink-0 self-start"}>
+            <div className={`flex items-center ${inDrawer ? "justify-end" : "justify-between"}`}>
+                {!inDrawer && <h2 className="text-lg tracking-widest">FILTER</h2>}
                 <button
                     onClick={onClear}
                     disabled={!canClear}

@@ -7,6 +7,8 @@ import ForgotPassword from "../pages/ForgotPassword";
 import ResetPassword from "../pages/ResetPassword";
 import Landing from "../pages/Landing";
 import ProductsPage from "../pages/Products";
+import ProductDetailPage from "../pages/ProductDetail";
+import NotFound from "../pages/NotFound";
 import Admin from "../pages/admin/Admin";
 import AccountPage from "../pages/Account";
 import AdminProducts from "../pages/admin/Products";
@@ -136,6 +138,8 @@ export default function AppRouter() {
                 }
             />
 
+            <Route path="/products/:id" element={<ProductDetailPage />} />
+
             <Route
                 path="/admin"
                 element={
@@ -225,6 +229,9 @@ export default function AppRouter() {
                         <OrderDetailPage />
                     </ProtectedRoute>
                 }/>
+
+            {/* Anything else */}
+            <Route path="*" element={<NotFound />} />
 
         </Routes>
         <Footer />

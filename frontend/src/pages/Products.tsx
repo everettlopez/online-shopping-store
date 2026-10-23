@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import { useCategories } from "../context/useCategories";
-import UserProductDetailModal from "../components/products/UserProductDetailModal";
+import Drawer from "../components/Drawer";
 import Navbar from "../components/Navbar";
 import ProductCard from "../components/products/ProductCard";
 import ProductFilters from "../components/products/ProductFilters";
-import { applyProductFilters, defaultProductFilters, filterOptions, hasActiveFilters, type ProductFilterState } from "../utils/productFilters";
+import { activeFilterCount, applyProductFilters, defaultProductFilters, filterOptions, filtersFromParams, hasActiveFilters, paramsWithFilters, type ProductFilterState } from "../utils/productFilters";
 
 export interface Product {
   product_id: number;
@@ -30,10 +30,10 @@ export default function Products() {
     // Products are tagged with the URL query they were fetched for, so switching
     // categories never shows the previous category's products under the new heading
     const [loaded, setLoaded] = useState<{ key: string; products: Product[] } | null>(null);
-    const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const closeFilters = useCallback(() => setFiltersOpen(false), []);
 
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { categories, loading: loadingCategories } = useCategories();
 
     const categoryParam = searchParams.get("category");
@@ -46,12 +46,14 @@ export default function Products() {
     const loadingProducts = loaded?.key !== productsKey;
     const products = useMemo(() => (loaded?.key === productsKey ? loaded.products : []), [loaded, productsKey]);
 
-    // Filters belong to the URL query they were set on, so switching categories resets them
+    // Filters are kept in the URL query, so the header's links (which carry none) reset them
+    // and coming back from a product page restores them. Replacing, not pushing, keeps each
+    // tick or keystroke out of the browser history.
     const defaultSort = isNewArrivals ? "newest" : "featured";
-    const [filterState, setFilterState] = useState<{ key: string; filters: ProductFilterState } | null>(null);
-    const defaultFilters = useMemo(() => defaultProductFilters(defaultSort), [defaultSort]);
-    const filters = filterState?.key === productsKey ? filterState.filters : defaultFilters;
-    const setFilters = (next: ProductFilterState) => setFilterState({ key: productsKey, filters: next });
+    const filters = useMemo(() => filtersFromParams(searchParams, defaultSort), [searchParams, defaultSort]);
+    const setFilters = (next: ProductFilterState) =>
+        setSearchParams(paramsWithFilters(searchParams, next, defaultSort), { replace: true });
+    const filterCount = activeFilterCount(filters);
 
     const sizeOptions = useMemo(() => filterOptions(products, "size"), [products]);
     const colorOptions = useMemo(() => filterOptions(products, "color"), [products]);
@@ -88,9 +90,9 @@ export default function Products() {
         <Navbar />
 
         {/* Main */}
-        <div className="flex gap-2 p-8">
+        <div className="flex gap-6 px-4 pb-8 md:p-8">
             
-            {/* Filter Section */}
+            {/* Filter Section: a sidebar from 768 px, a drawer below */}
             <ProductFilters
                 filters={filters}
                 sizeOptions={sizeOptions}
@@ -101,8 +103,19 @@ export default function Products() {
             />
 
             {/* Products Grid */}
-            <div className="flex flex-col gap-4 flex-1">
-            <h2 className="text-2xl tracking-widest">{categoryNotFound ? "CATEGORY NOT FOUND" : heading}</h2>
+            <div className="flex flex-col gap-4 flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-4">
+                <h2 className="text-xl md:text-2xl tracking-widest">{categoryNotFound ? "CATEGORY NOT FOUND" : heading}</h2>
+                {!categoryNotFound && (
+                    <button
+                        onClick={() => setFiltersOpen(true)}
+                        aria-expanded={filtersOpen}
+                        className="md:hidden shrink-0 border rounded-full px-4 py-1 text-sm tracking-widest"
+                    >
+                        FILTER{filterCount > 0 && ` (${filterCount})`}
+                    </button>
+                )}
+            </div>
 
             {categoryNotFound ? (
                 <p className="tracking-wider text-gray-500">
@@ -115,16 +128,9 @@ export default function Products() {
             ) : !loadingProducts && visibleProducts.length === 0 ? (
                 <p className="tracking-wider text-gray-500">No products match these filters.</p>
             ) : (
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {visibleProducts.map((product) => (
-                    <ProductCard
-                        key={product.product_id}
-                        product={product}
-                        onClick={() => {
-                            setIsProductDetailModalOpen(true);
-                            setSelectedProduct(product);
-                        }}
-                    />
+                    <ProductCard key={product.product_id} product={product} />
                 ))}
             </div>
             )}
@@ -132,10 +138,26 @@ export default function Products() {
 
         </div>
 
-        <UserProductDetailModal 
-            isOpen={isProductDetailModalOpen}
-            product={selectedProduct}
-            onClose={() => setIsProductDetailModalOpen(false)}/>
+        <Drawer
+            open={filtersOpen}
+            onClose={closeFilters}
+            title="FILTER"
+            footer={
+                <button onClick={closeFilters} className="w-full bg-black text-white rounded-full py-2 tracking-widest">
+                    SHOW {visibleProducts.length} {visibleProducts.length === 1 ? "ITEM" : "ITEMS"}
+                </button>
+            }
+        >
+            <ProductFilters
+                inDrawer
+                filters={filters}
+                sizeOptions={sizeOptions}
+                colorOptions={colorOptions}
+                canClear={hasActiveFilters(filters, defaultSort)}
+                onChange={setFilters}
+                onClear={() => setFilters(defaultProductFilters(defaultSort))}
+            />
+        </Drawer>
 
         </>
     );
