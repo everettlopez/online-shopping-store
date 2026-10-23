@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 import stripe
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.models.cart import CartItem
@@ -1000,17 +1001,38 @@ def alerts_sent(sent_emails):
     return [m for m in sent_emails if m.to == "owner@shop.example"]
 
 
-def test_oversold_items_alert_the_owner_once(send_webhook, session, shopper, make_product, owner, sent_emails, caplog):
+def test_every_oversold_order_alerts_the_owner(send_webhook, session, shopper, make_product, owner, sent_emails, caplog):
     user, shipping, billing = shopper
     product = make_product(title="Denim Jacket", stock_quantity=1)
+    first = checkout_session(user, shipping, billing, items=[(product, 3)], session_id="cs_1")
 
-    send_webhook(checkout_session(user, shipping, billing, items=[(product, 3)], session_id="cs_1"))
+    send_webhook(first)
+    send_webhook(first)   # Stripe redelivers: same order, no new alert
     send_webhook(checkout_session(user, shipping, billing, items=[(product, 1)], session_id="cs_2"))
 
-    [alert] = alerts_sent(sent_emails)
-    assert alert.subject == "[Online Store alert] Oversold: Denim Jacket"
-    assert "paid for 3 of Denim Jacket" in alert.text and "only 1 were left" in alert.text
+    alerts = alerts_sent(sent_emails)
+    numbers = [o.order_number for o in session.exec(select(Order).order_by(Order.order_id)).all()]
+    assert [a.subject for a in alerts] == ["[Online Store alert] Oversold: Denim Jacket"] * 2
+    assert f"Order {numbers[0]} paid for 3 of Denim Jacket" in alerts[0].text and "only 1 were left" in alerts[0].text
+    assert f"Order {numbers[1]} paid for 1" in alerts[1].text
     assert f"oversold product_id={product.product_id} stock=1" in caplog.text
+
+
+def test_oversold_alert_waits_for_the_order_to_be_saved(session, shopper, make_product, owner, sent_emails, monkeypatch):
+    from fastapi import BackgroundTasks
+    from app.routes import payments
+
+    user, shipping, billing = shopper
+    product = make_product(stock_quantity=1)
+    def lose_the_race(*args, **kwargs):
+        raise IntegrityError("INSERT", {}, Exception("duplicate stripe_session_id"))
+    monkeypatch.setattr(session, "commit", lose_the_race)
+    monkeypatch.setattr(payments, "already_fulfilled", lambda *args: None)
+    tasks = BackgroundTasks()
+
+    payments.fulfill_checkout(session, checkout_session(user, shipping, billing, items=[(product, 3)]), tasks)
+
+    assert tasks.tasks == []
 
 
 def test_deleted_product_in_a_paid_order_alerts_the_owner(send_webhook, session, shopper, owner, sent_emails):

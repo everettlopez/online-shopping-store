@@ -26,12 +26,16 @@ def configure_logging():
         handler.setFormatter(logging.Formatter(LOG_FORMAT))
         root.addHandler(handler)
     root.setLevel(level)
+    # Records from loggers with their own level (uvicorn's) skip the root's level
+    handler.setLevel(level)
 
     # The startup schema check runs Alembic, which reports every plugin it loads
     logging.getLogger("alembic").setLevel(logging.DEBUG if level == "DEBUG" else logging.WARNING)
 
-    # Uvicorn sets up its own handlers before importing the app; route them through ours
+    # Uvicorn sets up its own handlers and levels before importing the app; route them
+    # through ours, at LOG_LEVEL
     for name in UVICORN_LOGGERS:
         uvicorn_logger = logging.getLogger(name)
         uvicorn_logger.handlers.clear()
+        uvicorn_logger.setLevel(logging.NOTSET)
         uvicorn_logger.propagate = True

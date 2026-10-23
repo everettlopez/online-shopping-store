@@ -93,6 +93,9 @@ def root_logger():
     level = root.level
     yield root
     root.setLevel(level)
+    for handler in root.handlers:
+        if getattr(handler, "_store_handler", False):
+            handler.setLevel(level)
 
 
 def test_logging_has_one_format_for_the_app_and_uvicorn(root_logger, monkeypatch):
@@ -109,6 +112,19 @@ def test_logging_has_one_format_for_the_app_and_uvicorn(root_logger, monkeypatch
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         assert logging.getLogger(name).handlers == []
         assert logging.getLogger(name).propagate
+
+
+def test_log_level_quiets_uvicorn_too(root_logger, monkeypatch):
+    # Uvicorn sets its loggers to INFO before the app is imported
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    monkeypatch.setenv("LOG_LEVEL", "WARNING")
+
+    configure_logging()
+
+    [ours] = [h for h in root_logger.handlers if getattr(h, "_store_handler", False)]
+    access = logging.getLogger("uvicorn.access")
+    assert not access.isEnabledFor(logging.INFO)
+    assert ours.level == logging.WARNING
 
 
 def test_a_bad_log_level_falls_back_to_info(root_logger, monkeypatch):

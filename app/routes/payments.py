@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import Session, select
 import stripe
@@ -364,7 +365,8 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
         # the response, since background tasks don't run after an error
         object_id = getattr(stripe_object, "id", None)
         logger.exception("webhook failed event=%s object=%s", event_type, object_id)
-        alert_admin(f"webhook-{event_type}", "A Stripe webhook failed", [
+        # In a thread: sending the email must not hold up this worker's other requests
+        await run_in_threadpool(alert_admin, f"webhook-{event_type}", "A Stripe webhook failed", [
             f"The store couldn't process a {event_type} event ({object_id}): {e!r}",
             "Stripe retries it automatically. If the order or refund doesn't show up in the admin pages, "
             "check the API's logs and the webhook's deliveries in the Stripe Dashboard.",
@@ -566,14 +568,18 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     except (IntegrityError, OperationalError):
         return already_fulfilled(session, stripe_session.id)
 
+    # Problems with this order for the owner, sent once the order is saved. Keyed per
+    # order: every order that hit one needs someone to act on it
+    alerts = []
+
     for product_id, quantity, unit_cents in purchased:
         product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
         if not product:
             logger.warning("purchased product no longer exists product_id=%s order_id=%s", product_id, order.order_id)
-            alert_admin(f"missing-product-{product_id}", "An order has an item that no longer exists", [
-                f"Order {order.order_number} (id {order.order_id}) paid for product {product_id}, which has been deleted.",
+            alerts.append((f"missing-product-{order.order_number}-{product_id}", "An order has an item that no longer exists", [
+                f"Order {order.order_number} paid for product {product_id}, which has been deleted.",
                 "The order was saved without it. Refund that item, or contact the customer.",
-            ], background_tasks)
+            ]))
             continue
 
         session.add(OrderItem(
@@ -590,12 +596,12 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         else:
             logger.warning("oversold product_id=%s stock=%s order_id=%s quantity=%s",
                            product_id, product.stock_quantity, order.order_id, quantity)
-            alert_admin(f"oversold-{product_id}", f"Oversold: {product.title}", [
-                f"Order {order.order_number} (id {order.order_id}) paid for {quantity} of {product.title} "
+            alerts.append((f"oversold-{order.order_number}-{product_id}", f"Oversold: {product.title}", [
+                f"Order {order.order_number} paid for {quantity} of {product.title} "
                 f"(product {product_id}), but only {product.stock_quantity} were left.",
                 "Another shopper bought it at the same time. Refund the order (or the missing items), "
                 "or contact the customer.",
-            ], background_tasks)
+            ]))
             product.stock_quantity = 0
         session.add(product)
 
@@ -620,6 +626,9 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     session.refresh(order)
 
     logger.info("order created order_id=%s status=%s", order.order_id, order.status)
+
+    for key, subject, details in alerts:
+        alert_admin(key, subject, details, background_tasks)
 
     # Sent after the response, so neither Stripe nor the shopper waits on the email
     # provider. Unpaid (pending) orders get no confirmation

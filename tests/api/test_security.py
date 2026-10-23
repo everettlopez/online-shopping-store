@@ -100,6 +100,13 @@ def test_tokens_are_not_logged(client, user, auth_headers, capsys, caplog):
     assert headers["Authorization"].removeprefix("Bearer ") not in output.out + output.err + caplog.text
 
 
+def test_database_errors_leave_out_row_values():
+    from app.db.session import engine
+
+    # Errors are logged with tracebacks, which would otherwise show customers' details
+    assert engine.hide_parameters
+
+
 def test_sql_is_not_logged_by_default():
     from app.db.session import engine
 
