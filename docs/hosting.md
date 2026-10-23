@@ -223,6 +223,7 @@ To put Cloudflare's proxy (orange cloud) in front of the server:
 ## Troubleshooting
 
 - **No HTTPS certificate / "connection refused":** check that the DNS records point at the server (`dig +short shop.example.com`), that ports 80 and 443 are open, and look at `docker compose -f deploy/docker-compose.yml logs caddy`. Let's Encrypt limits repeated failures, so fix the cause before retrying many times.
+- **Nothing answers after `up -d`, but the containers exist:** Caddy starts only once the API and the storefront report healthy, so a broken API keeps the whole site offline. `docker compose -f deploy/docker-compose.yml ps` shows which one isn't healthy, and its logs say why.
 - **The API keeps restarting:** `docker compose -f deploy/docker-compose.yml logs api` shows why. Usually it's a setting the API checks at startup: the log line starting `Invalid configuration:` names each one (see the production rules at the end of step 6). Otherwise it's the database: a wrong `DATABASE_URL`, the server not in the database's trusted sources, or a missing `deploy/certs/db-ca.crt`.
 - **Logging in doesn't stick:** `CORS_ORIGINS` must list the storefront's exact address (with `https://`), `COOKIE_SAMESITE` should be `lax`, and both sites must share a domain.
 - **Checkout fails:** the API logs say why. Common causes: Stripe Tax isn't set up (or set `STRIPE_AUTOMATIC_TAX=false`), or a test key is used with live mode.

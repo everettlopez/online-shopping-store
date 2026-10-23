@@ -88,9 +88,19 @@ services:
       # Certificates; losing them means asking Let's Encrypt again, which is rate limited
       - caddy_data:/data
       - caddy_config:/config
+    # Both images have health checks; Caddy starts once they pass, so the first
+    # visitors don't get 502s while the API migrates and starts
     depends_on:
-      - api
-      - web
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      # Caddy's admin API answers only inside the container
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     logging: *logging
 
@@ -110,7 +120,8 @@ services:
     volumes:
       - mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      # The password goes in MYSQL_PWD, not on mysqladmin's command line where ps shows it
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u root --silent"]
       interval: 10s
       timeout: 5s
       retries: 10

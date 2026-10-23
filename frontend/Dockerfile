@@ -32,9 +32,13 @@ ARG VITE_SITE_URL
 RUN test -n "$VITE_API_URL" || (echo "Pass --build-arg VITE_API_URL=https://<api host>/api" && exit 1)
 RUN npm run build
 
-FROM nginx:1.29-alpine
+# nginx that runs as an ordinary user (uid 101), listening on 8080
+FROM nginxinc/nginx-unprivileged:1.29-alpine
 # The image's Alpine packages often lag fixes that are already published; take them
+USER root
 RUN apk upgrade --no-cache
+USER nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s     CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1

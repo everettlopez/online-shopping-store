@@ -34,6 +34,10 @@ updates:
       # Matches the Node version the storefront builds with (24, the LTS release)
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # Font Awesome 7 changes icon sizes and widths; move to it deliberately and
+      # check every page's icons
+      - dependency-name: "@fortawesome/fontawesome-free"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories: ["/", "/frontend"]

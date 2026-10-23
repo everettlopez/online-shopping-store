@@ -161,8 +161,9 @@ def password_reset_minutes() -> int:
 
 # Requests per minute each client may make to a group of endpoints (app/rate_limit.py).
 # AUTH: login, register, forgot and reset password. LOOKUP: finding orders without an
-# account. CHECKOUT: opening Stripe Checkout sessions. 0 turns a limit off.
-DEFAULT_RATE_LIMITS = {"auth": 10, "lookup": 20, "checkout": 20}
+# account. CHECKOUT: opening Stripe Checkout sessions. REPORTS: browsers' CSP violation
+# reports. 0 turns a limit off.
+DEFAULT_RATE_LIMITS = {"auth": 10, "lookup": 20, "checkout": 20, "reports": 30}
 
 
 def rate_limit_per_minute(group: str) -> int:

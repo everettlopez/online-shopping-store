@@ -89,14 +89,14 @@ store_headers=$(headers "$STORE/")
 api_headers=$(headers "$API/api/health")
 for site in storefront API; do
     if [ "$site" = storefront ]; then h=$store_headers; else h=$api_headers; fi
-    for name in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Referrer-Policy; do
+    for name in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Referrer-Policy Permissions-Policy; do
         if echo "$h" | grep -qi "^$name:"; then pass "$site sends $name"; else fail "$site is missing $name"; fi
     done
 done
 if echo "$store_headers" | grep -qi '^Content-Security-Policy:'; then
     pass "storefront enforces its content security policy"
 elif echo "$store_headers" | grep -qi '^Content-Security-Policy-Report-Only:'; then
-    warn "content security policy is report-only; enforce it once the browser console is clean (CSP_HEADER in deploy/.env)"
+    warn "content security policy is report-only; enforce it once the API logs no \"csp violation\" lines (CSP_HEADER in deploy/.env)"
 else
     fail "storefront sends no content security policy"
 fi

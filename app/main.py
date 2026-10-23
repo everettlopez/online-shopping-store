@@ -19,6 +19,7 @@ from app.routes.product import router as product_router
 from app.routes.category import router as category_router
 from app.routes.admin import router as admin_router
 from app.routes.payments import router as payment_router
+from app.routes.csp import router as csp_router
 from fastapi.openapi.utils import get_openapi
 
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +27,9 @@ from fastapi.staticfiles import StaticFiles
 from app.routes.product import UPLOAD_DIR
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Writes any page may send: a browser's CSP violation report changes nothing and needs
+# no login, and browsers don't promise it an Origin the API would recognise
+OPEN_WRITE_PATHS = {"/api/csp-report"}
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +81,8 @@ def create_app() -> FastAPI:
         # a form to the API as the logged-in user. Browsers always send Origin on such
         # requests; requests without one (Stripe's webhook, curl) aren't from a browser page.
         origin = request.headers.get("origin")
-        if request.method in UNSAFE_METHODS and origin and origin.rstrip("/") not in origins:
+        if (request.method in UNSAFE_METHODS and origin and origin.rstrip("/") not in origins
+                and request.url.path not in OPEN_WRITE_PATHS):
             return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
         return await call_next(request)
 
@@ -115,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(category_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")
     app.include_router(payment_router, prefix="/api")
+    app.include_router(csp_router, prefix="/api")
 
     return app
 
