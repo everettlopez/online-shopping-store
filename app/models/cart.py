@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from sqlmodel import SQLModel, Field
 from datetime import datetime
-from typing import Optional
 
 class Cart(SQLModel, table=True):
     __tablename__ = "carts"

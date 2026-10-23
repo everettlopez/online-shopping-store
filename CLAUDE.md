@@ -30,6 +30,8 @@ venv\Scripts\python -m pytest tests/api/test_cart_api.py::test_clear_cart  # one
 venv\Scripts\python -m pytest -k checkout -x                               # by name, stop at first failure
 ```
 
+Python lint: `venv\Scripts\ruff check .` (rules in `ruff.toml`: unused or undefined names and likely bugs, not style; it must pass, and CI runs it). `--fix` removes unused imports.
+
 Frontend: `npm --prefix frontend run lint` (ESLint; it must report no problems, and CI runs it) and `npm --prefix frontend run build` (runs `tsc -b`, so it is also the type check). The frontend has no test runner.
 
 `.claude/launch.json` defines the `api` and `dev` preview servers, and `preview`, which serves the last `npm run build` on port 5173 in place of `dev` (stop `dev` first; the local API only allows that origin), for checking the production bundle or running Lighthouse.

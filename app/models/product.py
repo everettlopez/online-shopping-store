@@ -3,7 +3,6 @@ from sqlmodel import SQLModel, Field
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import Column, JSON
-from app.schemas.category import CategoryRead
 
 
 class Product(SQLModel, table=True):

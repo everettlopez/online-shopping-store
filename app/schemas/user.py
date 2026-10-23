@@ -1,4 +1,3 @@
-from sqlmodel import SQLModel
 from pydantic import EmailStr, BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Annotated

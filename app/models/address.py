@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field
 from datetime import datetime
 from typing import Optional
 

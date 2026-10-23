@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Security, Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.session import get_session
-from app.models.user import User
 from app.models.address import Address
 from datetime import datetime
 from app.auth.core import CurrentUser

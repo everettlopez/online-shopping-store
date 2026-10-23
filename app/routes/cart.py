@@ -7,7 +7,7 @@ from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.schemas.product import ProductRead
 from app.schemas.cart import CartRead, CartItemRead
-from app.schemas.cart_item import CartItemCreate, CartItemUpdate, CartMerge, MAX_CART_QUANTITY
+from app.schemas.cart_item import CartItemUpdate, CartMerge, MAX_CART_QUANTITY
 from app.models.category import Category
 
 router = APIRouter(prefix="/cart", tags=["Cart"])

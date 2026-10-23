@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from pydantic import BaseModel, EmailStr
 import bcrypt
 import jwt
 
@@ -106,7 +105,7 @@ def user_from_token(token: str, session: Session) -> User:
         # Tokens from before versions existed count as version 0
         version = int(payload.get("ver", 0))
     except (jwt.InvalidTokenError, ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
 
     user = session.exec(select(User).where(User.user_id == user_id)).first()
 
