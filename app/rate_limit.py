@@ -4,8 +4,11 @@ order numbers or reset links, or opening checkout sessions in a loop.
 Counts live in this process's memory, which suits a single server. Each uvicorn worker
 keeps its own counts, so with WEB_CONCURRENCY=2 a client can get up to twice the limit
 before every worker refuses it. The client is identified by IP address, which behind a
-reverse proxy needs uvicorn's --proxy-headers (docker/start-api.sh sets it).
+reverse proxy needs uvicorn's --proxy-headers (docker/start-api.sh sets it). An IPv6
+client counts as its whole /64 network, since one home or server gets at least that many
+addresses and could otherwise take a fresh one for every request.
 """
+import ipaddress
 import math
 import threading
 import time
@@ -64,10 +67,23 @@ def check_rate_limit(group: str, client: str):
         times.append(now)
 
 
+def client_key(host: str) -> str:
+    """Who a request counts against: the IPv4 address, or the IPv6 address's /64."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host   # not an IP address (the test client says "testclient")
+    if address.version == 6:
+        if address.ipv4_mapped:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return str(address)
+
+
 def rate_limit(group: str):
     """Route dependency, e.g. @router.post("/login", dependencies=[rate_limit("auth")]).
     Groups share one allowance per client, so every login and password-reset route
     counts against the same "auth" limit."""
     def dependency(request: Request):
-        check_rate_limit(group, request.client.host if request.client else "unknown")
+        check_rate_limit(group, client_key(request.client.host) if request.client else "unknown")
     return Depends(dependency)
