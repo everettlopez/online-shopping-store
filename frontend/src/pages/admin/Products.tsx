@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import AdminProductEditModal from "../../components/admin/products/AdminProductEditModal";
 import AdminNav from "../../components/admin/AdminNav";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
@@ -61,11 +61,11 @@ export default function AdminProductsPage() {
 
 
   // Data grid columns
-  const columns = [
+  const columns: GridColDef[] = [
     {field: "id", headerName: "Product ID", width: 100, resizable: false,},
     {field: "active", headerName: "Active", width: 100, resizable: false},
     {field: "category", headerName: "Category", width: 100, resizable: false,},
-    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params: any) => (
+    {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params) => (
       <img src={params.value} alt="thumbnail" className="h-10 w-10 object-cover"/>
     ),},
     {field: "name", headerName: "Name", width: 300, resizable: false,},
@@ -76,7 +76,7 @@ export default function AdminProductsPage() {
     {field: "stock", headerName: "Stock", width: 100, resizable: false, renderCell: ({ value }: { value?: number }) => (
       value && value > 0 ? value : <span className="text-red-600">Sold out</span>
     )},
-    {field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params: any) => (
+    {field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params) => (
       <button className="text-blue-600 underline"
         onClick={() => {
           const fullProduct = products.find(p => p.product_id === params.row.id);
@@ -88,29 +88,24 @@ export default function AdminProductsPage() {
     )},
   ];
 
-  const [rows, setRows] = useState([]);
+  const rows = useMemo(() => products.map((product) => ({
+    id: product.product_id,
+    active: product.is_active,
+    category: product.category.name,
+    thumbnail: product.thumbnail,
+    name: product.title,
+    price: product.price.toFixed(2),
+    size: product.size,
+    color: product.color,
+    stock: product.stock_quantity,
+  })), [products]);
   const usedColors = useMemo(() => products.map((product) => product.color), [products]);
 
   async function fetchProducts()
   {
     try
     {
-      const data = await getAllProducts();
-      setProducts(data);
-
-      const formatted = data.map((product: ProductRead) => ({
-        id: product.product_id,
-        active: product.is_active,
-        category: product.category.name,
-        thumbnail: product.thumbnail,
-        name: product.title,
-        price: product.price.toFixed(2),
-        size: product.size,
-        color: product.color,
-        stock: product.stock_quantity,
-      }));
-
-      setRows(formatted);
+      setProducts(await getAllProducts());
     }
     catch (err)
     {
@@ -119,7 +114,7 @@ export default function AdminProductsPage() {
   }
 
   useEffect(() => {
-    fetchProducts();
+    getAllProducts().then(setProducts, (err) => setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load products") }));
     getCategories()
       .then(setCategories)
       .catch((err) => setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load categories") }));

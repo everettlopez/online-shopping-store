@@ -1,7 +1,7 @@
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { useCategories } from "../context/CategoriesContext";
-import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
+import { useCategories } from "../context/useCategories";
+import { useAuth } from "../context/useAuth";
+import { useCart } from "../context/useCart";
 import { store } from "../config/store";
 
 // "New Arrivals" is a fixed link to the newest products, so hide any leftover

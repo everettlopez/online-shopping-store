@@ -32,7 +32,7 @@ export default function AdminUsers() {
     }
 
     useEffect(() => {
-        fetchUsers();
+        getUsers().then(setUsers, (err) => setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load users") }));
     }, []);
 
     function resetCreateForm() {

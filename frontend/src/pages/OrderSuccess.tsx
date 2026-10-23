@@ -1,12 +1,14 @@
 import { useSearchParams, Link} from "react-router-dom";
 import { useEffect, useState } from "react";
+import axios from "axios";
 import axiosClient from "../api/axiosClient";
 import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
 import OrderAddressLines from "../components/OrderAddressLines";
 import OrderTotals from "../components/OrderTotals";
 import Navbar from "../components/Navbar";
 import type { Order } from "../components/orders/OrderView";
-import { removePurchasedFromGuestCart, useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
+import { removePurchasedFromGuestCart } from "../context/guestCart";
 
 // The checkout success page also gets the secret for the order's tracking link
 type CheckoutOrder = Order & { access_token: string | null };
@@ -53,9 +55,9 @@ export default function OrderSuccess() {
           removePurchasedFromGuestCart(data.items.map((item) => ({ product_id: item.product?.product_id ?? item.product_id, quantity: item.quantity })));
         }
         reloadCart();
-      } catch (err: any) {
+      } catch (err) {
         // Stripe's webhook can land a moment after the redirect, so retry while the order is created
-        if (err.response?.status === 404 && attempt < 5) {
+        if (axios.isAxiosError(err) && err.response?.status === 404 && attempt < 5) {
           setTimeout(() => { if (!cancelled) fetchOrder(attempt + 1); }, 1000);
           return;
         }

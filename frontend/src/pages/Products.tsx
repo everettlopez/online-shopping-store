@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
-import { useCategories } from "../context/CategoriesContext";
+import { useCategories } from "../context/useCategories";
 import UserProductDetailModal from "../components/products/UserProductDetailModal";
 import Navbar from "../components/Navbar";
 import ProductCard from "../components/products/ProductCard";

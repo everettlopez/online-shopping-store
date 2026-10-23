@@ -22,11 +22,23 @@ updates:
     directories: ["/", "/frontend"]
     schedule:
       interval: weekly
+    # A new major Node or Python image is a deliberate upgrade (odd-numbered Node
+    # releases are never long-term support), not a weekly bump
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directory: /deploy
     schedule:
       interval: weekly
+    # MySQL's version numbers jump between release series (8.4 LTS to 9.x innovation
+    # releases and later); moving the database to a new series is a planned upgrade
+    ignore:
+      - dependency-name: "mysql"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

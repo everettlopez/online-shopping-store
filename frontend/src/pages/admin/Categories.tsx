@@ -7,7 +7,7 @@ import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
 import { createCategory, deleteCategory, getCategories, reorderCategories, updateCategory, type Category } from "../../api/admin";
 import { apiErrorMessage } from "../../api/errors";
-import { useCategories } from "../../context/CategoriesContext";
+import { useCategories } from "../../context/useCategories";
 
 export default function AdminCategories() {
 
@@ -41,8 +41,11 @@ export default function AdminCategories() {
     }
 
     useEffect(() => {
-        fetchCategories();
-    }, []);
+        getCategories().then(
+            (data) => { setCategories(data); refreshCategories(); },
+            (err) => setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to load categories") }),
+        );
+    }, [refreshCategories]);
 
     async function handleCreate() {
         try {

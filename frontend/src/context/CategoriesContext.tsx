@@ -1,13 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getStoreCategories, type Category } from "../api/categories";
-
-interface CategoriesContextType {
-    categories: Category[];
-    loading: boolean;
-    refreshCategories: () => Promise<void>;
-}
-
-const CategoriesContext = createContext<CategoriesContextType | undefined>(undefined);
+import { CategoriesContext } from "./useCategories";
 
 export const CategoriesProvider = ({ children }: { children: React.ReactNode }) => {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -33,11 +26,4 @@ export const CategoriesProvider = ({ children }: { children: React.ReactNode }) 
             {children}
         </CategoriesContext.Provider>
     );
-};
-
-// eslint-disable-next-line react-refresh/only-export-components
-export const useCategories = () => {
-    const context = useContext(CategoriesContext);
-    if (!context) throw new Error("useCategories must be used within a CategoriesProvider");
-    return context;
 };

@@ -1,43 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import axios from "axios";
-import { useAuth } from "./AuthContext";
-import { apiErrorMessage } from "../api/errors";
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "./useAuth";
+import { CartContext } from "./useCart";
+import { MAX_CART_QUANTITY, readGuestCart, writeGuestCart } from "./guestCart";
 import {
   addCartItem, getCart, getProduct, mergeCart, removeCartItem, updateCartItem,
   type CartLine, type CartProduct, type StoredCartLine,
 } from "../api/cart";
-
-// Match MAX_CART_QUANTITY and MAX_CART_LINES on the server
-export const MAX_CART_QUANTITY = 99;
-const MAX_CART_LINES = 100;
-
-const GUEST_CART_KEY = "guest_cart";
-
-// The guest cart lives in the browser. Storage can be missing or blocked (private
-// windows, cleared site data), in which case the cart just starts empty
-function readGuestCart(): StoredCartLine[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(GUEST_CART_KEY) ?? "[]");
-    if (!Array.isArray(parsed)) return [];
-    // Keep it within what the server accepts, so old or edited data can't make checkout
-    // or the login merge fail every time
-    return parsed
-      .filter((line) => Number.isInteger(line?.product_id) && Number.isInteger(line?.quantity) && line.quantity > 0)
-      .slice(0, MAX_CART_LINES)
-      .map((line) => ({ product_id: line.product_id, quantity: Math.min(line.quantity, MAX_CART_QUANTITY) }));
-  } catch {
-    return [];
-  }
-}
-
-function writeGuestCart(lines: StoredCartLine[]) {
-  try {
-    if (lines.length) localStorage.setItem(GUEST_CART_KEY, JSON.stringify(lines));
-    else localStorage.removeItem(GUEST_CART_KEY);
-  } catch {
-    // Not saved; the cart still works until the page is reloaded
-  }
-}
 
 async function loadGuestProducts(lines: StoredCartLine[]): Promise<CartLine[]> {
   const products = await Promise.all(
@@ -48,20 +16,6 @@ async function loadGuestProducts(lines: StoredCartLine[]): Promise<CartLine[]> {
     .map((line, i) => ({ product_id: line.product_id, quantity: line.quantity, product: products[i] }))
     .filter((line) => line.product !== null);
 }
-
-interface CartContextType {
-  items: CartLine[];
-  count: number;
-  loading: boolean;
-  add: (product: CartProduct) => Promise<void>;
-  updateQuantity: (productId: number, quantity: number) => Promise<void>;
-  remove: (productId: number) => Promise<void>;
-  // What a guest checks out; the server prices it again
-  guestItems: () => StoredCartLine[];
-  reload: () => void;
-}
-
-const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -182,26 +136,3 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     </CartContext.Provider>
   );
 };
-
-export const useCart = () => {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error("useCart must be inside CartProvider");
-  return ctx;
-};
-
-// Cart changes fail with the server's message (account cart) or our own (browser cart)
-export function cartErrorMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) return apiErrorMessage(err, fallback);
-  return err instanceof Error ? err.message : fallback;
-}
-
-// After a guest pays, take what was bought out of the browser cart. Like the account
-// cart on the server, anything added after checkout started stays
-export function removePurchasedFromGuestCart(purchased: StoredCartLine[]) {
-  const bought = new Map<number, number>();
-  for (const line of purchased) bought.set(line.product_id, (bought.get(line.product_id) ?? 0) + line.quantity);
-
-  writeGuestCart(readGuestCart()
-    .map((line) => ({ ...line, quantity: line.quantity - (bought.get(line.product_id) ?? 0) }))
-    .filter((line) => line.quantity > 0));
-}

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 import Login from "../pages/Login";
 import Register from "../pages/Register";
@@ -70,11 +70,8 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 
-console.log("DEBUG: AppRouter rendering");
-
 
 export default function AppRouter() {
-    console.log("DEBUG: AppRouter loaded");
     return (
         <BrowserRouter>
         <Routes>

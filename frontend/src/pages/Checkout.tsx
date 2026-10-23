@@ -5,8 +5,8 @@ import backIcon from "../assets/backIcon.svg";
 import axiosClient from "../api/axiosClient";
 import { apiErrorMessage } from "../api/errors";
 import Navbar from "../components/Navbar";
-import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/useAuth";
+import { useCart } from "../context/useCart";
 import { getShippingRates, type ShippingRates } from "../api/shipping";
 
 export default function Checkout() {
@@ -32,7 +32,7 @@ export default function Checkout() {
           : { items: guestItems() };
         const response = await axiosClient.post("/payments/create-checkout-session", body);
 
-        window.location.href = response.data.checkoutUrl;
+        window.location.assign(response.data.checkoutUrl);
 
     } catch (err) {
         console.error("Failed to start checkout:", err);

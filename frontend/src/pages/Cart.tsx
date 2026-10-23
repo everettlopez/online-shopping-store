@@ -1,7 +1,8 @@
 import { useState } from "react";
 import axiosClient from "../api/axiosClient";
-import { useAuth } from "../context/AuthContext";
-import { cartErrorMessage, MAX_CART_QUANTITY, useCart } from "../context/CartContext";
+import { useAuth } from "../context/useAuth";
+import { useCart } from "../context/useCart";
+import { cartErrorMessage, MAX_CART_QUANTITY } from "../context/guestCart";
 import type { CartLine } from "../api/cart";
 
 import { Link, useNavigate } from "react-router-dom";

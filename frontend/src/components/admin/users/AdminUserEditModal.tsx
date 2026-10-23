@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Modal from "@mui/material/Modal";
 import { FormControlLabel, Switch, TextField } from "@mui/material";
 import type { AdminUser, AdminUserInput } from "../../../api/admin";
@@ -9,26 +9,20 @@ interface Props {
   onSave: (userId: number, data: Partial<AdminUserInput>) => void;
 }
 
-export default function AdminUserEditModal({ user, onClose, onSave }: Props) {
-  const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+// A fresh form for each user opened, prefilled from that user
+export default function AdminUserEditModal(props: Props) {
+  if (!props.user) return null;
+  return <UserForm key={props.user.user_id} {...props} user={props.user} />;
+}
+
+function UserForm({ user, onClose, onSave }: Props & { user: AdminUser }) {
+  const [email, setEmail] = useState(user.email);
+  const [firstName, setFirstName] = useState(user.first_name);
+  const [lastName, setLastName] = useState(user.last_name);
+  const [isAdmin, setIsAdmin] = useState(user.is_admin);
   const [password, setPassword] = useState("");
 
-  // Prefill whenever a different user is opened
-  useEffect(() => {
-    if (!user) return;
-
-    setEmail(user.email);
-    setFirstName(user.first_name);
-    setLastName(user.last_name);
-    setIsAdmin(user.is_admin);
-    setPassword("");
-  }, [user]);
-
   function handleSave() {
-    if (!user) return;
 
     const data: Partial<AdminUserInput> = {
       email: email.trim(),
@@ -44,7 +38,7 @@ export default function AdminUserEditModal({ user, onClose, onSave }: Props) {
   }
 
   return (
-    <Modal open={user !== null} onClose={onClose}>
+    <Modal open onClose={onClose}>
       <div className="bg-white p-6 rounded-lg shadow-xl w-[500px] mx-auto mt-[15vh] flex flex-col gap-4">
         <h2 className="text-2xl tracking-wider">EDIT USER</h2>
 

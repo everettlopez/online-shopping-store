@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { useEffect, useState } from "react";
 import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
@@ -260,15 +260,15 @@ export default function AdminOrders()
 
 
   // --- COLUMNS ---
-  const columns = [
+  const columns: GridColDef[] = [
     { field: "id", headerName: "Order ID", width: 100, resizable: false,},
     { field: "order_number", headerName: "Order #", width: 150, resizable: false,},
     { field: "user_id", headerName: "User ID", width: 100, resizable: false,},
     { field: "email", headerName: "Email", width: 200, resizable: false,},
     { field: "first_name", headerName: "First Name", width: 150, resizable: false,},
     { field: "last_name", headerName: "Last Name", width: 150, resizable: false,},
-    { field: "status", headerName: "Order Status", width: 150, resizable: false, editable: true, renderCell: (params: any) => {
-      const chipProps = getStatusChipProps(params.value);
+    { field: "status", headerName: "Order Status", width: 150, resizable: false, editable: true, renderCell: (params) => {
+      const chipProps = getStatusChipProps(String(params.value));
       return (
         <div className="flex w-full">
           <Chip
@@ -280,9 +280,9 @@ export default function AdminOrders()
       </div>
       );
     }},
-    { field: "total_amount", headerName: "Total ($)", width: 120, resizable: false, valueFormatter: (params: any) => params.value },
+    { field: "total_amount", headerName: "Total ($)", width: 120, resizable: false },
     { field: "created_at", headerName: "Created", width: 200, resizable: false,},
-    { field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params: any) => (
+    { field: "expand", headerName: "", width: 80, resizable: false, sortable: false, renderCell: (params) => (
       <button className="text-blue-600 underline" onClick={() => setExpandedRow(expandedRow === params.row.id ? null : params.row.id)}>
         {expandedRow === params.row.id ? "Hide" : "View"}
       </button>

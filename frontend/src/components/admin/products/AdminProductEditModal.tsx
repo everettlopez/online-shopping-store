@@ -1,5 +1,5 @@
 // This file should have been AdminProductModal
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import TextField from '@mui/material/TextField';
 import NumberField from "../../NumberField";
 import FormGroup from '@mui/material/FormGroup';
@@ -47,41 +47,30 @@ export interface ProductRead {
   images?: string[] | null;
 }
 
-export default function ProductModal({ isOpen, onClose, product, categories, usedColors }: Props) {
+// Mounted only while open, and again whenever the product changes (another product, or
+// the saved version after an update), so the form always starts from the product
+export default function ProductModal(props: Props) {
+  if (!props.isOpen) return null;
+  const { product } = props;
+  return <ProductForm key={product ? `${product.product_id}-${product.updated_at}` : "none"} {...props} />;
+}
 
-  // Edit Product Constants
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<number | "">("");
+function ProductForm({ onClose, product, categories, usedColors }: Props) {
 
-  const [size, setSize] = useState("");
-  const [color, setColor] = useState("");
-  const [price, setPrice] = useState(0);
-  const [stock, setStock] = useState(0);
-  const [isActive, setIsActive] = useState(true);
+  // Edit Product Constants, prefilled from the product
+  const [title, setTitle] = useState(product?.title ?? "");
+  const [description, setDescription] = useState(product?.description || "");
+  const [category, setCategory] = useState<number | "">(product?.category.category_id ?? "");
+
+  const [size, setSize] = useState(product?.size || "");
+  const [color, setColor] = useState(product?.color || "");
+  const [price, setPrice] = useState(product?.price ?? 0);
+  const [stock, setStock] = useState(product?.stock_quantity ?? 0);
+  const [isActive, setIsActive] = useState(product?.is_active ?? true);
   const [changes, setChanges] = useState(false);
 
   const [notice, setNotice] = useState<AdminNotice>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-
-  // PREFILL WHEN EDITING
-  useEffect(() => {
-    if (!isOpen || !product) return;
-
-    setTitle(product.title);
-    setDescription(product.description || "");
-    setCategory(product.category.category_id);
-    setSize(product.size || "");
-    setColor(product.color || "");
-    setPrice(product.price);
-    setStock(product.stock_quantity);
-    setIsActive(product.is_active);
-    setChanges(false);
-
-  }, [isOpen, product]);
-
-  // Hooks above must run on every render, so bail out only after them
-  if (!isOpen) return null;
 
   async function confirmDeleteProduct()
   {
