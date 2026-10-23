@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
-import { updateEmail, updatePassword, deleteAccount } from "../api/auth";
+import { updateEmail, updatePassword, deleteAccount, logoutEverywhere } from "../api/auth";
 import { apiErrorMessage } from "../api/errors";
 
 type FormMessage = { type: "success" | "error"; text: string } | null;
@@ -27,6 +27,7 @@ export default function AccountPage() {
   const [emailMessage, setEmailMessage] = useState<FormMessage>(null);
   const [passwordMessage, setPasswordMessage] = useState<FormMessage>(null);
   const [deleteMessage, setDeleteMessage] = useState<FormMessage>(null);
+  const [sessionMessage, setSessionMessage] = useState<FormMessage>(null);
 
   async function handleEmailUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -47,11 +48,22 @@ export default function AccountPage() {
 
     try {
       await updatePassword(oldPassword, newPassword);
-      setPasswordMessage({ type: "success", text: "Password updated." });
+      setPasswordMessage({ type: "success", text: "Password updated. Any other devices signed in to your account have been logged out." });
       setOldPassword("");
       setNewPassword("");
     } catch (err) {
       setPasswordMessage({ type: "error", text: apiErrorMessage(err, "Couldn't update your password.") });
+    }
+  }
+
+  async function handleLogoutEverywhere() {
+    if (!window.confirm("Log out on every device, including this one?")) return;
+
+    try {
+      await logoutEverywhere();
+      window.location.href = "/login";
+    } catch (err) {
+      setSessionMessage({ type: "error", text: apiErrorMessage(err, "Couldn't log you out everywhere.") });
     }
   }
 
@@ -127,13 +139,25 @@ export default function AccountPage() {
               </p>
             </div>
 
-            {/* Logout Button */}
-            <button
-              onClick={logout}
-              className="mt-6 text-sm text-gray-500 underline hover:text-black transition"
-            >
-              Log out
-            </button>
+            {/* Logout Buttons */}
+            <div className="mt-6 flex gap-6">
+              <button
+                onClick={logout}
+                className="text-sm text-gray-500 underline hover:text-black transition"
+              >
+                Log out
+              </button>
+              {/* For a lost phone or a shared computer */}
+              <button
+                onClick={handleLogoutEverywhere}
+                className="text-sm text-gray-500 underline hover:text-black transition"
+              >
+                Log out of all devices
+              </button>
+            </div>
+            <div className="mt-4">
+              <Message message={sessionMessage} />
+            </div>
           </div>
 
           {/* Update Email */}

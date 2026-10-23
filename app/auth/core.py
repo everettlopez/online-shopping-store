@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+import jwt
 
 from fastapi import Depends, HTTPException, Response
 from fastapi.security import APIKeyCookie, HTTPBearer
@@ -48,6 +48,16 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, signing_key(), algorithm=ALGORITHM)
 
+def create_user_token(user: User) -> str:
+    """A login token for the user. It carries their token_version, so it stops working
+    when revoke_sessions() is called (a password change, or logging out everywhere)."""
+    return create_access_token({"sub": str(user.user_id), "ver": user.token_version})
+
+def revoke_sessions(user: User):
+    """End every login the user has, on every device; the caller commits. Tokens are
+    only checked, not stored, so this bumps the version they must match."""
+    user.token_version += 1
+
 def set_auth_cookie(response: Response, token: str):
     response.set_cookie(
         key=JWT_COOKIE_KEY,
@@ -80,19 +90,22 @@ def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depen
 
 def user_from_token(token: str, session: Session) -> User:
     try:
-        payload = jwt.decode(token, signing_key(), algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-    except JWTError:
+        # Rejects a bad signature, a malformed token and an expired one
+        payload = jwt.decode(token, signing_key(), algorithms=[ALGORITHM], options={"require": ["exp", "sub"]})
+        user_id = int(payload["sub"])
+        # Tokens from before versions existed count as version 0
+        version = int(payload.get("ver", 0))
+    except (jwt.InvalidTokenError, ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = session.exec(select(User).where(User.user_id == int(user_id))).first()
+    user = session.exec(select(User).where(User.user_id == user_id)).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Signed out everywhere (or the password changed) since this token was issued
+    if version != user.token_version:
+        raise HTTPException(status_code=401, detail="Your session has ended. Please log in again")
 
     return user
 

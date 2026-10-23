@@ -46,7 +46,7 @@ from sqlmodel import SQLModel, Session, create_engine, select
 
 from app.main import app
 from app.db.session import get_session
-from app.auth.core import create_access_token, hash_password
+from app.auth.core import create_user_token, hash_password
 from app.rate_limit import reset_rate_limits
 from app.alerts import reset_alerts
 from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401  (registers every table)
@@ -270,7 +270,7 @@ def make_order(session, make_address):
 # -----------------------------------------
 
 def bearer(user):
-    return {"Authorization": f"Bearer {create_access_token({'sub': str(user.user_id)})}"}
+    return {"Authorization": f"Bearer {create_user_token(user)}"}
 
 
 @pytest.fixture

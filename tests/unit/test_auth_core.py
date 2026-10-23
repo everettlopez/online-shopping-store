@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import jwt
+import jwt
 
 from app.auth.core import (
     ALGORITHM,
@@ -57,7 +57,7 @@ def test_current_user_from_valid_token(session, user):
     "not-a-jwt",
     create_access_token({"no_sub": "1"}),
     jwt.encode({"sub": "1", "exp": datetime.utcnow() - timedelta(minutes=1)}, SECRET_KEY, algorithm=ALGORITHM),
-    jwt.encode({"sub": "1"}, "some-other-secret", algorithm=ALGORITHM),
+    jwt.encode({"sub": "1", "exp": datetime.utcnow() + timedelta(minutes=5)}, "some-other-secret-that-is-at-least-32-chars", algorithm=ALGORITHM),
 ], ids=["garbage", "no-sub", "expired", "wrong-secret"])
 def test_invalid_tokens_are_rejected(session, token):
     with pytest.raises(HTTPException) as error:

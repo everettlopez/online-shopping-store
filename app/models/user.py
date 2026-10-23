@@ -17,6 +17,9 @@ class User(SQLModel, table=True):
     last_name: str = Field(nullable=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     is_admin: bool = False
+    # Login tokens carry this; raising it (app.auth.core.revoke_sessions) ends every
+    # session the user has
+    token_version: int = Field(default=0, nullable=False)
 
     # The Stripe Customer used at checkout (Stripe Tax reads its shipping address)
     stripe_customer_id: str | None = Field(default=None)

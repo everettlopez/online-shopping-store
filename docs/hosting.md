@@ -182,6 +182,8 @@ sh deploy/check.sh
   ```
 - Keep a copy of `deploy/.env` and `deploy/.env.api` somewhere safe (a password manager), since they aren't in git.
 
+**Logins:** a login lasts 60 minutes. Changing a password (or resetting it) logs that account out everywhere else, and customers can log out of all their devices from their account page. To end someone's sessions yourself, set a new password for them in the admin pages. Changing `JWT_SECRET_KEY` logs everyone out.
+
 **Logs:** `docker compose -f deploy/docker-compose.yml logs --tail 200 api` (or `web`, `caddy`). Logs rotate automatically. Each API line reads `time level logger message`, with details as `key=value`, so `... logs api | grep ERROR` or `grep order_id=42` finds things. `LOG_LEVEL=DEBUG` in `deploy/.env.api` shows more.
 
 **Alerts:** with `ALERT_EMAIL` set, the store emails you about problems that need a person, at most once per problem every 15 minutes. Send a test with `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts`. The email names what happened; the logs around that time have the details.
