@@ -60,7 +60,7 @@ function Register() {
                         <div className="flex flex-col gap-2">
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
                                 <label className="text-sm">First Name</label>
-                                <input type="text" placeholder="Everett"
+                                <input type="text" placeholder="Jane"
                                     value={firstName}
                                     onChange = {(e) => setFirstName(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0"/>
@@ -68,7 +68,7 @@ function Register() {
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
                                 <label className="text-sm">Last Name</label>
-                                <input type="text" placeholder="Lopez"
+                                <input type="text" placeholder="Doe"
                                     value={lastName}
                                     onChange = {(e) => setLastName(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />

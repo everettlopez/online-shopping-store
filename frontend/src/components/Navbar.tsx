@@ -55,7 +55,8 @@ export default function Navbar({ className = "" }: NavbarProps) {
 
             {/* Navigation */}
             <nav className="flex flex-wrap justify-center gap-x-12 gap-y-2">
-                <Link to="/"><p className={linkClass(pathname === "/")}>EVENTS</p></Link>
+                <Link to="/"><p className={linkClass(pathname === "/")}>HOME</p></Link>
+                {store.eventsUrl && <a href={store.eventsUrl}><p className={linkClass(false)}>EVENTS</p></a>}
                 <Link to="/products?sort=newest"><p className={linkClass(newArrivalsActive)}>NEW ARRIVALS</p></Link>
                 {categories
                     .filter((category) => category.name.trim().toLowerCase() !== NEW_ARRIVALS)

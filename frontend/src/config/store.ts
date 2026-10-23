@@ -29,4 +29,13 @@ export const store = {
         terms: setting(env.VITE_TERMS_URL),
         shipping: setting(env.VITE_SHIPPING_POLICY_URL),
     },
+    // Home page. Images are addresses on the storefront (put your own files in
+    // frontend/public/custom/ and use /custom/<file>) or on the API's domain; the
+    // content security policy blocks images from other sites.
+    heroHeadline: setting(env.VITE_HERO_HEADLINE) || "Find something you'll love.",
+    heroImage: setting(env.VITE_HERO_IMAGE_URL),
+    // A full-width photo between New Arrivals and the contact section; none by default
+    bannerImage: setting(env.VITE_BANNER_IMAGE_URL),
+    // A page listing the store's events (pop-ups, markets); adds an Events link and button
+    eventsUrl: setting(env.VITE_EVENTS_URL),
 };
