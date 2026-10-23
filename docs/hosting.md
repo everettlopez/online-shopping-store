@@ -176,13 +176,25 @@ sh deploy/check.sh
 
 **Changing settings:** after editing `deploy/.env.api`, run `up -d` to restart the API. After editing a `VITE_*` setting in `deploy/.env`, run `up -d --build`, because the storefront bakes them in when it's built.
 
-**Backups:**
-- A managed database backs itself up; check how long your plan keeps backups.
-- Product images live in the `online-store_uploads` volume. Server snapshots cover it, or copy it off the server regularly:
-  ```bash
-  docker run --rm -v online-store_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads-$(date +%F).tgz -C /data .
-  ```
-- Keep a copy of `deploy/.env` and `deploy/.env.api` somewhere safe (a password manager), since they aren't in git.
+**Backups:** `deploy/backup.sh` backs up both things the store can't rebuild: the database (a managed one, or MySQL on the server) and the product images in the `online-store_uploads` volume. It reads the database's address and login from `deploy/.env.api`, so it needs no settings of its own:
+```bash
+sh deploy/backup.sh
+```
+Each run writes `database-<date_time>.sql.gz` and `uploads-<date_time>.tgz` to `deploy/backups` (or `BACKUP_DIR`), checks that both are complete, and deletes local copies older than 14 days (`BACKUP_KEEP_DAYS`). If a backup fails, the script exits with an error and emails `ALERT_EMAIL`.
+
+1. **Off the server:** a backup on the same server is lost with it. Install [rclone](https://rclone.org/install/), run `rclone config` to add a storage bucket (Backblaze B2, S3, Google Drive and others), and set `BACKUP_REMOTE` in `deploy/.env`, for example `BACKUP_REMOTE=b2:my-store-backups/store`. Each backup is then copied there too. Give the bucket a lifecycle rule that deletes old copies (for example after 90 days).
+2. **Every night:** once a run by hand has worked (it creates `deploy/backups`, where this line keeps its log), add it to the server's crontab (`crontab -e`), with the project's path:
+   ```
+   0 3 * * * cd /home/you/online-shopping-store && sh deploy/backup.sh >> deploy/backups/backup.log 2>&1
+   ```
+3. **Restore** a backup, for example after a bad update or lost data:
+   ```bash
+   sh deploy/backup.sh --restore                    # lists the backups on the server
+   sh deploy/backup.sh --restore 2026-10-23_0300    # puts that one back
+   ```
+   It asks you to type `restore`, then stops the API, replaces the database and the product images with the backup's, and starts the API again. Everything added since that backup is lost, so check Stripe for payments made in between. To restore from the off-site copy, first copy both files back: `rclone copy b2:my-store-backups/store/database-2026-10-23_0300.sql.gz deploy/backups/` (and the `uploads-` file).
+
+A managed database also keeps its own backups; check how long your plan keeps them. Neither covers `deploy/.env` and `deploy/.env.api`: keep a copy of both somewhere safe (a password manager), since they aren't in git. A managed database's CA certificate (`deploy/certs/`) can be downloaded again, and Caddy gets new HTTPS certificates by itself.
 
 **Logins:** a login lasts 60 minutes. Changing a password (or resetting it) logs that account out everywhere else, and customers can log out of all their devices from their account page. To end someone's sessions yourself, set a new password for them in the admin pages. Changing `JWT_SECRET_KEY` logs everyone out.
 
@@ -197,12 +209,7 @@ The kit can run MySQL 8.4 alongside the store:
 2. Set `DATABASE_URL=mysql+pymysql://store:<MYSQL_PASSWORD>@db:3306/online_store` in `deploy/.env.api`.
 3. Add `--profile mysql` to every `docker compose` command, for example `docker compose -f deploy/docker-compose.yml --profile mysql up -d --build`.
 
-The database is stored in the `online-store_mysql` volume and isn't reachable from outside the server. Back it up every night and copy the dumps off the server:
-```bash
-docker compose -f deploy/docker-compose.yml --profile mysql exec -T db \
-  sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction online_store' | gzip > backup-$(date +%F).sql.gz
-```
-To restore: `gunzip -c backup.sql.gz | docker compose -f deploy/docker-compose.yml --profile mysql exec -T db sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" online_store'`.
+The database is stored in the `online-store_mysql` volume and isn't reachable from outside the server. Nothing backs it up for you: set up `deploy/backup.sh` with an off-site `BACKUP_REMOTE` and a nightly cron job (see [Backups](#running-the-store)). It works the same with this database.
 
 ### Behind Cloudflare's proxy
 

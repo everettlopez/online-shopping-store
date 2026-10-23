@@ -31,3 +31,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Backups made by deploy/backup.sh (its default BACKUP_DIR)
+deploy/backups/

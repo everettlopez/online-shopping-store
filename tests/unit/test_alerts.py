@@ -61,15 +61,24 @@ def test_alert_can_wait_for_the_response(owner, sent_emails):
 
 
 def test_test_alert_command(owner, sent_emails, capsys):
-    assert alerts.main() == 0
+    assert alerts.main([]) == 0
 
     [message] = sent_emails
     assert message.subject == "[Online Store alert] Test alert"
     assert "owner@shop.example" in capsys.readouterr().out
 
 
+def test_alert_command_sends_a_given_alert(owner, sent_emails):
+    # How deploy/backup.sh reports a failed backup
+    assert alerts.main(["Backup failed", "mysqldump couldn't dump the store", "Run it by hand"]) == 0
+
+    [message] = sent_emails
+    assert message.subject == "[Online Store alert] Backup failed"
+    assert "mysqldump couldn't dump the store" in message.text and "Run it by hand" in message.text
+
+
 def test_test_alert_command_without_alert_email(sent_emails, capsys):
-    assert alerts.main() == 1
+    assert alerts.main([]) == 1
     assert sent_emails == []
     assert "ALERT_EMAIL is not set" in capsys.readouterr().out
 
@@ -79,7 +88,7 @@ def test_test_alert_command_reports_a_failed_send(owner, monkeypatch, capsys):
         raise RuntimeError("provider down")
     monkeypatch.setattr("app.mail.deliver", fail)
 
-    assert alerts.main() == 1
+    assert alerts.main([]) == 1
     assert "failed" in capsys.readouterr().out
 
 
