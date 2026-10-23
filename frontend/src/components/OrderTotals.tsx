@@ -5,6 +5,8 @@ export type OrderAmounts = {
   subtotal_amount?: number | null;
   shipping_amount?: number | null;
   tax_amount?: number | null;
+  // What's been given back so far; 0 when nothing has
+  refunded_amount?: number | null;
 };
 
 function Row({ label, amount, bold = false }: { label: string; amount: string; bold?: boolean }) {
@@ -29,6 +31,9 @@ export default function OrderTotals({ order }: { order: OrderAmounts }) {
         </>
       )}
       <Row label="Total" amount={`$${order.total_amount.toFixed(2)}`} bold />
+      {!!order.refunded_amount && (
+        <Row label="Refunded" amount={`-$${order.refunded_amount.toFixed(2)}`} />
+      )}
     </div>
   );
 }

@@ -31,3 +31,9 @@ export function trackingPath(orderNumber: string, token: string) {
 export async function deleteOrder(orderId: number): Promise<void> {
     await axiosClient.delete(`/orders/${orderId}`);
 }
+
+// Refunds through Stripe. Leaving out the amount refunds whatever is left; only a full
+// refund can put the items back in stock
+export async function refundOrder(orderId: number, refund: { amount?: number; restock: boolean }): Promise<void> {
+    await axiosClient.post(`/orders/${orderId}/refund`, refund);
+}

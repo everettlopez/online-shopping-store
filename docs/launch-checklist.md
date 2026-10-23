@@ -68,7 +68,9 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 - [ ] *Track order*: finding the order by its number and email works, and a wrong email doesn't.
 
 **Refunds**
-- [ ] Refund both purchases in the Stripe Dashboard, set each order to *refunded* in the admin pages, and restore the stock by hand. (The store doesn't yet do this by itself when Stripe refunds.)
+- [ ] Refund the account purchase with the **Refund** button in the admin pages (the full amount, with *Return the items to stock* ticked). The order shows *Refunded*, the product's stock goes back up, and the refund email arrives.
+- [ ] Refund the guest purchase in the Stripe Dashboard instead. Within a minute the admin pages show the order as *Refunded* with its stock back, and the refund email arrives.
+- [ ] In Stripe, the webhook endpoint's recent deliveries show the `charge.refunded` events succeeded (2xx).
 
 ## 4. Lock it down
 

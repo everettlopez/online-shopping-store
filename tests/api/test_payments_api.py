@@ -825,3 +825,163 @@ def test_unknown_session(user_client, monkeypatch):
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", fail)
 
     assert user_client.get("/api/payments/session/cs_missing").status_code == 404
+
+
+# -----------------------------------------
+# Slow-settling payments (bank debits and the like)
+# -----------------------------------------
+
+def test_settled_payment_places_the_order_and_confirms_once(send_webhook, session, shopper, make_product, sent_emails):
+    user, shipping, billing = shopper
+    product = make_product(title="Shirt")
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 1)], payment_status="unpaid"))
+    assert session.exec(select(Order)).one().status == "pending"
+    assert sent_emails == []
+
+    settled = checkout_session(user, shipping, billing, items=[(product, 1)])
+    send_webhook(settled, event_type="checkout.session.async_payment_succeeded")
+    send_webhook(settled, event_type="checkout.session.async_payment_succeeded")
+
+    session.expire_all()
+    order = session.exec(select(Order)).one()
+    assert order.status == "placed"
+    assert order.payment_status == "succeeded"
+    [message] = sent_emails
+    assert "order confirmation" in message.subject and "1 x Shirt" in message.text
+
+
+def test_settled_payment_arriving_first_creates_the_order(send_webhook, session, shopper, make_product, sent_emails):
+    user, shipping, billing = shopper
+    product = make_product(stock_quantity=3)
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 1)]), event_type="checkout.session.async_payment_succeeded")
+    # The completed event shows up afterwards, from before the payment settled
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 1)], payment_status="unpaid"))
+
+    session.expire_all()
+    assert session.exec(select(Order)).one().status == "placed"
+    assert session.get(Product, product.product_id).stock_quantity == 2
+    assert len(sent_emails) == 1
+
+
+def test_failed_payment_cancels_the_order_and_restocks(send_webhook, session, shopper, make_product, sent_emails):
+    user, shipping, billing = shopper
+    product = make_product(stock_quantity=3)
+    unpaid = checkout_session(user, shipping, billing, items=[(product, 2)], payment_status="unpaid")
+
+    send_webhook(unpaid)
+    session.expire_all()
+    assert session.get(Product, product.product_id).stock_quantity == 1
+
+    send_webhook(unpaid, event_type="checkout.session.async_payment_failed")
+    send_webhook(unpaid, event_type="checkout.session.async_payment_failed")
+
+    session.expire_all()
+    order = session.exec(select(Order)).one()
+    assert order.status == "cancelled"
+    assert order.restocked_at is not None
+    assert session.get(Product, product.product_id).stock_quantity == 3
+    assert sent_emails == []
+
+
+def test_failed_payment_arriving_first_leaves_stock_alone(send_webhook, session, shopper, make_product):
+    user, shipping, billing = shopper
+    product = make_product(stock_quantity=3)
+    unpaid = checkout_session(user, shipping, billing, items=[(product, 2)], payment_status="unpaid")
+
+    send_webhook(unpaid, event_type="checkout.session.async_payment_failed")
+    send_webhook(unpaid)
+
+    session.expire_all()
+    assert session.exec(select(Order)).one().status == "cancelled"
+    assert session.get(Product, product.product_id).stock_quantity == 3
+
+
+# -----------------------------------------
+# Refunds made in Stripe (charge.refunded)
+# -----------------------------------------
+
+def refunded_charge(amount_refunded, payment_intent="pi_test_1"):
+    return stripe.Charge.construct_from({
+        "id": "ch_test_1",
+        "object": "charge",
+        "payment_intent": payment_intent,
+        "amount_refunded": amount_refunded,
+    }, "sk_test")
+
+
+@pytest.fixture
+def paid_order(send_webhook, session, shopper, make_product):
+    """A paid $40 order for two $20 shirts, leaving 3 in stock."""
+    user, shipping, billing = shopper
+    product = make_product(title="Shirt", price=20.0, stock_quantity=5)
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 2)]))
+    return session.exec(select(Order)).one(), product.product_id
+
+
+def test_dashboard_refund_in_full_refunds_and_restocks(send_webhook, session, paid_order, sent_emails):
+    order, product_id = paid_order
+    sent_emails.clear()
+
+    send_webhook(refunded_charge(4000), event_type="charge.refunded")
+    send_webhook(refunded_charge(4000), event_type="charge.refunded")
+
+    session.expire_all()
+    order = session.get(Order, order.order_id)
+    assert (order.status, order.refunded_amount) == ("refunded", Decimal("40.00"))
+    assert order.refunded_at is not None
+    assert session.get(Product, product_id).stock_quantity == 5
+    [message] = sent_emails
+    assert "refund" in message.subject and "$40.00" in message.text
+
+
+def test_dashboard_partial_refunds_add_up(send_webhook, session, paid_order, sent_emails):
+    order, product_id = paid_order
+    sent_emails.clear()
+
+    send_webhook(refunded_charge(1000), event_type="charge.refunded")
+    session.expire_all()
+    first = session.get(Order, order.order_id)
+    assert (first.status, first.refunded_amount) == ("placed", Decimal("10.00"))
+    assert session.get(Product, product_id).stock_quantity == 3
+
+    # Stripe sends the charge's running total
+    send_webhook(refunded_charge(4000), event_type="charge.refunded")
+    session.expire_all()
+    assert session.get(Order, order.order_id).status == "refunded"
+    assert session.get(Product, product_id).stock_quantity == 5
+    assert ["$10.00" in m.text for m in sent_emails] == [True, False]
+    assert "$30.00" in sent_emails[1].text
+
+
+def test_refund_button_then_webhook_counts_once(admin_client, send_webhook, session, paid_order, sent_emails, monkeypatch):
+    order, product_id = paid_order
+    sent_emails.clear()
+    monkeypatch.setattr(stripe.Refund, "create", lambda **kwargs: stripe.Refund.construct_from({"id": "re_1"}, "sk_test"))
+
+    # The admin keeps the items out of stock (say they came back damaged)
+    assert admin_client.post(f"/api/orders/{order.order_id}/refund", json={"restock": False}).status_code == 200
+    send_webhook(refunded_charge(4000), event_type="charge.refunded")
+
+    session.expire_all()
+    assert session.get(Order, order.order_id).refunded_amount == Decimal("40.00")
+    assert session.get(Product, product_id).stock_quantity == 3
+    assert len(sent_emails) == 1
+
+
+def test_refund_for_an_unknown_payment_is_ignored(send_webhook, session):
+    response = send_webhook(refunded_charge(500, payment_intent="pi_unknown"), event_type="charge.refunded")
+
+    assert response.status_code == 200
+    assert session.exec(select(Order)).all() == []
+
+
+def test_refund_without_a_payment_intent_matches_no_order(send_webhook, session, user, make_order):
+    # Orders from before payments were recorded have no payment intent either
+    order_id = make_order(user, status="placed").order_id
+
+    send_webhook(refunded_charge(500, payment_intent=None), event_type="charge.refunded")
+
+    session.expire_all()
+    assert session.get(Order, order_id).refunded_amount == 0

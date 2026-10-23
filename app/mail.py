@@ -1,4 +1,4 @@
-"""Customer emails: password reset, order confirmation and shipping notice.
+"""Customer emails: password reset, order confirmation, shipping notice and refund.
 
 Messages are built while the request still has the database (build_* functions)
 and sent afterwards with send_email, usually from a BackgroundTask so the
@@ -207,4 +207,29 @@ def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
         + f'<p><a href="{escape(link)}">View your order</a></p>'
     ))
     return EmailMessage(to=to, subject=f"Your {store_name()} order {order.order_number} has shipped", text=text, html=html,
+                        sender=orders_email_from())
+
+
+def build_refund_email(to: str, order: Order, amount: Decimal) -> EmailMessage:
+    """amount: what this refund gave back; the order's refunded_amount is the running total."""
+    link = order_link(order)
+    full = order.refunded_amount >= order.total_amount
+    what = "your order" if full else "part of your order"
+    text = signed([
+        greeting(order),
+        "",
+        f"We've refunded {money(amount)} for {what} {order.order_number}.",
+        "It goes back to the way you paid and usually shows up within 5 to 10 business days.",
+        *([] if full else [f"Refunded so far: {money(order.refunded_amount)} of {money(order.total_amount)}"]),
+        "",
+        f"View your order: {link}",
+    ])
+    html = html_page("Your refund is on its way", (
+        f"<p>{escape(greeting(order))} we've refunded <strong>{money(amount)}</strong> for {what} "
+        f"<strong>{escape(order.order_number)}</strong>.</p>"
+        "<p>It goes back to the way you paid and usually shows up within 5 to 10 business days.</p>"
+        + ("" if full else f"<p>Refunded so far: {money(order.refunded_amount)} of {money(order.total_amount)}</p>")
+        + html_button(link, "View your order")
+    ))
+    return EmailMessage(to=to, subject=f"Your {store_name()} refund for order {order.order_number}", text=text, html=html,
                         sender=orders_email_from())

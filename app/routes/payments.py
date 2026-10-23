@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 from datetime import datetime
+from decimal import Decimal
 
 from app.db.session import get_session
 from app.schemas.checkout import CheckoutRequest
@@ -25,9 +26,9 @@ from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.models.address import Address
 from app.schemas.address import OrderAddress, address_snapshot
-from app.routes.order import build_order_reads
+from app.routes.order import build_order_reads, record_refund, restock_order_items
 from app.models.user import User
-from app.mail import build_order_confirmation_email, send_email
+from app.mail import build_order_confirmation_email, build_refund_email, send_email
 from app.rate_limit import rate_limit
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
@@ -338,10 +339,84 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
         print("Webhook signature failed:", e)
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    stripe_object = event["data"]["object"]
     if event["type"] == "checkout.session.completed":
-        fulfill_checkout(session, event["data"]["object"], background_tasks)
+        fulfill_checkout(session, stripe_object, background_tasks)
+    elif event["type"] == "checkout.session.async_payment_succeeded":
+        settle_payment(session, stripe_object, background_tasks, succeeded=True)
+    elif event["type"] == "checkout.session.async_payment_failed":
+        settle_payment(session, stripe_object, background_tasks, succeeded=False)
+    elif event["type"] == "charge.refunded":
+        sync_refund(session, stripe_object, background_tasks)
 
     return {"received": True}
+
+
+def settle_payment(session: Session, stripe_session, background_tasks: BackgroundTasks, succeeded: bool):
+    """A slow-settling payment (such as a bank debit) went through or failed, days after
+    checkout. The order waited as pending; it becomes placed (and the confirmation goes
+    out) or cancelled (and its items go back in stock)."""
+    # Stripe doesn't promise to deliver events in order, so this may come first.
+    # fulfill_checkout returns the order if it already exists
+    order = fulfill_checkout(session, stripe_session, background_tasks)
+    if not order:
+        return
+    session.refresh(order, with_for_update=True)
+    if order.status != "pending":
+        # Already settled (or fulfill_checkout just created it as placed and sent the confirmation)
+        return
+
+    order.status = "placed" if succeeded else "cancelled"
+    order.updated_at = datetime.utcnow()
+    for field, value in get_payment_details(order.payment_intent_id).items():
+        setattr(order, field, value)
+    if not succeeded:
+        restock_order_items(session, order)
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    print("Settled order:", order.order_id, "status:", order.status)
+
+    if succeeded and order.email:
+        background_tasks.add_task(send_email, build_order_confirmation_email(order.email, order, confirmation_items(session, order)))
+
+
+def sync_refund(session: Session, charge, background_tasks: BackgroundTasks):
+    """Record a refund made in Stripe's Dashboard, or confirm one made with the Refund
+    button. Stripe's running total is the truth, so a redelivered event changes nothing."""
+    if not charge.payment_intent:
+        return  # Not a Checkout payment, so not one of our orders
+    order = session.exec(
+        select(Order).where(Order.payment_intent_id == charge.payment_intent).with_for_update()
+    ).first()
+    if not order:
+        print("Refund for a payment with no order:", charge.payment_intent)
+        return
+
+    refunded_total = from_cents(charge.amount_refunded or 0)
+    if refunded_total <= order.refunded_amount:
+        return  # The Refund button (or an earlier delivery) already recorded it
+
+    refunded_now = refunded_total - order.refunded_amount
+    # A full refund from the Dashboard returns the items to stock
+    record_refund(session, order, refunded_total, restock=True)
+    session.commit()
+    session.refresh(order)
+
+    print("Recorded refund for order:", order.order_id, "refunded:", order.refunded_amount)
+
+    if order.email:
+        background_tasks.add_task(send_email, build_refund_email(order.email, order, refunded_now))
+
+
+def confirmation_items(session: Session, order: Order) -> list[tuple[str, int, Decimal, Decimal]]:
+    """(title, quantity, unit price paid, line subtotal) for the confirmation email."""
+    items = session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).all()
+    return [
+        (product.title if (product := session.get(Product, item.product_id)) else "Item", item.quantity, item.unit_price, item.subtotal)
+        for item in items
+    ]
 
 
 def already_fulfilled(session: Session, stripe_session_id: str) -> Order | None:
@@ -469,8 +544,6 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     except (IntegrityError, OperationalError):
         return already_fulfilled(session, stripe_session.id)
 
-    email_items = []  # (title, quantity, unit price, subtotal) for the confirmation email
-
     for product_id, quantity, unit_cents in purchased:
         product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
         if not product:
@@ -484,7 +557,6 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
             unit_price=from_cents(unit_cents),
             subtotal=from_cents(unit_cents * quantity)
         ))
-        email_items.append((product.title, quantity, from_cents(unit_cents), from_cents(unit_cents * quantity)))
 
         # Stock was checked at checkout, but another buyer may have taken it since
         if product.stock_quantity >= quantity:
@@ -519,6 +591,6 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     # Sent after the response, so neither Stripe nor the shopper waits on the email
     # provider. Unpaid (pending) orders get no confirmation
     if order.status == "placed" and order.email:
-        background_tasks.add_task(send_email, build_order_confirmation_email(order.email, order, email_items))
+        background_tasks.add_task(send_email, build_order_confirmation_email(order.email, order, confirmation_items(session, order)))
 
     return order

@@ -4,9 +4,10 @@ import { DataGrid } from "@mui/x-data-grid";
 import { useEffect, useState } from "react";
 import AdminNav from "../../components/admin/AdminNav";
 import ConfirmDeleteModal from "../../components/admin/ConfirmDeleteModal";
+import RefundOrderModal from "../../components/admin/RefundOrderModal";
 import AdminSnackbar, { type AdminNotice } from "../../components/admin/AdminSnackbar";
 import { apiErrorMessage } from "../../api/errors";
-import { deleteOrder, getAllOrders, updateOrderStatus, updateOrderTracking } from "../../api/orders";
+import { deleteOrder, getAllOrders, refundOrder, updateOrderStatus, updateOrderTracking } from "../../api/orders";
 import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 
 import { Chip, FormControl, InputLabel, MenuItem, Select, Step, StepLabel } from "@mui/material";
@@ -63,6 +64,8 @@ export type Order = {
   subtotal_amount: number | null;
   shipping_amount: number | null;
   tax_amount: number | null;
+  refunded_amount: number;
+  refunded_at: string | null;
 
   payment_intent_id: string | null;
   stripe_session_id: string | null;
@@ -82,6 +85,20 @@ export type Order = {
 
   items: OrderItem[];
 };
+
+// What's left to refund, in whole cents so the full amount compares exactly
+function refundableAmount(order: Order): number {
+  return Math.round((order.total_amount - order.refunded_amount) * 100) / 100;
+}
+
+function canRefund(order: Order): boolean {
+  return !!order.payment_intent_id && order.status !== "pending" && wasPaid(order) && refundableAmount(order) > 0;
+}
+
+// Matches the API: only orders whose payment never went through can be deleted
+function wasPaid(order: Order): boolean {
+  return order.payment_status === "succeeded" || order.refunded_amount > 0 || !["pending", "cancelled"].includes(order.status);
+}
 
 type StatusColor =
   | "info"
@@ -195,6 +212,21 @@ export default function AdminOrders()
   function confirmDeleteOrder() {
     handleDeleteOrder();
     closeDeleteModal();
+  }
+
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+
+  async function handleRefundOrder(amount: number, restock: boolean) {
+    if (!expandedRow) return;
+
+    try {
+      await refundOrder(expandedRow, { amount, restock });
+      setRefundModalOpen(false);
+      await fetchOrders();
+      setNotice({ severity: "success", message: `Refunded $${amount.toFixed(2)}` });
+    } catch (err) {
+      setNotice({ severity: "error", message: apiErrorMessage(err, "Failed to refund the order") });
+    }
   }
 
   const [notice, setNotice] = useState<AdminNotice>(null);
@@ -563,6 +595,7 @@ export default function AdminOrders()
                       <div className="flex flex-col">
                         <p className="text-gray-400 text-sm tracking-wider">PAYMENT</p>
                         <p>${order.total_amount.toFixed(2)} paid with {paymentMethodLabel(order.payment_method_type)}</p>
+                        {order.refunded_amount > 0 && <p>${order.refunded_amount.toFixed(2)} refunded</p>}
                         {paymentCardSummary(order) && <p>{paymentCardSummary(order)}</p>}
                         {order.receipt_url && (
                           <a href={order.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View receipt</a>
@@ -609,7 +642,13 @@ export default function AdminOrders()
 
                     <div className="flex justify-between">
                       <div className="flex gap-2">
-                        <button onClick={() => openDeleteModal()} className="border px-5 py-1 rounded-full bg-red-400 text-white">Delete Order</button>
+                        {/* Paid orders are financial records: refund or cancel them instead */}
+                        {!wasPaid(order) && (
+                          <button onClick={() => openDeleteModal()} className="border px-5 py-1 rounded-full bg-red-400 text-white">Delete Order</button>
+                        )}
+                        {canRefund(order) && (
+                          <button onClick={() => setRefundModalOpen(true)} className="border px-5 py-1 rounded-full hover:bg-gray-100">Refund</button>
+                        )}
                         {["pending", "placed", "processing", "shipped"].includes(order.status) && (
                           <button onClick={() => handleOrderStatusChange("cancelled")} className="border px-5 py-1 rounded-full hover:bg-gray-100">Cancel Order</button>
                         )}
@@ -631,6 +670,22 @@ export default function AdminOrders()
         onClose={closeDeleteModal}
         onConfirm={confirmDeleteOrder}
       />
+
+      {(() => {
+        const order = fullOrders.find(o => o.order_id === expandedRow);
+        if (!order || !canRefund(order)) return null;
+        // A new key per order and refund, so the form starts from what's left
+        return (
+          <RefundOrderModal
+            key={`${order.order_id}-${order.refunded_amount}`}
+            open={refundModalOpen}
+            orderNumber={order.order_number}
+            remaining={refundableAmount(order)}
+            onClose={() => setRefundModalOpen(false)}
+            onConfirm={handleRefundOrder}
+          />
+        );
+      })()}
 
       <AdminSnackbar notice={notice} onClose={() => setNotice(null)} />
 
