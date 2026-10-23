@@ -114,12 +114,38 @@ else
 fi
 
 echo "Store identity"
-title=$(fetch "$STORE/" 2>/dev/null | sed -n 's:.*<title>\(.*\)</title>.*:\1:p' | head -n 1)
+home=$(fetch "$STORE/" 2>/dev/null)
+title=$(echo "$home" | sed -n 's:.*<title>\(.*\)</title>.*:\1:p' | head -n 1)
 if [ -z "$STORE_NAME" ] || [ "$STORE_NAME" = "Online Store" ]; then
     warn "the store is called \"${title:-Online Store}\"; set VITE_STORE_NAME in deploy/.env and rebuild"
 else
     check "page title is the store's name" "$title" "$STORE_NAME"
 fi
+# Link previews and the browser tab use these; empty ones mean a broken build
+if echo "$home" | grep -q '<meta name="description" content="[^"]'; then
+    pass "the page has a description"
+else
+    fail "the page's description is empty (VITE_STORE_DESCRIPTION)"
+fi
+if echo "$home" | grep -q '<link rel="icon" href="[^"]'; then
+    pass "the page has an icon"
+else
+    fail "the page's icon is empty (VITE_FAVICON_URL)"
+fi
+# The store's own photos live in frontend/public/custom/, which git ignores, so a fresh
+# clone doesn't have them; a missing one gets the storefront's HTML instead of an image
+for name in VITE_HERO_IMAGE_URL VITE_BANNER_IMAGE_URL VITE_FAVICON_URL VITE_SHARE_IMAGE_URL; do
+    path=$(setting "$name")
+    case "$path" in
+        /*) ;;
+        *) continue ;;
+    esac
+    type=$(headers "$STORE$path" | sed -n 's/^[Cc]ontent-[Tt]ype: *//p' | head -n 1)
+    case "$type" in
+        image/*) pass "$name ($path) is an image" ;;
+        *) fail "$name ($path) isn't on the server (got ${type:-nothing}); copy it into frontend/public/custom/ and rebuild" ;;
+    esac
+done
 
 if [ "$RATE_LIMIT" = true ]; then
     echo "Rate limits"

@@ -14,6 +14,23 @@ The examples use `shop.example.com` for the storefront and `api.shop.example.com
 
 Steps 1–5 set up accounts and services and can be done in any order. Steps 6–9 bring the store up.
 
+## Accounts and access
+
+Create every account in the **store owner's** name and billing: the server host, the database, the domain and its DNS, Stripe, Resend and the mailbox. Payouts, customers' details and the store's data then belong to the owner, and nobody else can lock them out. Anyone who helps run the store joins as a member instead of holding the account: a Stripe team member, a DigitalOcean team member, a Cloudflare member, a Resend team member, and an admin in the store's own admin pages.
+
+Where the store's data lives:
+
+| What | Where | Kept safe by |
+| --- | --- | --- |
+| Orders, customers, accounts, products | The MySQL database | The managed database's backups and `deploy/backup.sh` |
+| Product images | The `online-store_uploads` volume on the server | `deploy/backup.sh` |
+| Home page photos and icon | `frontend/public/custom/` on the server | Your own copies, or your [private copy](#run-from-your-own-private-copy) of the code |
+| Payments, refunds, payouts | Stripe | Stripe |
+| Sent email | Resend | Resend |
+| Secrets and settings | `deploy/.env` and `deploy/.env.api` on the server | The owner's password manager |
+
+Give each server its own new secrets: a new `JWT_SECRET_KEY` and a Resend API key made for it, never ones copied from a development `.env`. Customers' data never goes anywhere else: the store has no analytics or tracking, and it talks only to Stripe and Resend.
+
 ---
 
 ## 1. Prepare the server
@@ -87,13 +104,21 @@ Do this in **live mode** (test mode is for development).
 ## 6. Get the code and fill in the settings
 
 ```bash
-git clone https://github.com/<owner>/online-shopping-store.git
+git clone https://github.com/everettlopez/online-shopping-store.git
 cd online-shopping-store
 cp deploy/.env.example deploy/.env
 cp .env.example deploy/.env.api
 chmod 600 deploy/.env.api
 ```
+To run your store from a private repository of your own instead, set that up first and clone it here; see [Run from your own private copy](#run-from-your-own-private-copy).
+
 If you use a managed database, save its CA certificate as `deploy/certs/db-ca.crt` (`mkdir -p deploy/certs`, then copy it there).
+
+**Your photos:** copy the home page photos and icon into `frontend/public/custom/` on the server, for example from your computer:
+```bash
+scp hero.jpg banner.jpg deploy@<server>:online-shopping-store/frontend/public/custom/
+```
+Then point the `VITE_*_URL` settings below at them (`VITE_HERO_IMAGE_URL=/custom/hero.jpg`). Git ignores that folder, so a fresh clone doesn't have them, and `deploy/backup.sh` doesn't back them up: keep your own copies.
 
 **`deploy/.env`** holds the domains and the storefront's identity:
 
@@ -191,7 +216,7 @@ sh deploy/check.sh
 
 **Rolling back:** see [Rolling back](launch-checklist.md#rolling-back) in the launch checklist.
 
-**Changing settings:** after editing `deploy/.env.api`, run `up -d` to restart the API. After editing a `VITE_*` setting in `deploy/.env`, run `up -d --build`, because the storefront bakes them in when it's built.
+**Changing settings:** after editing `deploy/.env.api`, run `up -d` to restart the API. After editing a `VITE_*` setting in `deploy/.env`, or changing a photo in `frontend/public/custom/`, run `up -d --build`, because the storefront bakes them in when it's built.
 
 **Backups:** `deploy/backup.sh` backs up both things the store can't rebuild: the database (a managed one, or MySQL on the server) and the product images in the `online-store_uploads` volume. It reads the database's address and login from `deploy/.env.api`, so it needs no settings of its own:
 ```bash
@@ -218,6 +243,40 @@ A managed database also keeps its own backups; check how long your plan keeps th
 **Logs:** `docker compose -f deploy/docker-compose.yml logs --tail 200 api` (or `web`, `caddy`). Logs rotate automatically. Each API line reads `time level logger message`, with details as `key=value`, so `... logs api | grep ERROR` or `grep order_id=42` finds things. `LOG_LEVEL=DEBUG` in `deploy/.env.api` shows more.
 
 **Alerts:** with `ALERT_EMAIL` set, the store emails you about problems that need a person, at most once per problem every 15 minutes. Send a test with `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts`. The email names what happened; the logs around that time have the details.
+
+### Run from your own private copy
+
+A private repository of your own keeps your store's photos, and any changes of your own, in version control, while you still take this project's updates. GitHub can't make a private fork of a public repository, so duplicate it instead. On your computer:
+
+1. Create an empty **private** repository on GitHub (no README or license), for example `my-store`.
+2. Copy this project into it, with its history:
+   ```bash
+   git clone --bare https://github.com/everettlopez/online-shopping-store.git
+   cd online-shopping-store.git
+   git push --mirror git@github.com:<you>/my-store.git
+   cd .. && rm -rf online-shopping-store.git
+   ```
+3. Clone your copy, and keep this project as `upstream` for updates (the second line stops you pushing to it by mistake):
+   ```bash
+   git clone git@github.com:<you>/my-store.git && cd my-store
+   git remote add upstream https://github.com/everettlopez/online-shopping-store.git
+   git remote set-url --push upstream DISABLE
+   ```
+4. Commit your photos. Leave `.gitignore` as it is (so updates merge cleanly) and add them with `-f`:
+   ```bash
+   git add -f frontend/public/custom/hero.jpg frontend/public/custom/banner.jpg
+   git commit -m "Add the store's photos" && git push
+   ```
+   **Never commit** `deploy/.env`, `deploy/.env.api`, `deploy/certs/` or backups, even to a private repository.
+5. Let the server read it. On the server, make a key with `ssh-keygen -t ed25519 -f ~/.ssh/store_deploy -N ""`, add `~/.ssh/store_deploy.pub` to your repository's **Deploy keys** (read-only, the default), then clone with it in step 6:
+   ```bash
+   GIT_SSH_COMMAND="ssh -i ~/.ssh/store_deploy" git clone git@github.com:<you>/my-store.git online-shopping-store
+   cd online-shopping-store && git config core.sshCommand "ssh -i ~/.ssh/store_deploy"
+   ```
+
+**Taking updates:** on your computer, `git fetch upstream && git merge upstream/main && git push`, then update the server as in [Updating](#running-the-store) (`git pull` there brings your photos too).
+
+Private repositories have a monthly allowance of free GitHub Actions minutes, which the CI workflow uses. Dependabot's pull requests are optional in your copy, since updates arrive from `upstream`; you can turn it off under the repository's security settings.
 
 ### MySQL on the server
 
@@ -266,6 +325,7 @@ To put Cloudflare's proxy (orange cloud) in front of the server:
 - **Checkout fails:** the API logs say why. Common causes: Stripe Tax isn't set up (or set `STRIPE_AUTOMATIC_TAX=false`), or a test key is used with live mode.
 - **Orders don't appear after payment:** check the webhook's recent deliveries in Stripe. A 400 means `STRIPE_WEBHOOK_SECRET` doesn't match that endpoint. The success page also creates the order, so customers who return to the store are covered either way.
 - **No alert emails:** `ALERT_EMAIL` must be set in `deploy/.env.api` (restart the API after changing it), and alerts are sent through Resend like the store's other email. Run `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts`; it says whether sending failed.
+- **A home page photo or the icon is missing:** the file isn't in `frontend/public/custom/` on the server (a fresh clone doesn't have it), its name doesn't match the `VITE_*_URL` setting, or the storefront wasn't rebuilt after it was added (`up -d --build`). `sh deploy/check.sh` names each missing one.
 - **Emails don't arrive:** without `RESEND_API_KEY` the API only prints them in its logs. Check that the domain is verified in Resend and the sender addresses use it. Resend's dashboard shows each email's delivery.
 - **Start here:** `sh deploy/check.sh` points at most setup mistakes (a FAIL line names what's wrong).
 - **"Too many attempts":** the rate limits (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`) reset after a minute. If every visitor hits them together, the API isn't seeing real addresses; see *Real visitor addresses* in the [launch checklist](launch-checklist.md) and [Behind Cloudflare's proxy](#behind-cloudflares-proxy).

@@ -13,6 +13,8 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
 - [ ] Every sender address (`ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO`) receives mail.
 - [ ] Products, categories, prices and stock are entered.
 - [ ] Copies of `deploy/.env` and `deploy/.env.api` are stored somewhere safe, such as a password manager.
+- [ ] Your home page photos and icon are in `frontend/public/custom/` on the server, and you keep copies of them (or they're committed to your [private copy](hosting.md#run-from-your-own-private-copy)).
+- [ ] The store's owner holds every account (server, database, domain, Stripe, Resend, mailbox), and helpers are members of them ([Accounts and access](hosting.md#accounts-and-access)).
 - [ ] `ALLOW_STRIPE_TEST_MODE` is not in `deploy/.env.api`, and `STRIPE_SECRET_KEY` is the live key (`sk_live_...`). The API refuses a test key in production unless that setting allows it. After a trial run on test keys, follow [Going live with Stripe](hosting.md#going-live-with-stripe).
 - [ ] `HSTS_INCLUDE_SUBDOMAINS` in `deploy/.env` is `false`, or every subdomain of your domain serves HTTPS.
 
@@ -31,7 +33,7 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
 
 ## 2. Automated checks
 
-- [ ] Run the checks. They test HTTPS and redirects, the API's health and production settings (docs hidden, Stripe webhook secret, cross-site protection, CORS), the security headers, the store's name, and the rate limits:
+- [ ] Run the checks. They test HTTPS and redirects, the API's health and production settings (docs hidden, Stripe webhook secret, cross-site protection, CORS), the security headers, the store's name, description, icon and photos, and the rate limits:
   ```bash
   sh deploy/check.sh --rate-limit
   ```

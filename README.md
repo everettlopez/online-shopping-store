@@ -117,7 +117,8 @@ Everything that identifies a store is a setting, so you run your own store witho
   - `VITE_BANNER_IMAGE_URL` adds a full-width photo further down.
   - `VITE_EVENTS_URL` adds an Events link and button.
 - **Icon and link previews:** `VITE_FAVICON_URL` sets the browser-tab icon (default: a shopping bag). Links shared on social media and in messages preview with the store name, `VITE_STORE_DESCRIPTION` and `VITE_SHARE_IMAGE_URL` (default: the hero photo).
-  - Put your photos (and icon) in [`frontend/public/custom/`](frontend/public/custom/README.md) (git ignores them) and use `/custom/<file name>`.
+  - Put your photos (and icon) in [`frontend/public/custom/`](frontend/public/custom/README.md) (git ignores them) and use `/custom/<file name>`. On a live store they must be copied to the server too, or kept in [your own private copy](docs/hosting.md#run-from-your-own-private-copy) of the code.
+- **Your accounts and data:** the store talks only to your Stripe and Resend accounts and keeps everything else on your own server and database; see [Accounts and access](docs/hosting.md#accounts-and-access).
 - **Categories and products** come from the admin pages. A new store starts with a few example categories, which you can rename or delete.
 
 ### Policy pages

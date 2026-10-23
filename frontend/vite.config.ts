@@ -54,8 +54,9 @@ function storeMeta(env: Record<string, string>): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
+  // Both index.html (storeMeta reads env) and the app (import.meta.env, from process.env) need the defaults
   for (const [name, value] of Object.entries(STORE_DEFAULTS)) {
-    if (!env[name]?.trim()) process.env[name] = value;
+    if (!env[name]?.trim()) env[name] = process.env[name] = value;
   }
 
   return {
