@@ -92,7 +92,7 @@ DB_PORT=$(field 2)
 DB_USER=$(field 3)
 DB_NAME=$(field 4)
 DB_SSL_CA=$(field 5)
-[ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || fail "DATABASE_URL has no host or database name"
+{ [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ]; } || fail "DATABASE_URL has no host or database name"
 
 # The password reaches the MySQL tools in a private file, never on a command line
 SECRETS=$(mktemp) || fail "can't create a temporary file"
