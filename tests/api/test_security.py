@@ -153,12 +153,86 @@ def test_valid_settings_pass():
     ("AUTH_RATE_LIMIT_PER_MINUTE", "-1", "AUTH_RATE_LIMIT_PER_MINUTE"),
     ("LOOKUP_RATE_LIMIT_PER_MINUTE", "lots", "LOOKUP_RATE_LIMIT_PER_MINUTE"),
     ("LOG_LEVEL", "loud", "LOG_LEVEL"),
+    ("ENVIRONMENT", "staging", "ENVIRONMENT"),
 ])
 def test_bad_settings_stop_startup(monkeypatch, name, value, problem):
     monkeypatch.setenv(name, value)
 
     with pytest.raises(RuntimeError, match=problem):
         check_required_settings()
+
+
+# -----------------------------------------
+# Production configuration guard
+# -----------------------------------------
+
+@pytest.fixture
+def production(monkeypatch):
+    """A complete, correct live store's settings."""
+    settings = {
+        "ENVIRONMENT": "production",
+        "ENABLE_DOCS": "false",
+        "COOKIE_SECURE": "true",
+        "COOKIE_SAMESITE": "lax",
+        "FRONTEND_URL": "https://shop.example.com",
+        "PUBLIC_API_URL": "https://api.shop.example.com",
+        "CORS_ORIGINS": "https://shop.example.com,https://www.shop.example.com",
+        "RESEND_API_KEY": "re_live_key",
+        "EMAIL_FROM": "Shop <orders@shop.example.com>",
+        "STRIPE_SECRET_KEY": "sk_live_key",
+    }
+    for name, value in settings.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_a_correct_production_setup_starts(production):
+    check_required_settings()
+
+
+def test_development_allows_local_settings():
+    # The test settings are a developer's: docs on, localhost, no email, a test key
+    check_required_settings()
+
+
+@pytest.mark.parametrize("name, value, problem", [
+    ("ENABLE_DOCS", "true", "ENABLE_DOCS"),
+    ("COOKIE_SECURE", "false", "COOKIE_SECURE"),
+    ("FRONTEND_URL", "http://localhost:5173", "FRONTEND_URL"),
+    ("FRONTEND_URL", "http://shop.example.com", "FRONTEND_URL"),
+    ("PUBLIC_API_URL", "", "PUBLIC_API_URL"),
+    ("PUBLIC_API_URL", "https://127.0.0.1:8000", "PUBLIC_API_URL"),
+    ("CORS_ORIGINS", "https://shop.example.com,http://localhost:5173", "CORS_ORIGINS"),
+    ("CORS_ORIGINS", "", "CORS_ORIGINS"),
+    ("RESEND_API_KEY", "", "RESEND_API_KEY"),
+    ("EMAIL_FROM", "Online Store <onboarding@resend.dev>", "EMAIL_FROM"),
+    ("ORDERS_EMAIL_FROM", "Shop <onboarding@resend.dev>", "ORDERS_EMAIL_FROM"),
+    ("STRIPE_SECRET_KEY", "sk_test_key", "STRIPE_SECRET_KEY"),
+    ("STRIPE_SECRET_KEY", "rk_test_key", "STRIPE_SECRET_KEY"),
+])
+def test_production_refuses_development_settings(production, monkeypatch, name, value, problem):
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(RuntimeError, match=problem):
+        check_required_settings()
+
+
+def test_production_lists_every_problem_at_once(production, monkeypatch):
+    monkeypatch.setenv("ENABLE_DOCS", "true")
+    monkeypatch.setenv("RESEND_API_KEY", "")
+
+    with pytest.raises(RuntimeError) as error:
+        check_required_settings()
+
+    assert "ENABLE_DOCS" in str(error.value) and "RESEND_API_KEY" in str(error.value)
+
+
+def test_production_can_trial_stripe_test_mode(production, monkeypatch, caplog):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_key")
+    monkeypatch.setenv("ALLOW_STRIPE_TEST_MODE", "true")
+
+    check_required_settings()
+
+    assert "Stripe is in test mode" in caplog.text
 
 
 # -----------------------------------------
