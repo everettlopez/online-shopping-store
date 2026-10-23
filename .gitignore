@@ -12,6 +12,9 @@ venv/
 .env.*
 !.env.example
 
+# A managed database's CA certificate for the deploy kit (deploy/certs/db-ca.crt)
+deploy/certs/
+
 # User-uploaded product images (keep the folder)
 app/uploads/*
 !app/uploads/.gitkeep

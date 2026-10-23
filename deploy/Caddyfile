@@ -1,10 +1,18 @@
 # Caddy serves both sites over HTTPS, getting and renewing certificates by itself.
-# STORE_DOMAIN, API_DOMAIN, ACME_EMAIL and CSP_HEADER come from deploy/.env
+# STORE_DOMAIN, API_DOMAIN, ACME_EMAIL, CSP_HEADER and TRUSTED_PROXIES come from deploy/.env
 # (passed in by deploy/docker-compose.yml).
-
 {
 	# Let's Encrypt writes here about problems with the certificates
 	email {$ACME_EMAIL}
+
+	servers {
+		# Proxies in front of Caddy whose word on the visitor's address we take.
+		# None by default (127.0.0.1 is Caddy itself). Behind Cloudflare's proxy,
+		# set TRUSTED_PROXIES in deploy/.env to Cloudflare's IP ranges; the visitor's
+		# address then comes from Cloudflare's CF-Connecting-IP header.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers CF-Connecting-IP
+	}
 }
 
 (security_headers) {
@@ -18,11 +26,6 @@
 		-Server
 	}
 }
-
-# Caddy replaces any X-Forwarded-For a visitor sends with their real address, so the
-# API's rate limits can't be dodged with a fake header. If you put Cloudflare's proxy
-# (orange cloud) in front, add to the global options above:
-#     servers { trusted_proxies static <Cloudflare's IP ranges> }
 
 {$STORE_DOMAIN} {
 	import security_headers
@@ -46,5 +49,10 @@ www.{$STORE_DOMAIN} {
 		max_size 30MB
 	}
 	encode zstd gzip
-	reverse_proxy api:8000
+	reverse_proxy api:8000 {
+		# Send the API only the visitor's address (from a trusted proxy, or the
+		# connection itself), never a list a visitor could have started with a fake
+		# entry. The API's rate limits count this address.
+		header_up X-Forwarded-For {client_ip}
+	}
 }
