@@ -104,7 +104,7 @@ export default function AdminUsers() {
             </div>
 
             {/* Users Table */}
-            <div className="py-4 border rounded-lg bg-white shadow-sm flex flex-col divide-y">
+            <div className="py-4 border rounded-lg bg-white shadow-xs flex flex-col divide-y">
 
                 <div className="grid grid-cols-6 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
                     <div className="text-center">First Name</div>

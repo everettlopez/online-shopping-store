@@ -86,7 +86,7 @@ export default function Checkout() {
                     return (
                         <div 
                             key={item.product_id} 
-                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-70">
+                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5">
                                 
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
 

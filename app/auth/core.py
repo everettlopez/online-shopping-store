@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
+import bcrypt
 import jwt
 
 from fastapi import Depends, HTTPException, Response
@@ -31,14 +31,24 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 # Password Hashing
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt only reads a password's first 72 bytes. Older bcrypt releases (and passlib, which
+# made the existing hashes) cut longer ones silently; bcrypt 5 refuses them, so cut here
+BCRYPT_MAX_BYTES = 72
+
+
+def _password_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_BYTES]
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("ascii")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_password_bytes(plain), hashed.encode("ascii"))
+    except ValueError:
+        # Not a bcrypt hash (a damaged or hand-edited row): no password matches it
+        return False
 
 
 

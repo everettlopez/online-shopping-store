@@ -40,7 +40,7 @@ function Login() {
                 </Link>
             </div>
             
-            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow">
+            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
                 <h1 className="text-4xl">Sign In</h1>
 
                 <form onSubmit={handleLogin}>
@@ -53,7 +53,7 @@ function Login() {
                                 <input type="text" placeholder="you@example.com"
                                     value={email}
                                     onChange = {(e) => setEmail(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                             </div>
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
@@ -61,7 +61,7 @@ function Login() {
                                 <input type="password" placeholder="password"
                                     value={password}
                                     onChange = {(e) => setPassword(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                             </div>
 
                             <Link to="/forgot-password" className="self-end text-sm underline">Forgot password?</Link>

@@ -157,7 +157,7 @@ function AddressDialog({
             <div>
               <p className="font-medium mb-1">Shipping Address</p>
               <select
-                className="border p-2 rounded w-full"
+                className="border p-2 rounded-sm w-full"
                 value={shippingAddressId}
                 onChange={(e) => setShippingAddressId(e.target.value)}
               >
@@ -185,7 +185,7 @@ function AddressDialog({
                 <div>
                   <p className="font-medium mb-1">Billing Address</p>
                   <select
-                    className="border p-2 rounded w-full"
+                    className="border p-2 rounded-sm w-full"
                     value={billingAddressId}
                     onChange={(e) => setBillingAddressId(e.target.value)}
                   >
@@ -204,14 +204,14 @@ function AddressDialog({
 
             <button
               onClick={handleSubmitSelection}
-              className="bg-black text-white py-2 rounded"
+              className="bg-black text-white py-2 rounded-sm"
             >
               Continue
             </button>
 
             <button
               onClick={() => { setError(""); setMode("create"); }}
-              className="bg-gray-300 py-2 rounded"
+              className="bg-gray-300 py-2 rounded-sm"
             >
               Add New Address
             </button>
@@ -293,7 +293,7 @@ function AddressDialog({
 
               <button
                 type="submit"
-                className="bg-black text-white w-full py-2 rounded"
+                className="bg-black text-white w-full py-2 rounded-sm"
               >
                 Save Address
               </button>

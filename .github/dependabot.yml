@@ -1,5 +1,7 @@
-# Weekly pull requests that update dependencies, grouped so each ecosystem gets one PR.
-# CI runs the tests and builds on each; review the changelog before merging majors.
+# Weekly pull requests that update dependencies. Minor and patch updates are grouped
+# into one PR per ecosystem; each major upgrade gets a PR of its own, so one breaking
+# change can't hold back the safe updates. CI runs the tests and builds on each; read
+# the changelog before merging a major.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -9,6 +11,13 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    # SQLModel 0.0.48 (and the SQLAlchemy 2.1 it brings) require timezone-aware
+    # datetimes, and the app stores naive UTC ones. Lift this with that migration
+    ignore:
+      - dependency-name: "sqlmodel"
+      - dependency-name: "sqlalchemy"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -17,6 +26,14 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # typescript-eslint doesn't support TypeScript 7 yet; lift this when it does
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Matches the Node version the storefront builds with (24, the LTS release)
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories: ["/", "/frontend"]

@@ -82,7 +82,7 @@ export default function AccountPage() {
     <div className="min-h-screen bg-gray-50">
 
       {/* HEADER */}
-      <Navbar className="bg-white shadow-sm" />
+      <Navbar className="bg-white shadow-xs" />
 
       {/* MAIN CONTENT */}
       <div className="w-full p-8 flex bg-white gap-10">
@@ -116,7 +116,7 @@ export default function AccountPage() {
           </h1>
 
           {/* Profile Card */}
-          <div className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200">
+          <div className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200">
             <h2 className="text-xl font-medium mb-6 tracking-tight">Profile</h2>
 
             <div className="space-y-2 text-gray-700">
@@ -163,7 +163,7 @@ export default function AccountPage() {
           {/* Update Email */}
           <form
             onSubmit={handleEmailUpdate}
-            className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
+            className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200"
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Email</h2>
 
@@ -172,7 +172,7 @@ export default function AccountPage() {
             <input
               type="email"
               placeholder="New email"
-              className="border p-3 rounded w-full mb-4"
+              className="border p-3 rounded-sm w-full mb-4"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               required
@@ -181,7 +181,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="Current password"
-              className="border p-3 rounded w-full mb-4"
+              className="border p-3 rounded-sm w-full mb-4"
               value={emailPassword}
               onChange={(e) => setEmailPassword(e.target.value)}
               autoComplete="current-password"
@@ -196,7 +196,7 @@ export default function AccountPage() {
           {/* Update Password */}
           <form
             onSubmit={handlePasswordUpdate}
-            className="bg-white shadow-sm p-8 rounded-2xl mb-12 border border-gray-200"
+            className="bg-white shadow-xs p-8 rounded-2xl mb-12 border border-gray-200"
           >
             <h2 className="text-xl font-medium mb-6 tracking-tight">Update Password</h2>
 
@@ -205,7 +205,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="Old password"
-              className="border p-3 rounded w-full mb-4"
+              className="border p-3 rounded-sm w-full mb-4"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
               autoComplete="current-password"
@@ -215,7 +215,7 @@ export default function AccountPage() {
             <input
               type="password"
               placeholder="New password (at least 8 characters)"
-              className="border p-3 rounded w-full mb-4"
+              className="border p-3 rounded-sm w-full mb-4"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
@@ -229,7 +229,7 @@ export default function AccountPage() {
           </form>
 
           {/* Delete Account */}
-          <div className="bg-white shadow-sm p-8 rounded-2xl text-center border border-gray-200">
+          <div className="bg-white shadow-xs p-8 rounded-2xl text-center border border-gray-200">
             <Message message={deleteMessage} />
             <button
               onClick={handleDeleteAccount}

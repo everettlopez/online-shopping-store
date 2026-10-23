@@ -257,8 +257,8 @@ export default function OrderView({ order }: { order: Order }) {
 
                                   <div className="flex gap-2">
                                       {mainImage
-                                          ? <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
-                                          : <div className="h-20 w-20 border rounded bg-gray-100"/>}
+                                          ? <img src={mainImage} className="h-20 w-20 object-cover border rounded-sm"/>
+                                          : <div className="h-20 w-20 border rounded-sm bg-gray-100"/>}
 
                                       <div className="flex flex-col">
                                           <p className="text-lg">{item.product?.title ?? "Product no longer available"}</p>

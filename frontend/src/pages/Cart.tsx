@@ -117,7 +117,7 @@ export default function Cart() {
                     return (
                         <div
                             key={item.product_id}
-                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5 w-70">
+                            className="flex justify-center items-center border mx-auto p-5 rounded-[10px] gap-5">
 
                                 <img src={mainImage} className="w-40 h-40 object-cover"/>
 
@@ -132,13 +132,13 @@ export default function Cart() {
                                             onClick={() => change(() => updateQuantity(item.product_id, item.quantity - 1))}
                                             disabled={item.quantity <= 1}
                                             aria-label="Decrease quantity"
-                                            className="border w-7 rounded disabled:opacity-40">−</button>
+                                            className="border w-7 rounded-sm disabled:opacity-40">−</button>
                                         <span>{item.quantity}</span>
                                         <button
                                             onClick={() => change(() => updateQuantity(item.product_id, item.quantity + 1))}
                                             disabled={item.quantity >= maxQuantity}
                                             aria-label="Increase quantity"
-                                            className="border w-7 rounded disabled:opacity-40">+</button>
+                                            className="border w-7 rounded-sm disabled:opacity-40">+</button>
                                     </div>
 
                                     <button

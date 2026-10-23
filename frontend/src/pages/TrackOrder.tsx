@@ -36,7 +36,7 @@ export default function TrackOrder() {
         <>
         <Navbar />
         <div className="flex justify-center items-center bg-gray-100 py-16 px-4">
-            <div className="flex flex-col justify-center border w-full max-w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow">
+            <div className="flex flex-col justify-center border w-full max-w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
                 <h1 className="text-4xl">Track your order</h1>
                 <p className="text-sm text-gray-600">
                     Enter the order number from your confirmation email and the email you checked out with.
@@ -48,7 +48,7 @@ export default function TrackOrder() {
                         <input id="track-order-number" required
                             value={orderNumber}
                             onChange={(e) => setOrderNumber(e.target.value)}
-                            className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                            className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                     </div>
 
                     <div className="flex flex-col border p-2 rounded-[10px] gap-1">
@@ -56,7 +56,7 @@ export default function TrackOrder() {
                         <input id="track-email" type="email" required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                            className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                     </div>
 
                     <button disabled={searching} className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full disabled:opacity-50">
