@@ -33,7 +33,7 @@ RUN test -n "$VITE_API_URL" || (echo "Pass --build-arg VITE_API_URL=https://<api
 RUN npm run build
 
 # nginx that runs as an ordinary user (uid 101), listening on 8080
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # The image's Alpine packages often lag fixes that are already published; take them
 USER root
 RUN apk upgrade --no-cache
