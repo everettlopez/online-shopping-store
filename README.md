@@ -141,7 +141,9 @@ The quickest way to run a live store is the deploy kit in `deploy/`: one server 
 8. First admin.
 9. Checks before you take orders.
 
-It also covers updating, rollback, backups, Cloudflare's proxy and troubleshooting.
+It also covers updating, backups, Cloudflare's proxy and troubleshooting. Before taking orders, and after every update, work through **[docs/launch-checklist.md](docs/launch-checklist.md)**:
+- `sh deploy/check.sh` runs the automated checks.
+- The rest are checks by hand, a real purchase and refund, and rolling back.
 
 In short:
 ```bash

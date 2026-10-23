@@ -146,11 +146,17 @@ Log in again to see the admin pages. From there you can make other users admins,
 
 ## 9. Before you take orders
 
-1. **Policy pages:** read the Privacy Policy, Terms, Shipping & Returns and Contact pages (linked from the footer). They're a general starting point, not legal advice. Have them reviewed, or link to your own with the `VITE_*_URL` settings.
-2. **Content security policy:** it starts in report-only mode. Browse the store, including checkout and the admin pages, with the browser's console open. If no `Content-Security-Policy` messages appear, set `CSP_HEADER=Content-Security-Policy` in `deploy/.env` and run the `up -d` command again.
-3. **Real addresses:** run `docker compose -f deploy/docker-compose.yml logs api | tail` after visiting the store. The requests should show your own IP address, not a `172.x` Docker address; the rate limits count by address.
-4. **Monitoring:** add a free uptime monitor (for example UptimeRobot or Better Stack) for `https://api.shop.example.com/api/health` and `https://shop.example.com`. The health check fails when the database is unreachable.
-5. **A real purchase:** buy something inexpensive with your own card. Check the order, the confirmation email and a reply to it, the tracking link, and the stock count. Then refund it in Stripe and set the order to *refunded* in the admin pages.
+Work through the **[launch checklist](launch-checklist.md)**:
+- **Automated checks:** `sh deploy/check.sh` tests HTTPS, redirects, security headers, the API's production settings and the rate limits from the outside.
+- **By hand:**
+  - Policy review.
+  - Login in Chrome and Safari, and password reset.
+  - Real visitor addresses in the logs.
+  - A real purchase with an account and as a guest, then refunds.
+- **Lock it down:** enforce the content security policy.
+- **Keep watch:** monitoring and a backup restore you've practiced.
+
+Run its short [after every deploy](launch-checklist.md#after-every-deploy) list on each update.
 
 ---
 
@@ -160,9 +166,10 @@ Log in again to see the admin pages. From there you can make other users admins,
 ```bash
 git pull
 docker compose -f deploy/docker-compose.yml up -d --build
+sh deploy/check.sh
 ```
 
-**Rolling back:** check out the previous version (`git checkout <tag or commit>`) and run the same `up -d --build` command. Migrations so far only add tables and columns, so older code keeps working with a newer database.
+**Rolling back:** see [Rolling back](launch-checklist.md#rolling-back) in the launch checklist.
 
 **Changing settings:** after editing `deploy/.env.api`, run `up -d` to restart the API. After editing a `VITE_*` setting in `deploy/.env`, run `up -d --build`, because the storefront bakes them in when it's built.
 
@@ -207,4 +214,5 @@ To put Cloudflare's proxy (orange cloud) in front of the server:
 - **Checkout fails:** the API logs say why. Common causes: Stripe Tax isn't set up (or set `STRIPE_AUTOMATIC_TAX=false`), or a test key is used with live mode.
 - **Orders don't appear after payment:** check the webhook's recent deliveries in Stripe. A 400 means `STRIPE_WEBHOOK_SECRET` doesn't match that endpoint. The success page also creates the order, so customers who return to the store are covered either way.
 - **Emails don't arrive:** without `RESEND_API_KEY` the API only prints them in its logs. Check that the domain is verified in Resend and the sender addresses use it. Resend's dashboard shows each email's delivery.
-- **"Too many attempts":** the rate limits (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`) reset after a minute. If every visitor hits them together, the API isn't seeing real addresses; see step 9.3 and [Behind Cloudflare's proxy](#behind-cloudflares-proxy).
+- **Start here:** `sh deploy/check.sh` points at most setup mistakes (a FAIL line names what's wrong).
+- **"Too many attempts":** the rate limits (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`) reset after a minute. If every visitor hits them together, the API isn't seeing real addresses; see *Real visitor addresses* in the [launch checklist](launch-checklist.md) and [Behind Cloudflare's proxy](#behind-cloudflares-proxy).

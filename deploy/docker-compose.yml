@@ -4,6 +4,7 @@
 #   cp deploy/.env.example deploy/.env      # domains and the storefront's identity
 #   cp .env.example deploy/.env.api         # the API's secrets and settings
 #   docker compose -f deploy/docker-compose.yml up -d --build
+#   sh deploy/check.sh                      # check it from the outside
 #
 # Add `--profile mysql` to also run MySQL here instead of using a managed database.
 # See the README's "Host your own store" section for the full walkthrough.
