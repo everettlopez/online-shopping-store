@@ -24,6 +24,9 @@ services:
       context: ..
     env_file: .env.api
     environment:
+      # The API refuses to start with development settings (docs on, localhost
+      # addresses, no email, a Stripe test key); its log names each one to fix
+      ENVIRONMENT: production
       # Product images live on the uploads volume so they survive rebuilds
       UPLOAD_DIR: /data/uploads
     volumes:

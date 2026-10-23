@@ -33,6 +33,8 @@ os.environ["EMAIL_REPLY_TO"] = ""
 os.environ["PASSWORD_RESET_MINUTES"] = "30"
 os.environ["ALERT_EMAIL"] = ""
 os.environ["LOG_LEVEL"] = "INFO"
+os.environ["ENVIRONMENT"] = "development"
+os.environ["ALLOW_STRIPE_TEST_MODE"] = ""
 
 import itertools
 from datetime import datetime, timedelta

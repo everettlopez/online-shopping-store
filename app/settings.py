@@ -6,6 +6,7 @@ Each setting is read when it is used, so tests can change them with monkeypatch.
 import logging
 import os
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +25,8 @@ DEFAULT_PASSWORD_RESET_MINUTES = 30
 DEFAULT_LOG_LEVEL = "INFO"
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+ENVIRONMENTS = ("development", "production")
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -31,6 +34,17 @@ def env_bool(name: str, default: bool) -> bool:
     if value is None or value.strip() == "":
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def environment() -> str:
+    """development (the default) or production. Production refuses to start with
+    settings that only suit a developer's computer (see production_problems)."""
+    return (os.getenv("ENVIRONMENT", "").strip() or "development").lower()
+
+
+def stripe_test_mode_allowed() -> bool:
+    """Let production run on Stripe test keys, for a trial run before going live."""
+    return env_bool("ALLOW_STRIPE_TEST_MODE", False)
 
 
 def store_name() -> str:
@@ -156,6 +170,46 @@ def rate_limit_per_minute(group: str) -> int:
     return int(value) if value else DEFAULT_RATE_LIMITS[group]
 
 
+def is_public_https_url(url: str) -> bool:
+    """An https address that isn't this computer."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and bool(host) and host not in LOCAL_HOSTS and not host.endswith(".localhost")
+
+
+def production_problems() -> list[str]:
+    """Settings that are fine on a developer's computer but wrong for a live store:
+    each would quietly break checkout, email or logins, or expose something."""
+    problems = []
+
+    if docs_enabled():
+        problems.append("ENABLE_DOCS must be false (it publishes /docs and /openapi.json)")
+    if not cookie_secure():
+        problems.append("COOKIE_SECURE must be true")
+
+    if not is_public_https_url(frontend_url()):
+        problems.append("FRONTEND_URL must be the storefront's https address (Stripe sends buyers back there)")
+    if not is_public_https_url(os.getenv("PUBLIC_API_URL", "")):
+        problems.append("PUBLIC_API_URL must be the API's https address (product image links use it)")
+    origins = cors_origins()
+    if not origins or not all(is_public_https_url(o) for o in origins):
+        problems.append("CORS_ORIGINS must list only the storefront's https addresses")
+
+    if not resend_api_key():
+        problems.append("RESEND_API_KEY must be set (without it no email is sent and reset links are printed in the logs)")
+    for name, sender in (("EMAIL_FROM", email_from()), ("ORDERS_EMAIL_FROM", orders_email_from()),
+                         ("ACCOUNT_EMAIL_FROM", account_email_from())):
+        if "@resend.dev" in sender.lower():
+            problems.append(f"{name} must be an address on your own domain (Resend's test sender only delivers to you)")
+            break
+
+    stripe_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    if stripe_key.startswith(("sk_test_", "rk_test_")) and not stripe_test_mode_allowed():
+        problems.append("STRIPE_SECRET_KEY is a test key; use the live key, or set ALLOW_STRIPE_TEST_MODE=true for a trial run")
+
+    return problems
+
+
 def check_required_settings():
     """Stop startup with a clear message instead of running with secrets that
     are missing or too weak to be safe."""
@@ -195,6 +249,11 @@ def check_required_settings():
     if log_level() not in LOG_LEVELS:
         problems.append("LOG_LEVEL must be one of " + ", ".join(LOG_LEVELS))
 
+    if environment() not in ENVIRONMENTS:
+        problems.append("ENVIRONMENT must be development or production")
+    elif environment() == "production":
+        problems.extend(production_problems())
+
     if problems:
         raise RuntimeError("Invalid configuration: " + "; ".join(problems) + ". See .env.example.")
 
@@ -202,3 +261,8 @@ def check_required_settings():
         logger.warning("RESEND_API_KEY is not set: emails are printed here instead of sent")
     if not alert_email():
         logger.warning("ALERT_EMAIL is not set: problems that need a person are only logged")
+    if environment() == "production":
+        if stripe_test_mode_allowed() and os.getenv("STRIPE_SECRET_KEY", "").strip().startswith(("sk_test_", "rk_test_")):
+            logger.warning("Stripe is in test mode: checkout takes no real payments")
+        if cookie_samesite() == "none":
+            logger.warning("COOKIE_SAMESITE is none: use lax when the storefront and API share a domain")

@@ -13,6 +13,7 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
 - [ ] Every sender address (`ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO`) receives mail.
 - [ ] Products, categories, prices and stock are entered.
 - [ ] Copies of `deploy/.env` and `deploy/.env.api` are stored somewhere safe, such as a password manager.
+- [ ] `ALLOW_STRIPE_TEST_MODE` is not in `deploy/.env.api`, and `STRIPE_SECRET_KEY` is the live key (`sk_live_...`). The API refuses a test key in production unless that setting allows it.
 
 ## 1. Deploy
 
