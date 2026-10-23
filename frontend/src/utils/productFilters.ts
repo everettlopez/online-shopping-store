@@ -28,9 +28,44 @@ export function defaultProductFilters(sort: ProductSort = "featured"): ProductFi
 }
 
 export function hasActiveFilters(filters: ProductFilterState, defaultSort: ProductSort): boolean {
-    return filters.sizes.length > 0 || filters.colors.length > 0
-        || filters.minPrice !== "" || filters.maxPrice !== ""
-        || filters.sort !== defaultSort;
+    return activeFilterCount(filters) > 0 || filters.sort !== defaultSort;
+}
+
+// Ticked sizes and colors, plus one for a price range; the Filter button shows it on phones
+export function activeFilterCount(filters: ProductFilterState): number {
+    return filters.sizes.length + filters.colors.length
+        + (filters.minPrice !== "" || filters.maxPrice !== "" ? 1 : 0);
+}
+
+// The filters live in the URL query (size, color, min, max, order) so a product page's
+// back link and the browser's Back button return to the same grid. "order" is the
+// dropdown's sort; "sort=newest" is the separate New Arrivals view the header links to.
+const SORTS: ProductSort[] = ["featured", "newest", "price-asc", "price-desc"];
+const FILTER_PARAMS = ["size", "color", "min", "max", "order"];
+
+export function filtersFromParams(params: URLSearchParams, defaultSort: ProductSort): ProductFilterState {
+    const order = params.get("order") as ProductSort | null;
+    return {
+        sizes: params.getAll("size").map((value) => value.toLowerCase()),
+        colors: params.getAll("color").map((value) => value.toLowerCase()),
+        minPrice: params.get("min") ?? "",
+        maxPrice: params.get("max") ?? "",
+        sort: order && SORTS.includes(order) ? order : defaultSort,
+    };
+}
+
+// The current query with its filter params replaced by these filters (defaults left out)
+export function paramsWithFilters(params: URLSearchParams, filters: ProductFilterState, defaultSort: ProductSort): URLSearchParams {
+    const next = new URLSearchParams(params);
+    FILTER_PARAMS.forEach((name) => next.delete(name));
+
+    filters.sizes.forEach((size) => next.append("size", size));
+    filters.colors.forEach((color) => next.append("color", color));
+    if (filters.minPrice !== "") next.set("min", filters.minPrice);
+    if (filters.maxPrice !== "") next.set("max", filters.maxPrice);
+    if (filters.sort !== defaultSort) next.set("order", filters.sort);
+
+    return next;
 }
 
 // Distinct non-empty values of a product field, compared case-insensitively

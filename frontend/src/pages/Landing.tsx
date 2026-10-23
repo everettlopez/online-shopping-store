@@ -2,7 +2,7 @@ import defaultHero from "../assets/default-hero.jpg";
 import Navbar from "../components/Navbar";
 import { store } from "../config/store";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import ProductCard from "../components/products/ProductCard";
 
@@ -15,8 +15,6 @@ interface NewArrival {
 }
 
 function Landing() {
-
-    const navigate = useNavigate();
 
     // null until loaded, so the "coming soon" message doesn't flash before the fetch finishes
     const [newArrivals, setNewArrivals] = useState<NewArrival[] | null>(null);
@@ -73,11 +71,7 @@ function Landing() {
             ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10 mt-10 max-w-7xl mx-auto">
                 {newArrivals?.map((product) => (
-                    <ProductCard
-                        key={product.product_id}
-                        product={product}
-                        onClick={() => navigate("/products?sort=newest")}
-                    />
+                    <ProductCard key={product.product_id} product={product} />
                 ))}
             </div>
             )}
