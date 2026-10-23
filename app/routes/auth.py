@@ -5,8 +5,8 @@ from app.models.user import User
 from app.auth.core import (
     hash_password,
     verify_password,
-    create_access_token,
-    get_current_user,
+    create_user_token,
+    revoke_sessions,
     set_auth_cookie,
     clear_auth_cookie
 )
@@ -62,7 +62,7 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
-    token = create_access_token({"sub": str(user.user_id)})
+    token = create_user_token(user)
     set_auth_cookie(response, token)
 
     return {"access_token": token, "token_type": "bearer"}
@@ -71,6 +71,16 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
 def logout(response: Response):
     clear_auth_cookie(response)
     return {"message": "Logged out"}
+
+@router.post("/logout-all")
+def logout_everywhere(user: CurrentUser, response: Response, session: Session = Depends(get_session)):
+    """Log out on every device, this one included (for a lost phone or a shared computer)."""
+    revoke_sessions(user)
+    session.add(user)
+    session.commit()
+
+    clear_auth_cookie(response)
+    return {"message": "Logged out on every device"}
 
 
 
@@ -113,6 +123,7 @@ def update_email(data: EmailUpdate, user: CurrentUser, session: Session = Depend
 def update_password(
     data: PasswordUpdate,
     user: CurrentUser,
+    response: Response,
     session: Session = Depends(get_session)
 ):
     
@@ -124,10 +135,16 @@ def update_password(
         raise HTTPException(status_code=400, detail="Invalid Credentials")
     
     user.hashed_password = hash_password(data.new_password)
+    # Whoever else is logged in (say, with a stolen session) is logged out; this
+    # browser gets a new token and stays logged in
+    revoke_sessions(user)
     session.add(user)
     session.commit()
 
-    return {"message": "Password updated successfully"}
+    token = create_user_token(user)
+    set_auth_cookie(response, token)
+
+    return {"message": "Password updated successfully", "access_token": token, "token_type": "bearer"}
 
 
 @router.post("/forgot-password", dependencies=[rate_limit("auth")])
@@ -174,6 +191,8 @@ def reset_password(data: PasswordReset, session: Session = Depends(get_session))
 
     user = session.get(User, reset.user_id)
     user.hashed_password = hash_password(data.new_password)
+    # Whoever had the old password may still be logged in
+    revoke_sessions(user)
     session.add(user)
 
     # The link works once, and any other links sent to this user stop working too

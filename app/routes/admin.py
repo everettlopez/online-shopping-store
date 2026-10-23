@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from app.db.session import get_session
 from app.auth.dependencies import admin_required
-from app.auth.core import hash_password
+from app.auth.core import hash_password, revoke_sessions
 
 from app.models.user import User
 from app.schemas.user import UserRead, UserResponse, AdminUserCreate, AdminUserUpdate, Metadata as UserMetadata
@@ -83,6 +83,8 @@ def update_user(
     password = update_data.pop("password", None)
     if password:
         user.hashed_password = hash_password(password)
+        # Usually done for a compromised account, so end its sessions too
+        revoke_sessions(user)
 
     for key, value in update_data.items():
         if value is not None:

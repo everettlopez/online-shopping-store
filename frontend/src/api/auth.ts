@@ -70,3 +70,8 @@ export const resetPassword = async(token: string, newPassword: string) => {
 
     return response.data;
 };
+// Log out on every device, this one included
+export const logoutEverywhere = async () => {
+    const response = await axiosClient.post("/auth/logout-all");
+    return response.data;
+};
