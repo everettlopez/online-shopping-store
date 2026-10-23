@@ -1,0 +1,108 @@
+# Production stack for one server: the API, the storefront, and Caddy in front of
+# both (HTTPS certificates, security headers). From the project root:
+#
+#   cp deploy/.env.example deploy/.env      # domains and the storefront's identity
+#   cp .env.example deploy/.env.api         # the API's secrets and settings
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# Add `--profile mysql` to also run MySQL here instead of using a managed database.
+# See the README's "Host your own store" section for the full walkthrough.
+
+name: online-store
+
+x-logging: &logging
+  # Rotate container logs so they can't fill the disk
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  api:
+    build:
+      context: ..
+    env_file: .env.api
+    environment:
+      # Product images live on the uploads volume so they survive rebuilds
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      # Only with --profile mysql: wait for the database before migrating
+      db:
+        condition: service_healthy
+        required: false
+    # No published port: only Caddy reaches the API, over the internal network
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    build:
+      context: ../frontend
+      # Vite bakes these into the bundle, so changing one needs a rebuild (--build)
+      args:
+        VITE_API_URL: https://${API_DOMAIN:?Set API_DOMAIN in deploy/.env}/api
+        VITE_STORE_NAME: ${VITE_STORE_NAME:-}
+        VITE_STORE_LOGO_TEXT: ${VITE_STORE_LOGO_TEXT:-}
+        VITE_STORE_DESCRIPTION: ${VITE_STORE_DESCRIPTION:-}
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
+        VITE_BUSINESS_NAME: ${VITE_BUSINESS_NAME:-}
+        VITE_BUSINESS_ADDRESS: ${VITE_BUSINESS_ADDRESS:-}
+        VITE_BUSINESS_STATE: ${VITE_BUSINESS_STATE:-}
+        VITE_RETURN_DAYS: ${VITE_RETURN_DAYS:-}
+        VITE_PRIVACY_POLICY_URL: ${VITE_PRIVACY_POLICY_URL:-}
+        VITE_TERMS_URL: ${VITE_TERMS_URL:-}
+        VITE_SHIPPING_POLICY_URL: ${VITE_SHIPPING_POLICY_URL:-}
+    restart: unless-stopped
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      STORE_DOMAIN: ${STORE_DOMAIN:?Set STORE_DOMAIN in deploy/.env}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in deploy/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in deploy/.env}
+      CSP_HEADER: ${CSP_HEADER:-Content-Security-Policy-Report-Only}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates; losing them means asking Let's Encrypt again, which is rate limited
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+    logging: *logging
+
+  # Optional MySQL for hosts without a managed database (docker compose --profile mysql).
+  # Point the API at it with DATABASE_URL=mysql+pymysql://store:<MYSQL_PASSWORD>@db:3306/online_store
+  # and back it up yourself (see the README).
+  db:
+    image: mysql:8.4
+    profiles: ["mysql"]
+    environment:
+      MYSQL_DATABASE: online_store
+      MYSQL_USER: store
+      # Set both in deploy/.env (MySQL refuses to start without them)
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  uploads:
+  caddy_data:
+  caddy_config:
+  mysql:

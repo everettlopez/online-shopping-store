@@ -13,3 +13,6 @@ frontend
 tests
 app/uploads/*
 !app/uploads/.gitkeep
+
+# Deployment settings and secrets (deploy/.env, deploy/.env.api) stay on the server
+deploy
