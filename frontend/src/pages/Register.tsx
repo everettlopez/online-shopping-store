@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { apiErrorMessage } from "../api/errors";
-import { useNavigate, Link } from  "react-router-dom";
+import { useNavigate, useLocation, Link } from  "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 
 console.log("DEBUG: Register component loaded");
@@ -9,6 +9,8 @@ console.log("DEBUG: Register component loaded");
 
 function Register() {
     const navigate = useNavigate();
+    // Passed on to login, so the shopper ends up back where they started (e.g. the cart)
+    const { state } = useLocation();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -28,7 +30,7 @@ function Register() {
             });
 
             setMessage("Registration successful. Redirecting to login...");
-            setTimeout(() => navigate("/login"), 800);
+            setTimeout(() => navigate("/login", { state }), 800);
         } catch (err: any) {
             console.error(err);
             setMessage(apiErrorMessage(err, "Registration failed."));

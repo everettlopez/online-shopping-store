@@ -7,6 +7,7 @@ customer and Stripe's webhook don't wait on the email provider.
 from dataclasses import dataclass
 from decimal import Decimal
 from html import escape
+from urllib.parse import quote, urlencode
 
 import resend
 
@@ -116,9 +117,20 @@ def address_lines(address: dict | None) -> list[str]:
     return [line for line in (address["full_name"], address["line1"], address.get("line2"), city_line) if line]
 
 
+def order_link(order: Order) -> str:
+    """The order's private tracking page, which opens without logging in (guests have
+    no account), so the same link works for every buyer on any device."""
+    query = urlencode({"token": order.access_token or ""})
+    return f"{frontend_url()}/track/{quote(order.order_number)}?{query}"
+
+
+def greeting(order: Order) -> str:
+    return f"Hi {order.first_name}," if order.first_name else "Hi,"
+
+
 def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str, int, Decimal, Decimal]]) -> EmailMessage:
     """items: (product title, quantity, unit price paid, line subtotal)."""
-    link = f"{frontend_url()}/orders/{order.order_number}"
+    link = order_link(order)
     totals = [
         ("Subtotal", order.subtotal_amount),
         ("Shipping", order.shipping_amount),
@@ -128,7 +140,7 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
     address = address_lines(order.shipping_address)
 
     text = "\n".join([
-        f"Hi {order.first_name},",
+        greeting(order),
         "",
         f"Thanks for your order! Order number: {order.order_number}",
         "",
@@ -151,7 +163,7 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
         for label, amount in totals
     )
     html = html_page("Thanks for your order", (
-        f"<p>Hi {escape(order.first_name or '')}, we've received your order "
+        f"<p>{escape(greeting(order))} we've received your order "
         f"<strong>{escape(order.order_number)}</strong>.</p>"
         f'<table style="width:100%;border-collapse:collapse">{item_rows}'
         f'<tr><td colspan="2"><hr></td></tr>{total_rows}</table>'
@@ -163,9 +175,9 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
 
 
 def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
-    link = f"{frontend_url()}/orders/{order.order_number}"
+    link = order_link(order)
     text = "\n".join([
-        f"Hi {order.first_name},",
+        greeting(order),
         "",
         f"Your order {order.order_number} is on its way.",
         f"Carrier: {order.tracking_carrier}",
@@ -175,7 +187,7 @@ def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
         f"View your order: {link}",
     ])
     html = html_page("Your order has shipped", (
-        f"<p>Hi {escape(order.first_name or '')}, your order <strong>{escape(order.order_number)}</strong> is on its way.</p>"
+        f"<p>{escape(greeting(order))} your order <strong>{escape(order.order_number)}</strong> is on its way.</p>"
         f"<p>{escape(order.tracking_carrier or '')} tracking number: <strong>{escape(order.tracking_number or '')}</strong></p>"
         # Only web links become a button (the URL is typed in by an admin)
         + (html_button(order.tracking_url, "Track your package")

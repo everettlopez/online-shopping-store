@@ -3,9 +3,10 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from datetime import datetime
 from app.auth.core import CurrentUser
-from app.schemas.order import OrderRead, OrderItemRead
+from app.schemas.order import OrderLookup, OrderRead, OrderItemRead, OrderTrackingLink
 from app.models.order import Order, OrderItem
 from sqlalchemy.orm import selectinload
+import secrets
 
 from app.models.product import Product
 from app.database.products import database_get_product_reads
@@ -62,6 +63,29 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
     orders = session.exec(query).all()
     return build_order_reads(session, orders)
 
+@router.get("/track/{order_number}", response_model=OrderRead)
+def track_order(order_number: str, token: str = "", session: Session = Depends(get_session)):
+    """The order behind an emailed tracking link, with no login needed (guests have no
+    account). The token is a long random secret kept on the order"""
+    order = session.exec(select(Order).where(Order.order_number == order_number.lower())).first()
+
+    if not order or not order.access_token or not secrets.compare_digest(order.access_token, token):
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    return build_order_reads(session, [order])[0]
+
+@router.post("/lookup", response_model=OrderTrackingLink)
+def look_up_order(data: OrderLookup, session: Session = Depends(get_session)):
+    """Find the tracking link for an order from its number and the email it was placed
+    with. Either one being wrong gives the same 404, so neither can be probed alone"""
+    order = session.exec(select(Order).where(Order.order_number == data.order_number.strip().lower())).first()
+
+    email = data.email.strip().lower()
+    if not order or not order.email or not order.access_token or not secrets.compare_digest(order.email.lower(), email):
+        raise HTTPException(status_code=404, detail="We couldn't find an order with that number and email")
+
+    return OrderTrackingLink(order_number=order.order_number, access_token=order.access_token)
+
 @router.get("/{order_number}", response_model=OrderRead)
 def get_order(order_number: str, user: CurrentUser, session: Session = Depends(get_session)):
     order = session.exec(select(Order).where(Order.order_number == order_number.lower())).first()
@@ -110,8 +134,8 @@ def update_tracking_information(order_id: int, tracking_number: str, tracking_ca
     session.refresh(order)
 
     # Tell the buyer, including when an admin corrects the tracking details
-    buyer = session.get(User, order.user_id)
-    background_tasks.add_task(send_email, build_shipping_notice_email(buyer.email, order))
+    if order.email:
+        background_tasks.add_task(send_email, build_shipping_notice_email(order.email, order))
 
     return {"message": "Order tracking updated"}
 

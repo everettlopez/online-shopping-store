@@ -202,22 +202,34 @@ def add_to_cart(session):
 @pytest.fixture
 def make_order(session, make_address):
     def make_order(user, items=(), status="pending", **fields):
-        """items: (product, quantity) pairs."""
-        shipping = make_address(user, "shipping")
-        billing = make_address(user, "billing")
-        order = save(session, Order(
-            user_id=user.user_id,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            shipping_address_id=shipping.address_id,
-            billing_address_id=billing.address_id,
-            shipping_address=address_snapshot(shipping),
-            billing_address=address_snapshot(billing),
-            order_number=f"ord{next(_counter):05d}",
-            status=status,
-            total_amount=sum(p.price * q for p, q in items),
+        """items: (product, quantity) pairs. user=None makes a guest order, which has
+        address copies but no saved addresses."""
+        n = next(_counter)
+        if user:
+            shipping = make_address(user, "shipping")
+            billing = make_address(user, "billing")
+            owner = dict(
+                user_id=user.user_id,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                email=user.email,
+                shipping_address_id=shipping.address_id,
+                billing_address_id=billing.address_id,
+                shipping_address=address_snapshot(shipping),
+                billing_address=address_snapshot(billing),
+            )
+        else:
+            copy = dict(full_name="Guest Shopper", line1="2 Oak Ave", city="Springfield", state="IL", postal_code="62701", country="US")
+            owner = dict(first_name="Guest", last_name="Shopper", email=f"guest{n}@example.com",
+                         shipping_address=copy, billing_address=copy)
+        order = save(session, Order(**{
+            **owner,
+            "order_number": f"ord{n:05d}",
+            "access_token": f"token-{n:05d}",
+            "status": status,
+            "total_amount": sum(p.price * q for p, q in items),
             **fields,
-        ))
+        }))
         for product, quantity in items:
             session.add(OrderItem(
                 order_id=order.order_id,

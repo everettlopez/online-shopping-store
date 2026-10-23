@@ -17,3 +17,15 @@ MAX_CART_QUANTITY = 99
 
 class CartItemUpdate(BaseModel):
     quantity: int = Field(ge=1, le=MAX_CART_QUANTITY)
+
+# Limits how many lines a guest cart can send
+MAX_CART_LINES = 100
+
+class CartLine(BaseModel):
+    """One product of a guest's browser cart."""
+    product_id: int
+    quantity: int = Field(ge=1, le=MAX_CART_QUANTITY)
+
+class CartMerge(BaseModel):
+    # A guest's browser cart, added to the account cart on login
+    items: list[CartLine] = Field(max_length=MAX_CART_LINES)

@@ -1,14 +1,17 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 import stripe
 import uuid
 import json
 import os
+import secrets
 from datetime import datetime
 
 from app.db.session import get_session
 from app.schemas.checkout import CheckoutRequest
-from app.auth.core import CurrentUser
+from app.schemas.order import CheckoutOrderRead
+from app.auth.core import OptionalUser
 from app.settings import (
     automatic_tax_enabled,
     free_shipping_threshold,
@@ -21,7 +24,7 @@ from app.models.order import Order, OrderItem
 from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.models.address import Address
-from app.schemas.address import address_snapshot
+from app.schemas.address import OrderAddress, address_snapshot
 from app.routes.order import build_order_reads
 from app.models.user import User
 from app.mail import build_order_confirmation_email, send_email
@@ -51,6 +54,22 @@ def stripe_address(address: Address) -> dict:
         "postal_code": address.postal_code,
         "country": address.country,
     }
+
+
+def stripe_address_snapshot(name: str | None, phone: str | None, address: dict | None) -> dict | None:
+    """The OrderAddress copy of an address a guest entered on Stripe's page."""
+    if not address or not address.get("line1"):
+        return None
+    return OrderAddress(
+        full_name=name or "Customer",
+        phone=phone,
+        line1=address["line1"],
+        line2=address.get("line2"),
+        city=address.get("city") or "",
+        state=address.get("state") or "",
+        postal_code=address.get("postal_code") or "",
+        country=address.get("country") or "US",
+    ).model_dump()
 
 
 def get_stripe_customer(session: Session, user: User, shipping: Address, billing: Address) -> str:
@@ -84,42 +103,24 @@ def get_shipping_rates():
     return {"flat_rate": float(shipping_flat_rate()), "free_shipping_threshold": float(free_shipping_threshold())}
 
 
-@router.post("/create-checkout-session")
-def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: Session = Depends(get_session)):
-    # 1. Load cart
-    cart = session.exec(select(Cart).where(Cart.user_id == user.user_id)).first()
-    if not cart:
-        raise HTTPException(status_code=400, detail="Cart not found")
-
-    cart_items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
-    if not cart_items:
+def price_items(session: Session, items) -> tuple[list, list, int]:
+    """Check what's being bought (positive quantities, active products, stock) and price
+    it from the database. `items` are (product_id, quantity) pairs. Returns the
+    [product_id, qty, unit_cents] snapshot, Stripe's line items and the subtotal in cents."""
+    if not items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
-    # 2. Validate addresses
-    shipping = session.get(Address, data.shipping_address_id)
-    billing = session.get(Address, data.billing_address_id)
-
-    if not shipping or shipping.user_id != user.user_id or shipping.deleted_at:
-        raise HTTPException(status_code=400, detail="Invalid shipping address")
-
-    if not billing or billing.user_id != user.user_id or billing.deleted_at:
-        raise HTTPException(status_code=400, detail="Invalid billing address")
-
-    if shipping.country != "US":
-        raise HTTPException(status_code=400, detail="We currently ship only within the US")
-
-    # 3. Validate stock BEFORE Stripe Checkout
     subtotal_cents = 0
     snapshot = []
     line_items = []
 
     # Older carts can hold the same product in several rows, so total them per product
     wanted = {}
-    for item in cart_items:
+    for product_id, quantity in items:
         # A negative quantity would lower the total the customer pays
-        if item.quantity < 1:
+        if quantity < 1:
             raise HTTPException(status_code=400, detail="Invalid quantity in cart")
-        wanted[item.product_id] = wanted.get(item.product_id, 0) + item.quantity
+        wanted[product_id] = wanted.get(product_id, 0) + quantity
 
     for product_id, quantity in wanted.items():
         product = session.get(Product, product_id)
@@ -149,10 +150,63 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
             "quantity": quantity,
         })
 
+    return snapshot, line_items, subtotal_cents
+
+
+@router.post("/create-checkout-session")
+def create_checkout_session(data: CheckoutRequest, user: OptionalUser, session: Session = Depends(get_session)):
+    if user:
+        # 1. Logged in: the account cart, sent to their saved addresses
+        cart = session.exec(select(Cart).where(Cart.user_id == user.user_id)).first()
+        if not cart:
+            raise HTTPException(status_code=400, detail="Cart not found")
+
+        cart_items = session.exec(select(CartItem).where(CartItem.cart_id == cart.cart_id)).all()
+        if not cart_items:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        # 2. Validate addresses
+        shipping = session.get(Address, data.shipping_address_id) if data.shipping_address_id else None
+        billing = session.get(Address, data.billing_address_id) if data.billing_address_id else None
+
+        if not shipping or shipping.user_id != user.user_id or shipping.deleted_at:
+            raise HTTPException(status_code=400, detail="Invalid shipping address")
+
+        if not billing or billing.user_id != user.user_id or billing.deleted_at:
+            raise HTTPException(status_code=400, detail="Invalid billing address")
+
+        if shipping.country != "US":
+            raise HTTPException(status_code=400, detail="We currently ship only within the US")
+
+        items = [(item.product_id, item.quantity) for item in cart_items]
+    else:
+        # 1. Guest: the browser cart. Stripe collects the email and addresses
+        items = [(line.product_id, line.quantity) for line in data.items or []]
+
+    # 3. Validate stock BEFORE Stripe Checkout
+    snapshot, line_items, subtotal_cents = price_items(session, items)
+
     # What the customer pays for, so fulfillment doesn't depend on the cart later
     items_metadata = json.dumps(snapshot, separators=(",", ":"))
     if len(items_metadata) > 500:  # Stripe's limit for one metadata value
         raise HTTPException(status_code=400, detail="Too many different items for one checkout")
+
+    if user:
+        metadata = {
+            "user_id": user.user_id,
+            "shipping_address_id": data.shipping_address_id,
+            "billing_address_id": data.billing_address_id,
+            "items": items_metadata
+        }
+        # Addresses are already known; Stripe shows them from the customer
+        collect = {}
+    else:
+        metadata = {"guest": "1", "items": items_metadata}
+        collect = {
+            "shipping_address_collection": {"allowed_countries": ["US"]},
+            "billing_address_collection": "required",
+            "phone_number_collection": {"enabled": True},   # carriers use it for delivery problems
+        }
 
     shipping_amount = shipping_cents(subtotal_cents)
     shipping_option = {
@@ -167,9 +221,12 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
 
     try:
         # Sales tax comes from Stripe Tax, using the customer's shipping address
+        # (a guest's is the one they enter on Stripe's page)
         tax = {}
         if automatic_tax_enabled():
-            tax = {"automatic_tax": {"enabled": True}, "customer": get_stripe_customer(session, user, shipping, billing)}
+            tax = {"automatic_tax": {"enabled": True}}
+            if user:
+                tax["customer"] = get_stripe_customer(session, user, shipping, billing)
 
         # 4. Create Stripe Checkout Session
         # Payment methods (card, etc.) are configured in the Stripe Dashboard
@@ -178,14 +235,10 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
             line_items=line_items,
             shipping_options=[shipping_option],
             **tax,
+            **collect,
             success_url=f"{frontend_url()}/order-success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{frontend_url()}/cart",
-            metadata={
-                "user_id": user.user_id,
-                "shipping_address_id": data.shipping_address_id,
-                "billing_address_id": data.billing_address_id,
-                "items": items_metadata
-            }
+            metadata=metadata
         )
     except stripe.StripeError as e:
         # Stripe is down, or the account isn't set up (e.g. Stripe Tax without a head
@@ -196,8 +249,8 @@ def create_checkout_session(data: CheckoutRequest, user: CurrentUser, session: S
     return {"checkoutUrl": stripe_session.url}
 
 
-@router.get("/session/{session_id}")
-def get_order_from_session(session_id: str, user: CurrentUser, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+@router.get("/session/{session_id}", response_model=CheckoutOrderRead)
+def get_order_from_session(session_id: str, user: OptionalUser, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     order = session.exec(
         select(Order).where(Order.stripe_session_id == session_id)
     ).first()
@@ -210,15 +263,21 @@ def get_order_from_session(session_id: str, user: CurrentUser, background_tasks:
             print("Failed to load checkout session:", session_id, e)
             stripe_session = None
 
-        owner_id = stripe_session.metadata.to_dict().get("user_id") if stripe_session and stripe_session.metadata else None
-        if stripe_session and stripe_session.payment_status == "paid" and owner_id == str(user.user_id):
+        metadata = stripe_session.metadata.to_dict() if stripe_session and stripe_session.metadata else {}
+        is_buyer = metadata.get("guest") == "1" or (user is not None and metadata.get("user_id") == str(user.user_id))
+        if stripe_session and stripe_session.payment_status == "paid" and is_buyer:
             order = fulfill_checkout(session, stripe_session, background_tasks)
 
-    # Only the buyer (or an admin) can see the order; 404 so session ids can't be probed
-    if not order or (order.user_id != user.user_id and not user.is_admin):
+    # A guest order is shown to whoever has its Checkout Session id, a long random
+    # secret that Stripe hands only to the buyer's browser. An account's order is shown
+    # only to its owner (or an admin); 404 so session ids can't be probed
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.user_id is not None and (user is None or (order.user_id != user.user_id and not user.is_admin)):
         raise HTTPException(status_code=404, detail="Order not found")
 
-    return build_order_reads(session, [order])[0]
+    read = build_order_reads(session, [order])[0]
+    return CheckoutOrderRead(**read.model_dump(), access_token=order.access_token)
 
 def summarize_payment_method(pmd: dict) -> dict:
     """Turn a charge's payment_method_details into how the customer paid.
@@ -284,6 +343,13 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
     return {"received": True}
 
 
+def already_fulfilled(session: Session, stripe_session_id: str) -> Order | None:
+    """A concurrent fulfillment of the same session committed its order first (guests
+    have no cart row to wait on). Drop ours, including its stock changes, and use that one."""
+    session.rollback()
+    return session.exec(select(Order).where(Order.stripe_session_id == stripe_session_id)).first()
+
+
 def fulfill_checkout(session: Session, stripe_session, background_tasks: BackgroundTasks) -> Order | None:
     """Create the order for a completed Checkout Session. Called by the webhook and,
     as a fallback, by the success page, so it must be safe to run more than once.
@@ -292,17 +358,24 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     metadata = stripe_session.metadata.to_dict() if stripe_session.metadata else {}
 
     # Sessions from `stripe trigger`, Payment Links, etc. don't carry our order metadata
-    try:
-        user_id = int(metadata["user_id"])
-        shipping_id = int(metadata["shipping_address_id"])
-        billing_id = int(metadata["billing_address_id"])
-    except (KeyError, ValueError):
-        print("Skipping checkout session without order metadata:", stripe_session.id)
-        return None
+    guest = metadata.get("guest") == "1"
+    if guest:
+        user_id = shipping_id = billing_id = None
+    else:
+        try:
+            user_id = int(metadata["user_id"])
+            shipping_id = int(metadata["shipping_address_id"])
+            billing_id = int(metadata["billing_address_id"])
+        except (KeyError, ValueError):
+            print("Skipping checkout session without order metadata:", stripe_session.id)
+            return None
 
     # Lock the user's cart so the webhook and the success page can't fulfill the same
     # session at once; the second caller waits here, then finds the committed order.
-    cart = session.exec(select(Cart).where(Cart.user_id == user_id).with_for_update()).first()
+    # Guests have no cart to lock: the unique stripe_session_id catches them below
+    cart = None
+    if not guest:
+        cart = session.exec(select(Cart).where(Cart.user_id == user_id).with_for_update()).first()
 
     # Locking reads see rows committed by a concurrent fulfillment (plain reads may not)
     existing = session.exec(
@@ -311,11 +384,29 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     if existing:
         return existing
 
-    user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
+    charged = stripe_session.to_dict()
 
-    if not user_obj:
-        print("ERROR: User not found: ", user_id)
-        return None
+    if guest:
+        # Who the guest is and where it goes, as entered on Stripe's page
+        details = charged.get("customer_details") or {}
+        # Newer Stripe API versions keep the shipping details under collected_information
+        shipping_details = (charged.get("collected_information") or {}).get("shipping_details") or charged.get("shipping_details") or {}
+        email = details.get("email")
+        shipping_address = stripe_address_snapshot(shipping_details.get("name") or details.get("name"), details.get("phone"), shipping_details.get("address"))
+        billing_address = stripe_address_snapshot(details.get("name") or shipping_details.get("name"), details.get("phone"), details.get("address"))
+        first_name, _, last_name = ((shipping_address or billing_address or {}).get("full_name") or "").partition(" ")
+    else:
+        user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
+
+        if not user_obj:
+            print("ERROR: User not found: ", user_id)
+            return None
+
+        email = user_obj.email
+        first_name, last_name = user_obj.first_name, user_obj.last_name
+        # Saved addresses are only hidden when deleted, so these rows still exist
+        shipping_address = address_snapshot(session.get(Address, shipping_id))
+        billing_address = address_snapshot(session.get(Address, billing_id))
 
     cart_items = []
     if cart:
@@ -336,7 +427,6 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     # What Stripe charged. Sessions without these (older ones, `stripe trigger`) had
     # no shipping or tax, so the items are the whole amount
-    charged = stripe_session.to_dict()
     totals = charged.get("total_details") or {}
     shipping_cents_paid = totals.get("amount_shipping") or 0
     tax_cents = totals.get("amount_tax") or 0
@@ -351,8 +441,10 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     order = Order(
         user_id=user_id,
-        first_name=user_obj.first_name,
-        last_name=user_obj.last_name,
+        first_name=first_name or None,
+        last_name=last_name or None,
+        email=email,
+        access_token=secrets.token_urlsafe(32),
         shipping_address_id=shipping_id,
         billing_address_id=billing_id,
         total_amount=from_cents(total_cents),
@@ -363,14 +455,16 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         status="placed" if stripe_session.payment_status == "paid" else "pending",
         payment_intent_id=pi_id,
         stripe_session_id=stripe_session.id,
-        # Saved addresses are only hidden when deleted, so these rows still exist
-        shipping_address=address_snapshot(session.get(Address, shipping_id)),
-        billing_address=address_snapshot(session.get(Address, billing_id)),
+        shipping_address=shipping_address,
+        billing_address=billing_address,
         **get_payment_details(pi_id)
     )
 
     session.add(order)
-    session.flush()  # assigns order.order_id; everything below commits together
+    try:
+        session.flush()  # assigns order.order_id; everything below commits together
+    except IntegrityError:
+        return already_fulfilled(session, stripe_session.id)
 
     email_items = []  # (title, quantity, unit price, subtotal) for the confirmation email
 
@@ -410,7 +504,10 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         else:
             session.delete(item)
 
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        return already_fulfilled(session, stripe_session.id)
 
     session.refresh(order)
 
@@ -418,7 +515,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     # Sent after the response, so neither Stripe nor the shopper waits on the email
     # provider. Unpaid (pending) orders get no confirmation
-    if order.status == "placed":
-        background_tasks.add_task(send_email, build_order_confirmation_email(user_obj.email, order, email_items))
+    if order.status == "placed" and order.email:
+        background_tasks.add_task(send_email, build_order_confirmation_email(order.email, order, email_items))
 
     return order

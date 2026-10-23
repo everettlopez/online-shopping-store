@@ -78,22 +78,37 @@ def get_access_token(cookie_token = Depends(cookie_scheme), bearer_token = Depen
     
     raise HTTPException(status_code=401, detail="Not authenticated")
 
-def get_current_user(token: str = Depends(get_access_token), session: Session = Depends(get_session)):
-    try: 
+def user_from_token(token: str, session: Session) -> User:
+    try:
         payload = jwt.decode(token, signing_key(), algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
 
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
+
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     user = session.exec(select(User).where(User.user_id == int(user_id))).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return user
 
+def get_current_user(token: str = Depends(get_access_token), session: Session = Depends(get_session)):
+    return user_from_token(token, session)
+
+def get_optional_user(cookie_token = Depends(cookie_scheme), bearer_token = Depends(bearer_scheme), session: Session = Depends(get_session)):
+    """The logged-in user, or None for a guest. An expired or invalid token also counts
+    as a guest, so a stale cookie never blocks shopping without an account."""
+    token = cookie_token or (bearer_token.credentials if bearer_token else None)
+    if not token:
+        return None
+    try:
+        return user_from_token(token, session)
+    except HTTPException:
+        return None
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]

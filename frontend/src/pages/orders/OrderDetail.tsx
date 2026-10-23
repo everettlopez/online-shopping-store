@@ -1,157 +1,10 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import type { ReactElement } from "react";
 import axiosClient from "../../api/axiosClient";
-import { paymentCardSummary, paymentMethodLabel } from "../../utils/payment";
 import { useAuth } from "../../context/AuthContext";
 
-import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
-import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
-import DoneRoundedIcon from '@mui/icons-material/DoneRounded';
-import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
-import Stepper from '@mui/material/Stepper';
-import { Chip, Step, StepLabel } from "@mui/material";
 import Navbar from "../../components/Navbar";
-import OrderAddressLines, { type OrderAddress } from "../../components/OrderAddressLines";
-import OrderTotals from "../../components/OrderTotals";
-
-export type OrderItem = {
-  order_item_id: number;
-  order_id: number;
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  // null when the product has since been removed from the catalog
-  product: {
-    product_id: number;
-    title: string;
-    price: number;
-    size: string | null;
-    thumbnail: string | null;
-    images?: string[] | null;
-  } | null;
-};
-
-export type Order = {
-  order_id: number;
-  user_id: number;
-
-  first_name: string | null;
-  last_name: string | null;
-
-  created_at: string;
-  updated_at: string;
-
-  shipping_address_id: number;
-  billing_address_id: number;
-
-  order_number: string;
-  status: string;
-  order_date: string;
-  total_amount: number;
-  subtotal_amount: number | null;
-  shipping_amount: number | null;
-  tax_amount: number | null;
-
-  payment_intent_id: string | null;
-  stripe_session_id: string | null;
-
-  payment_method_type: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
-  payment_status: string | null;
-  receipt_url: string | null;
-
-  shipping_address: OrderAddress | null;
-  billing_address: OrderAddress | null;
-
-  tracking_number: string | null;
-  tracking_carrier: string | null;
-  tracking_url: string | null;
-
-  items: OrderItem[];
-};
-
-type StatusColor =
-  | "info"
-  | "success"
-  | "error"
-  | "warning"
-  | "default"
-  | "primary"
-  | "secondary";
-
-type OrderStatus = "placed" | "processing" | "shipped" | "delivered";
-
-const getStatusChipProps = (status: string): {
-    color: StatusColor;
-    icon: ReactElement | undefined;
-    label: string;
-  } => {
-    const s = status.toLowerCase();
-
-    switch (s) {
-      case "placed":
-        return {
-          color: "default",
-          icon: <AttachMoneyRoundedIcon />,
-          label: "PLACED"
-        };
-
-      case "processing":
-        return {
-          color: "default",
-          icon: <SettingsRoundedIcon />,
-          label: "PROCESSING"
-        };
-
-      case "shipped":
-        return {
-          color: "default",
-          icon: <LocalShippingRoundedIcon />,
-          label: "SHIPPED"
-        };
-
-      case "delivered":
-        return {
-          color: "success",
-          icon: <DoneRoundedIcon />,
-          label: "DELIVERED"
-        };
-
-      case "completed":
-        return {
-          color: "success",
-          icon: <DoneAllRoundedIcon />,
-          label: "COMPLETED"
-        };
-
-      case "cancelled":
-        return {
-          color: "error",
-          icon: <NotInterestedRoundedIcon />,
-          label: "CANCELLED"
-        };
-
-      case "refunded":
-        return {
-          color: "warning",
-          icon: <ErrorOutlineRoundedIcon />,
-          label: "REFUNDED"
-        };
-
-      default:
-        return {
-          color: "default",
-          icon: <LocalShippingRoundedIcon />,   // IMPORTANT: not null
-          label: status.toUpperCase()
-        };
-    }
-  };
+import OrderView, { type Order } from "../../components/orders/OrderView";
 
 export default function OrderDetails() {
     const { user } = useAuth();
@@ -159,12 +12,9 @@ export default function OrderDetails() {
     const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const steps = ["Placed", "Processing", "Shipped", "Delivered"];
-    const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
-
     useEffect(() => {
         async function fetchOrder() {
-            try 
+            try
             {
                 const response = await axiosClient.get(`/orders/${order_number}`);
                 setCurrentOrder(response.data);
@@ -173,36 +23,17 @@ export default function OrderDetails() {
             {
                 console.error("Failed to load current order: ", err);
             }
-            finally 
+            finally
             {
                 setLoading(false);
             }
         }
-        
+
         if (order_number) fetchOrder();
     }, [order_number]);
 
-    function OrderStepper({order}: {order: Order}) {
-        const activeStep = stepIndexMap[order.status as OrderStatus];
-    
-        return (
-          <div className="p-8">
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label) => (
-                <Step key={label}>
-                  <StepLabel className="flex flex-col">{label}</StepLabel>
-                </Step>
-              ))}
-            </Stepper>
-          </div>
-        );
-      }
-
     if (loading) return <p>Loading order...</p>;
     if (!currentOrder) return <p>Order not found.</p>;
-
-    const chipProps = getStatusChipProps(currentOrder.status);
-    const safeUrl = currentOrder.tracking_url?.startsWith("http://") || currentOrder.tracking_url?.startsWith("https://") ? currentOrder.tracking_url : `https://${currentOrder.tracking_url}`; 
 
     return (
         <>
@@ -228,118 +59,14 @@ export default function OrderDetails() {
 
                 <div className="flex flex-col items-end">
                     <Link to="/orders" className="text-xl tracking-widest">ORDERS</Link>
-                    <Link to="" className="tracking-wider">TRACK</Link>
+                    <Link to="/orders" className="tracking-wider">TRACK</Link>
                     <Link to="" className="tracking-wider">HISTORY</Link>
                 </div>
 
             </div>
 
             <div className="flex flex-col w-screen h-fit gap-5 bg-gray-100 p-8">
-                
-              <div className="flex flex-col border p-8 rounded-[10px] gap-5 bg-white">
-                  {/* Order Header */}
-                  <div className="flex gap-5 items-center">
-                      <h1 className="text-3xl tracking-wider">ORDER: #{currentOrder.order_number.toUpperCase()}</h1>
-                      <Chip size="small" color={chipProps.color} icon={chipProps.icon} label={chipProps.label} />
-                  </div>
-
-                  {currentOrder.status !== "completed" && (
-                      <OrderStepper order={currentOrder}/>
-                  )}
-
-                  {/* Order Information */}
-                  <div className="flex justify-evenly py-4">
-
-                      {/* User Information */}
-                      <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Placed By</p>
-                          <p className="text-lg">{currentOrder.first_name} {currentOrder.last_name}</p>
-                          <p>
-                          {new Date(currentOrder.order_date).toLocaleDateString("en-US", {
-                              month: "long",
-                              day: "numeric",
-                              year: "numeric",
-                          })}
-                          </p>
-                      </div>
-
-                      <div className="border"/>
-                      
-                      {/* Shipping */}
-                      <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Shipping</p>
-                          <OrderAddressLines address={currentOrder.shipping_address} />
-                      </div>
-
-                      <div className="border"/>
-
-                      {/* Billing */}
-                      <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Billing</p>
-                          <OrderAddressLines address={currentOrder.billing_address} />
-                      </div>
-
-                      <div className="border"/>
-
-                      {/* Payment */}
-                      <div className="flex flex-col">
-                          <p className="text-sm text-gray-400">Payment</p>
-                          <p>${currentOrder.total_amount.toFixed(2)} with {paymentMethodLabel(currentOrder.payment_method_type)}</p>
-                          {paymentCardSummary(currentOrder) && <p>{paymentCardSummary(currentOrder)}</p>}
-
-                      </div>
-                  </div>
-
-                  {(currentOrder.status === "shipped" || currentOrder.status === "delivered") && (
-                      <>
-                      <div className="flex flex-col border gap-2 p-5 rounded-[10px]">
-                          <p className="text-lg tracking-wider">TRACKING INFORMATION</p>
-                          <div className="flex flex-col">
-                              <p>Tracking #: {currentOrder.tracking_number?.toUpperCase()}</p>
-                              <p>Shipping Carrier: {currentOrder.tracking_carrier}</p>
-                              <div className="flex gap-2">
-                                  <p>Tracking URL:</p>
-                                  <a href={safeUrl} className="text-gray-400">{currentOrder.tracking_url}</a>
-                              </div>
-                          </div>
-                      </div>
-                      </>
-                  )}
-
-                  <div className="flex flex-col gap-2 py-3">
-                      {/* Order Items */}
-                      {currentOrder.items.map((item) => {
-                          const mainImage = item.product?.thumbnail || item.product?.images?.[0];
-                          return (
-                              /* Order Item Card */
-                              <div key={item.order_item_id} className="border p-4 flex justify-between bg-white rounded-[10px]">
-
-                                  <div className="flex gap-2">
-                                      {mainImage
-                                          ? <img src={mainImage} className="h-20 w-20 object-cover border rounded"/>
-                                          : <div className="h-20 w-20 border rounded bg-gray-100"/>}
-
-                                      <div className="flex flex-col">
-                                          <p className="text-lg">{item.product?.title ?? "Product no longer available"}</p>
-                                          {item.product?.size && <p>Size: {item.product.size}</p>}
-                                          <p>Qty: {item.quantity}</p>
-                                      </div>
-                                  </div>
-
-                                  {/* The price paid, not the product's current price */}
-                                  <p className="pr-3 tracking-wider">{item.quantity} x ${item.unit_price.toFixed(2)}</p>
-                              </div>
-                          );
-                      })}
-                  </div>
-
-                  <div className="p-4">
-                      <OrderTotals order={currentOrder} />
-                  </div>
-
-                  <a href={currentOrder.receipt_url ?? "#"} target="_blank" rel="noopener noreferrer" className="flex justify-center border w-fit mx-auto px-5 text-lg py-2 rounded-[10px]">View Receipt</a>
-              </div>
-                
+                <OrderView order={currentOrder} />
             </div>
 
         </div>

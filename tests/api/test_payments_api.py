@@ -325,8 +325,214 @@ def test_checkout_session_returns_to_configured_frontend(user_client, shopper, m
     assert call["cancel_url"] == "https://shop.example.com/cart"
 
 
-def test_checkout_session_requires_login(client):
-    assert client.post("/api/payments/create-checkout-session", json={"total_amount": 0, "shipping_address_id": 1, "billing_address_id": 1}).status_code == 401
+# -----------------------------------------
+# Guest checkout (no account)
+# -----------------------------------------
+
+GUEST_ADDRESS = {"line1": "2 Oak Ave", "line2": None, "city": "Austin", "state": "TX", "postal_code": "78701", "country": "US"}
+
+
+def guest_checkout_session(items, session_id="cs_test_1", payment_status="paid", email="guest@example.com"):
+    """A guest's paid Checkout Session: the email and addresses come from Stripe's page.
+    items: (product, quantity) pairs."""
+    return stripe.checkout.Session.construct_from({
+        "id": session_id,
+        "object": "checkout.session",
+        "payment_status": payment_status,
+        "payment_intent": "pi_test_1",
+        "metadata": {"guest": "1", "items": json.dumps([[p.product_id, q, round(p.price * 100)] for p, q in items])},
+        "customer_details": {"email": email, "name": "Sam Card", "phone": "+15125550100",
+                             "address": {**GUEST_ADDRESS, "line1": "9 Billing Rd"}},
+        "collected_information": {"shipping_details": {"name": "Sam Guest", "address": GUEST_ADDRESS}},
+    }, "sk_test")
+
+
+def guest_body(*items):
+    return {"items": [{"product_id": p.product_id, "quantity": q} for p, q in items]}
+
+
+def test_guest_checkout_session(client, make_product, stripe_create, stripe_customers):
+    shirt = make_product(price=19.99)
+    socks = make_product(price=4.5)
+
+    # A stale or bad login token still checks out as a guest
+    response = client.post("/api/payments/create-checkout-session", json=guest_body((shirt, 2), (socks, 1), (shirt, 1)),
+                           headers={"Authorization": "Bearer not-a-token"})
+
+    assert response.status_code == 200
+    [call] = stripe_create
+    # Priced on the server, one line per product
+    assert [(i["price_data"]["unit_amount"], i["quantity"]) for i in call["line_items"]] == [(1999, 3), (450, 1)]
+    assert call["metadata"] == {"guest": "1", "items": json.dumps([[shirt.product_id, 3, 1999], [socks.product_id, 1, 450]], separators=(",", ":"))}
+    # Stripe collects the email and addresses, and taxes from the shipping address
+    assert call["shipping_address_collection"] == {"allowed_countries": ["US"]}
+    assert call["billing_address_collection"] == "required"
+    assert call["phone_number_collection"] == {"enabled": True}
+    assert call["automatic_tax"] == {"enabled": True}
+    assert "customer" not in call
+    assert stripe_customers["create"] == []
+
+
+def test_logged_in_checkout_ignores_sent_items(user_client, shopper, make_product, add_to_cart, stripe_create):
+    user, shipping, billing = shopper
+    in_cart = make_product()
+    add_to_cart(user, in_cart)
+
+    user_client.post("/api/payments/create-checkout-session", json={**checkout_body(shipping, billing), **guest_body((make_product(), 5))})
+
+    [call] = stripe_create
+    assert json.loads(call["metadata"]["items"]) == [[in_cart.product_id, 1, round(in_cart.price * 100)]]
+    assert "shipping_address_collection" not in call
+
+
+def test_guest_checkout_validates_items(client, make_product, stripe_create):
+    product = make_product(stock_quantity=2)
+    inactive = make_product(is_active=False)
+
+    def checkout(body):
+        return client.post("/api/payments/create-checkout-session", json=body)
+
+    assert checkout({}).json()["detail"] == "Cart is empty"
+    assert checkout({"items": []}).json()["detail"] == "Cart is empty"
+    assert checkout({"shipping_address_id": 1, "billing_address_id": 1}).json()["detail"] == "Cart is empty"
+    assert checkout(guest_body((product, 0))).status_code == 422
+    assert checkout(guest_body((product, 3))).json()["detail"] == f"Not enough stock for {product.title}"
+    assert checkout(guest_body((product, 1), (product, 2))).json()["detail"] == f"Not enough stock for {product.title}"
+    assert checkout(guest_body((inactive, 1))).json()["detail"] == f"{inactive.title} is no longer available"
+    assert checkout({"items": [{"product_id": 9999, "quantity": 1}]}).json()["detail"] == "Product not found"
+    assert stripe_create == []
+
+
+def test_guest_fulfillment_creates_the_order(send_webhook, session, make_product, sent_emails):
+    shirt = make_product(title="Shirt", price=20.0, stock_quantity=5)
+    shirt_id = shirt.product_id
+
+    send_webhook(guest_checkout_session([(shirt, 2)]))
+
+    session.expire_all()
+    order = session.exec(select(Order)).one()
+    assert order.user_id is None and order.shipping_address_id is None and order.billing_address_id is None
+    assert order.email == "guest@example.com"
+    assert (order.first_name, order.last_name) == ("Sam", "Guest")
+    assert order.status == "placed"
+    assert order.shipping_address == {"full_name": "Sam Guest", "phone": "+15125550100", "county": None, **GUEST_ADDRESS}
+    assert order.billing_address["full_name"] == "Sam Card" and order.billing_address["line1"] == "9 Billing Rd"
+    assert len(order.access_token) >= 40
+    assert session.get(Product, shirt_id).stock_quantity == 3
+
+    [message] = sent_emails
+    assert message.to == "guest@example.com"
+    assert f"/track/{order.order_number}?token={order.access_token}" in message.text
+
+
+def test_guest_fulfillment_reads_older_shipping_details(send_webhook, session, make_product):
+    data = guest_checkout_session([(make_product(), 1)]).to_dict()
+    data["shipping_details"] = data.pop("collected_information")["shipping_details"]
+
+    send_webhook(stripe.checkout.Session.construct_from(data, "sk_test"))
+
+    assert session.exec(select(Order)).one().shipping_address["full_name"] == "Sam Guest"
+
+
+def test_guest_fulfillment_happens_once(client, send_webhook, session, make_product, monkeypatch, sent_emails):
+    product = make_product(stock_quantity=5)
+    product_id = product.product_id
+    stripe_session = guest_checkout_session([(product, 1)])
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id: stripe_session)
+
+    client.get("/api/payments/session/cs_test_1")
+    send_webhook(stripe_session)
+    send_webhook(stripe_session)
+
+    session.expire_all()
+    assert len(session.exec(select(Order)).all()) == 1
+    assert session.get(Product, product_id).stock_quantity == 4
+    assert len(sent_emails) == 1
+
+
+def test_racing_guest_fulfillment_keeps_the_first_order(session, make_product, monkeypatch):
+    """If another fulfillment commits between our check and our insert, the unique
+    session id stops a second order and ours is rolled back, stock included."""
+    from fastapi import BackgroundTasks
+    from app.routes import payments
+
+    product = make_product(stock_quantity=5)
+    product_id = product.product_id
+    stripe_session = guest_checkout_session([(product, 1)])
+    first_id = payments.fulfill_checkout(session, stripe_session, BackgroundTasks()).order_id
+
+    # The "already fulfilled" check misses the committed order, as it would in a race
+    real_exec = session.exec
+    seen = []
+
+    class NoRow:
+        def first(self):
+            return None
+
+    def exec_missing_first(statement, *args, **kwargs):
+        seen.append(statement)
+        return NoRow() if len(seen) == 1 else real_exec(statement, *args, **kwargs)
+
+    monkeypatch.setattr(session, "exec", exec_missing_first)
+    second = payments.fulfill_checkout(session, stripe_session, BackgroundTasks())
+    monkeypatch.setattr(session, "exec", real_exec)
+
+    session.expire_all()
+    assert second.order_id == first_id
+    assert len(session.exec(select(Order)).all()) == 1
+    assert session.get(Product, product_id).stock_quantity == 4
+
+
+def test_guest_sees_order_for_session_without_login(client, send_webhook, make_product, monkeypatch):
+    send_webhook(guest_checkout_session([(make_product(title="Ring"), 1)]))
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *args, **kwargs: pytest.fail("should not ask Stripe"))
+
+    response = client.get("/api/payments/session/cs_test_1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["user_id"] is None and body["email"] == "guest@example.com"
+    assert body["items"][0]["product"]["title"] == "Ring"
+    # For the success page's tracking link
+    assert len(body["access_token"]) >= 40
+
+
+def test_guest_success_page_fulfills_when_webhook_is_late(client, session, make_product, monkeypatch):
+    stripe_session = guest_checkout_session([(make_product(), 1)])
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id: stripe_session)
+
+    response = client.get("/api/payments/session/cs_test_1")
+
+    assert response.status_code == 200 and response.json()["status"] == "placed"
+    assert len(session.exec(select(Order)).all()) == 1
+
+
+def test_unpaid_guest_session_is_not_fulfilled(client, session, make_product, monkeypatch):
+    stripe_session = guest_checkout_session([(make_product(), 1)], payment_status="unpaid")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id: stripe_session)
+
+    assert client.get("/api/payments/session/cs_test_1").status_code == 404
+    assert session.exec(select(Order)).all() == []
+
+
+def test_account_order_for_session_is_hidden_from_guests(client, send_webhook, shopper, make_product, monkeypatch):
+    user, shipping, billing = shopper
+    stripe_session = checkout_session(user, shipping, billing, items=[(make_product(), 1)])
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id: stripe_session)
+
+    # Not fulfilled for a stranger, and not shown once it exists
+    assert client.get("/api/payments/session/cs_test_1").status_code == 404
+    send_webhook(stripe_session)
+    assert client.get("/api/payments/session/cs_test_1").status_code == 404
+
+
+def test_account_order_records_its_email_and_token(send_webhook, session, shopper, make_product):
+    user, shipping, billing = shopper
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    order = session.exec(select(Order)).one()
+    assert order.email == user.email and order.access_token
 
 
 # -----------------------------------------

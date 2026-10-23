@@ -82,7 +82,7 @@ def test_send_failures_are_logged_not_raised(monkeypatch, capsys):
 
 def make_order(**fields):
     defaults = dict(
-        order_id=1, user_id=1, first_name="Pat", order_number="abc12345",
+        order_id=1, user_id=1, first_name="Pat", order_number="abc12345", access_token="tok123",
         shipping_address_id=1, billing_address_id=1,
         shipping_address={"full_name": "Pat <Doe>", "line1": "1 Main St", "line2": None, "city": "Springfield",
                           "state": "IL", "postal_code": "62701", "country": "US"},
@@ -108,7 +108,7 @@ def test_order_confirmation_lists_items_and_totals():
     for line in ("Subtotal: $1,000.00", "Shipping: $6.95", "Tax: $50.00", "Total: $1,056.95"):
         assert line in message.text
     assert "Springfield, IL 62701" in message.text
-    assert "http://localhost:5173/orders/abc12345" in message.text
+    assert "http://localhost:5173/track/abc12345?token=tok123" in message.text
 
 
 def test_user_text_is_escaped_in_html():

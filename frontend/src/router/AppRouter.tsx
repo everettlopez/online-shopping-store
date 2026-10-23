@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 import Login from "../pages/Login";
@@ -14,28 +14,39 @@ import AdminUsers from "../pages/admin/Users";
 import AdminCategories from "../pages/admin/Categories";
 import CartPage from "../pages/Cart";
 import CheckoutPage from "../pages/Checkout";
-import PaymentsPage from "../pages/Payments";
 import OrderSuccessPage from "../pages/OrderSuccess";
 import OrdersPage from "../pages/orders/Orders";
 import OrderDetailPage from "../pages/orders/OrderDetail";
 import AdminOrdersPage from "../pages/admin/Orders";
+import TrackOrderPage from "../pages/TrackOrder";
+import TrackedOrderPage from "../pages/TrackedOrder";
 
 // TODO: Add routes as needed
 
+// Account pages only. Shopping, checkout and order tracking work without an account
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, loading } = useAuth();
+    const location = useLocation();
 
     if (loading) return <p>Loading...</p>;
-    if(!isAuthenticated) return <Navigate to="/login"/>;
+    // Come back here after logging in
+    if(!isAuthenticated) return <Navigate to="/login" state={{ from: location.pathname + location.search }}/>;
 
     return children;
 }
 
+// Where to go after logging in: the page that sent the shopper to log in, if it's one of ours
+function returnPath(state: unknown): string {
+    const from = (state as { from?: unknown } | null)?.from;
+    return typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/products";
+}
+
 function PublicOnlyRoute({children}: {children: React.ReactNode }) {
     const { isAuthenticated, loading } = useAuth();
+    const location = useLocation();
 
     if (loading) return <p>Loading...</p>;
-    if (isAuthenticated) return <Navigate to="/products" replace />;
+    if (isAuthenticated) return <Navigate to={returnPath(location.state)} replace />;
 
     return children;
 }
@@ -104,13 +115,15 @@ export default function AppRouter() {
                 }
             />
 
-            {/* Protected Routes */}
+            {/* Shopping and order tracking: open to everyone */}
+            <Route path="/track" element={<TrackOrderPage />} />
+            <Route path="/track/:order_number" element={<TrackedOrderPage />} />
+
+            {/* Products, cart, checkout and the success page are open to guests; account and admin pages need a login */}
             <Route 
                 path="/products"
                 element = {
-                    <ProtectedRoute>
-                        <ProductsPage />
-                    </ProtectedRoute> 
+                    <ProductsPage />
                 }
             />
 
@@ -173,33 +186,19 @@ export default function AppRouter() {
             <Route 
                 path="/cart"
                 element = {
-                    <ProtectedRoute>
-                        <CartPage />
-                    </ProtectedRoute>
+                    <CartPage />
                 }/>
 
             <Route 
                 path="/checkout"
                 element= {
-                    <ProtectedRoute>
-                        <CheckoutPage />
-                    </ProtectedRoute>
-                }/>
-
-            <Route 
-                path="/payments"
-                element={
-                    <ProtectedRoute>
-                        <PaymentsPage />
-                    </ProtectedRoute>
+                    <CheckoutPage />
                 }/>
 
             <Route 
                 path="/order-success"
                 element={
-                    <ProtectedRoute>
-                        <OrderSuccessPage />
-                    </ProtectedRoute>
+                    <OrderSuccessPage />
                 }/>
 
             <Route 
