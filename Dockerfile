@@ -11,7 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+# pip isn't needed once the requirements are in, and it bundles its own (often older)
+# copies of urllib3, msgpack and setuptools that image scans flag
+RUN pip install -r requirements.txt \
+    && pip uninstall -y pip
 
 COPY alembic.ini .
 COPY alembic ./alembic
