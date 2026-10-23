@@ -15,6 +15,10 @@ venv/
 # A managed database's CA certificate for the deploy kit (deploy/certs/db-ca.crt)
 deploy/certs/
 
+# Each store's own photos for the storefront (frontend/public/custom/README.md)
+frontend/public/custom/*
+!frontend/public/custom/README.md
+
 # User-uploaded product images (keep the folder)
 app/uploads/*
 !app/uploads/.gitkeep

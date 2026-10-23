@@ -1,41 +1,31 @@
-# Online Shopping Application 
-A full-stack, database-driven online shopping platform designed to demonstrate modern web development practices, scalable architecture, and production-style engineering. This project is currently in active development, with core modules already implemented and additional features planned. 
+# Online Shopping Store
+An open-source online store you can host yourself: a FastAPI + MySQL backend, a React storefront, Stripe Checkout for payments, and Resend for email. Everything that makes a store yours, its name, domain, policies, photos, shipping prices and email addresses, is a setting, so you run your own store without changing any code.
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Tech Stack](#tech-stack)
-3. [Development Setup](#development-setup)
-4. [Make It Your Store](#make-it-your-store)
-5. [Deployment](#deployment)
-6. [Author](#author)
+## Features
+- **Shopping without an account:** customers browse, filter and sort products and keep a cart in the browser. They pay through Stripe Checkout, which collects a guest's email and US shipping and billing addresses.
+- **Accounts:** saved addresses, order history, and a cart that follows the customer between devices (a guest's cart joins it on login).
+- **Payments, tax and shipping:** Stripe Checkout with optional Stripe Tax for sales tax, a flat shipping rate with free shipping above a threshold, and orders created only from completed payments.
+- **Order tracking:** confirmation and shipping emails link to a private tracking page, and customers can find an order from its number and email.
+- **Admin pages:** products (with images, sizes, colors and stock), categories, orders (status and tracking numbers) and users.
+- **Policy pages:** Privacy, Terms, Shipping & Returns and Contact, filled in from your settings.
+- **Built for production:** a one-command deploy kit with automatic HTTPS and security headers, rate limiting, a CSRF guard, database migrations, a health check, and an automated launch check.
 
-## Overview
-This application models a real‑world e‑commerce workflow, including product browsing, dynamic filtering, a cart, Stripe Checkout, order tracking, user accounts, and administrative management. The system is built with a modular architecture that supports future expansion into analytics and user‑centric features.
-
-No account is needed to shop. Anyone can browse, fill a cart (kept in the browser until they log in, when it joins their account cart), and pay through Stripe Checkout, which asks guests for their email and US shipping and billing addresses. Order confirmation and shipping emails link to a private tracking page that opens without logging in, and the **Track order** page finds an order by its number and the email it was placed with. An account adds saved addresses and an order history.
+## Documentation
+| | |
+| --- | --- |
+| [Development Setup](#development-setup) | Run the store on your computer |
+| [Make It Your Store](#make-it-your-store) | Your name, photos, policies and prices |
+| [docs/hosting.md](docs/hosting.md) | Host a live store on your own server |
+| [docs/launch-checklist.md](docs/launch-checklist.md) | Checks before your first order and after every update |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Report bugs and contribute changes |
+| [SECURITY.md](SECURITY.md) | Report a vulnerability privately |
+| [CLAUDE.md](CLAUDE.md) | Architecture and conventions in detail |
 
 ## Tech Stack
-### Frontend
-- React
-- TypeScript
-- Axios for API communication
-
-### Backend
-- FastAPI
-- SQLAlchemy ORM
-- Pydantic models for validation
-- JWT Authentication
-- Modular routing and dependency injection
-
-### Database
-- MySQL
-- Relational schema with indexing for product and user queries
-
-### Tooling
-- GitHub for version control 
-- Custom Swagger-style API documentation
-- pytest for the backend test suite
-- Bruno for endpoint testing
+- **Backend:** FastAPI, SQLModel/SQLAlchemy, Pydantic, Alembic migrations, JWT cookie auth, Stripe, Resend, pytest.
+- **Frontend:** React, TypeScript, Vite, React Router, Tailwind CSS, MUI (admin pages), Axios.
+- **Database:** MySQL 8.
+- **Deployment:** Docker, Docker Compose, Caddy, nginx, GitHub Actions CI.
 
 ## Development Setup
 This project uses a decoupled architecture with separate frontend and backend services. Each service runs independently during development and communicates over HTTP. The following instructions describe how to run the application locally.
@@ -95,7 +85,7 @@ venv\Scripts\python -m uvicorn app.main:app --reload    # Terminal 1: API
 npm --prefix frontend run dev                           # Terminal 2: frontend
 stripe listen --forward-to localhost:8000/api/payments/webhook --events checkout.session.completed    # Terminal 3: Stripe webhooks
 ```
-Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SECRET`, and make sure the Stripe CLI is logged in to the same account as `STRIPE_SECRET_KEY`.
+Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SECRET`, and make sure the Stripe CLI is logged in to the same account as `STRIPE_SECRET_KEY`. Use your Stripe **test** keys locally, and pay with Stripe's test card `4242 4242 4242 4242`. Unless you've set up Stripe Tax in test mode, set `STRIPE_AUTOMATIC_TAX=false` in `.env`, or checkout fails.
 
 > **Windows:** keep the API in its own terminal and start it with Python directly, not through npm. When uvicorn auto-reloads after a `.py` change, it sends Ctrl+C to every process in its terminal, which would stop anything else running there and leave the old API process in the background.
 
@@ -122,6 +112,12 @@ Everything that identifies a store is a setting, so you run your own store witho
 - **Storefront** (`frontend/.env.example`, set at build time): `VITE_STORE_NAME` (page title, footer and policy pages), `VITE_STORE_LOGO_TEXT` (the wordmark at the top, default the name in capitals), `VITE_STORE_DESCRIPTION` (meta description), `VITE_SUPPORT_EMAIL`, and for the policy pages `VITE_BUSINESS_NAME`, `VITE_BUSINESS_ADDRESS`, `VITE_BUSINESS_STATE` and `VITE_RETURN_DAYS`. Locally, put them in `frontend/.env.local`.
 - **Emails** (`.env.example`): `STORE_NAME` appears in email subjects and signatures. The senders are `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM` and `EMAIL_REPLY_TO`.
 - **Shipping:** `SHIPPING_FLAT_RATE` and `FREE_SHIPPING_THRESHOLD` set what checkout charges, and the Shipping & Returns page shows the same numbers.
+- **Home page** (`frontend/.env.example`):
+  - `VITE_HERO_HEADLINE` and `VITE_HERO_IMAGE_URL` set the headline and photo at the top.
+  - `VITE_BANNER_IMAGE_URL` adds a full-width photo further down.
+  - `VITE_EVENTS_URL` adds an Events link and button.
+  - Put your photos in [`frontend/public/custom/`](frontend/public/custom/README.md) (git ignores them) and use `/custom/<file name>`.
+- **Categories and products** come from the admin pages. A new store starts with a few example categories, which you can rename or delete.
 
 ### Policy pages
 The storefront has Privacy Policy, Terms of Service, Shipping & Returns and Contact pages (`/privacy`, `/terms`, `/shipping-returns`, `/contact`), linked from the footer and filled in from the settings above. **Their wording is a general starting point, not legal advice.** Read them and have them reviewed for your business before you take real orders. If you have your own policies (from a lawyer or a policy service), set `VITE_PRIVACY_POLICY_URL`, `VITE_TERMS_URL` and `VITE_SHIPPING_POLICY_URL`, and the footer links there instead. Stripe expects a live store to show a refund policy and a way to contact you.
@@ -177,6 +173,10 @@ docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web fr
 ```
 `VITE_API_URL` is baked into the bundle at build time (see `frontend/.env.example`), as are the store's name and policy details: pass them as more build arguments, for example `--build-arg VITE_STORE_NAME="Your Store" --build-arg VITE_SUPPORT_EMAIL=support@example.com`. The image serves the built site with nginx (`frontend/nginx.conf`), sending every unknown path to `index.html` so links like `/orders/abc` work. If you use a static host (Netlify, Vercel, Cloudflare Pages) instead, run `npm run build` with `VITE_API_URL` set, publish `frontend/dist`, and add the host's single-page-app rewrite to `/index.html`.
 
-## Author
-Everett Lopez
-Salt Lake City, UT
+## Contributing
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+The code is released under the [MIT License](LICENSE). The default home page photo has its own license; see [frontend/src/assets/CREDITS.md](frontend/src/assets/CREDITS.md).
+
+Created by Everett Lopez, Salt Lake City, UT.
