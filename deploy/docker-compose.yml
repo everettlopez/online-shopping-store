@@ -27,6 +27,9 @@ services:
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
+      # A managed database's CA certificate: save it as deploy/certs/db-ca.crt and add
+      # ?ssl_ca=/srv/certs/db-ca.crt to DATABASE_URL
+      - ./certs:/srv/certs:ro
     depends_on:
       # Only with --profile mysql: wait for the database before migrating
       db:
@@ -67,6 +70,7 @@ services:
       API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in deploy/.env}
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in deploy/.env}
       CSP_HEADER: ${CSP_HEADER:-Content-Security-Policy-Report-Only}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates; losing them means asking Let's Encrypt again, which is rate limited

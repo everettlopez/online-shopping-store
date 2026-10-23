@@ -130,58 +130,25 @@ The storefront has Privacy Policy, Terms of Service, Shipping & Returns and Cont
 The quickest way to run a live store is the deploy kit in `deploy/`: one server running the API, the storefront and [Caddy](https://caddyserver.com) (which gets HTTPS certificates and adds security headers) with Docker Compose. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and both images, and checks the kit's files on every push and pull request.
 
 ### Host your store on a server
-You need a Linux server (any VPS with at least 2 GB of RAM, for example a DigitalOcean droplet), a domain, a MySQL database, and Stripe and Resend accounts. The examples use `shop.example.com` for the storefront and `api.shop.example.com` for the API. Keeping both on one domain lets the login cookie work in every browser.
+**[docs/hosting.md](docs/hosting.md)** walks through the whole setup on any Linux server (a VPS with at least 2 GB of RAM), using only settings files:
+1. Server.
+2. DNS.
+3. Managed MySQL or MySQL on the same server.
+4. Resend email with SPF, DKIM and DMARC.
+5. Stripe live mode, Stripe Tax and the webhook.
+6. The two settings files.
+7. Start.
+8. First admin.
+9. Checks before you take orders.
 
-1. **Prepare the server.** Install Docker Engine with the Compose plugin. Allow only SSH, HTTP and HTTPS through the firewall (for example `ufw allow OpenSSH`, `ufw allow 80,443/tcp`, `ufw allow 443/udp`, `ufw enable`), use SSH keys instead of passwords, and turn on automatic security updates.
-2. **Point DNS at it.** Create A records for `shop.example.com`, `www.shop.example.com` and `api.shop.example.com` with the server's IP address. On Cloudflare, leave them DNS only (grey cloud) so Caddy can get certificates and the API sees visitors' real addresses.
-3. **Set up the database.** A managed MySQL 8 (for example DigitalOcean Managed MySQL) gives you automatic backups. Create a database with the `utf8mb4` character set and a user for the store, allow connections from your server only, and use its TLS certificate, for example `DATABASE_URL=mysql+pymysql://store:<password>@<host>:25060/online_store?ssl_ca=/etc/ssl/certs/ca-certificates.crt`. To run MySQL on the same server instead, see [MySQL on the server](#mysql-on-the-server).
-4. **Get the code and fill in two settings files:**
-   ```bash
-   git clone https://github.com/<you>/online-shopping-store.git && cd online-shopping-store
-   cp deploy/.env.example deploy/.env    # domains, certificate email, storefront name and details
-   cp .env.example deploy/.env.api       # the API's secrets and settings
-   chmod 600 deploy/.env.api
-   ```
-   In `deploy/.env.api`, set at least:
-   - `DATABASE_URL` and a new `JWT_SECRET_KEY` (generate one with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`).
-   - Your live Stripe keys (see [Production settings](#production-settings) for the webhook secret).
-   - `STORE_NAME`.
-   - `FRONTEND_URL=https://shop.example.com`, `PUBLIC_API_URL=https://api.shop.example.com` and `CORS_ORIGINS=https://shop.example.com,https://www.shop.example.com`.
-   - `COOKIE_SAMESITE=lax` and `ENABLE_DOCS=false`.
-   - The Resend email settings.
+It also covers updating, rollback, backups, Cloudflare's proxy and troubleshooting.
 
-   Both files stay on the server; git ignores them.
-5. **Start everything:**
-   ```bash
-   docker compose -f deploy/docker-compose.yml up -d --build
-   ```
-   The API applies the database migrations before it starts. Check it with `curl https://api.shop.example.com/api/health`, and follow the logs with `docker compose -f deploy/docker-compose.yml logs -f`.
-6. **Make yourself the admin.** Register on the storefront, then run:
-   ```bash
-   docker compose -f deploy/docker-compose.yml exec api python -m app.create_admin you@example.com
-   ```
-7. **Turn on the content security policy.** It starts in report-only mode. Browse the store with the browser console open. If no `Content-Security-Policy` warnings appear, set `CSP_HEADER=Content-Security-Policy` in `deploy/.env` and run the `up -d` command again.
-
-**Updating:** `git pull`, then run the same `up -d --build` command. Take a database backup first whenever the update adds files to `alembic/versions/`.
-
-**Rolling back:** check out the previous version (`git checkout <tag or commit>`) and run `up -d --build` again. Migrations so far only add tables and columns, so older code keeps working with a newer database.
-
-**Backups:**
-- A managed database backs itself up.
-- Product images live in the `online-store_uploads` Docker volume. Back it up with the server's snapshots or copy it off the server, for example:
-  ```bash
-  docker run --rm -v online-store_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads.tgz -C /data .
-  ```
-
-#### MySQL on the server
-Without a managed database, the kit can run MySQL too:
-1. Set `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` (long random values) in `deploy/.env`.
-2. Point the API at it with `DATABASE_URL=mysql+pymysql://store:<MYSQL_PASSWORD>@db:3306/online_store`.
-3. Add `--profile mysql` to every `docker compose` command.
-
-You are then responsible for backups. A nightly dump copied off the server is the minimum:
+In short:
 ```bash
-docker compose -f deploy/docker-compose.yml --profile mysql exec -T db sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction online_store' | gzip > backup-$(date +%F).sql.gz
+cp deploy/.env.example deploy/.env       # domains and the storefront's name and details
+cp .env.example deploy/.env.api          # the API's secrets and settings
+docker compose -f deploy/docker-compose.yml up -d --build
+docker compose -f deploy/docker-compose.yml exec api python -m app.create_admin you@example.com
 ```
 
 ### Production settings
