@@ -3,11 +3,14 @@
 Defaults match local development; production sets these in its environment.
 Each setting is read when it is used, so tests can change them with monkeypatch.
 """
+import logging
 import os
 from decimal import Decimal, InvalidOperation
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_FRONTEND_URL = "http://localhost:5173"
 DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
@@ -18,6 +21,8 @@ DEFAULT_PRODUCT_TAX_CODE = "txcd_30011000"
 DEFAULT_STORE_NAME = "Online Store"
 DEFAULT_EMAIL_FROM = "Online Store <onboarding@resend.dev>"
 DEFAULT_PASSWORD_RESET_MINUTES = 30
+DEFAULT_LOG_LEVEL = "INFO"
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
 
@@ -124,6 +129,17 @@ def email_reply_to() -> str | None:
     return os.getenv("EMAIL_REPLY_TO", "").strip() or None
 
 
+def alert_email() -> str:
+    """Where the store owner gets alerts about problems that need a person (an oversold
+    item, a failed webhook, a server error). Empty turns alerts off."""
+    return os.getenv("ALERT_EMAIL", "").strip()
+
+
+def log_level() -> str:
+    """How much the API logs: DEBUG, INFO (the default), WARNING, ERROR or CRITICAL."""
+    return (os.getenv("LOG_LEVEL", "").strip() or DEFAULT_LOG_LEVEL).upper()
+
+
 def password_reset_minutes() -> int:
     """How long a password reset link works."""
     return int(os.getenv("PASSWORD_RESET_MINUTES") or DEFAULT_PASSWORD_RESET_MINUTES)
@@ -176,8 +192,13 @@ def check_required_settings():
         except ValueError:
             problems.append(f"{name} must be a whole number of requests (0 turns the limit off)")
 
+    if log_level() not in LOG_LEVELS:
+        problems.append("LOG_LEVEL must be one of " + ", ".join(LOG_LEVELS))
+
     if problems:
         raise RuntimeError("Invalid configuration: " + "; ".join(problems) + ". See .env.example.")
 
     if not resend_api_key():
-        print("RESEND_API_KEY is not set: emails are printed here instead of sent")
+        logger.warning("RESEND_API_KEY is not set: emails are printed here instead of sent")
+    if not alert_email():
+        logger.warning("ALERT_EMAIL is not set: problems that need a person are only logged")

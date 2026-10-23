@@ -1,10 +1,15 @@
+import logging
+
 from fastapi import Depends, FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlmodel import Session
 
+from app.alerts import alert_admin
 from app.db.session import get_session, seed_database
+from app.logging_config import configure_logging
 from app.settings import check_required_settings, cors_origins, docs_enabled
 from app.routes.auth import router as auth_router
 from app.routes.address import router as address_router
@@ -22,8 +27,12 @@ from app.routes.product import UPLOAD_DIR
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
+logger = logging.getLogger(__name__)
+
 
 def create_app() -> FastAPI:
+    configure_logging()
+
     # Docs are handy locally; turn them off in production with ENABLE_DOCS=false
     docs = docs_enabled()
     app = FastAPI(
@@ -36,6 +45,22 @@ def create_app() -> FastAPI:
 
     # CORS: allow the frontend to send cookies to the API
     origins = cors_origins()
+
+    @app.middleware("http")
+    async def report_server_errors(request: Request, call_next):
+        # A bug or outage the routes didn't handle: log it with its traceback, tell the
+        # owner (once per route every 15 minutes), and give the shopper a plain 500.
+        # Added first so it sits inside the CORS middleware, which still adds its headers
+        try:
+            return await call_next(request)
+        except Exception as e:
+            route = getattr(request.scope.get("route"), "path", request.url.path)
+            logger.exception("unhandled error method=%s route=%s", request.method, route)
+            await run_in_threadpool(alert_admin, f"server-error {request.method} {route}", "The store hit a server error", [
+                f"{request.method} {route} failed with {e!r}.",
+                "The full error is in the API's logs (docker compose -f deploy/docker-compose.yml logs api).",
+            ])
+            return JSONResponse(status_code=500, content={"detail": "Something went wrong on our end. Please try again."})
 
     @app.middleware("http")
     async def reject_cross_site_writes(request: Request, call_next):

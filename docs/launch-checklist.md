@@ -79,6 +79,7 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 
 ## 5. Keep watch
 
+- [ ] `ALERT_EMAIL` is set in `deploy/.env.api`, and `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts` delivers a test alert to that inbox.
 - [ ] An uptime monitor checks `https://<API_DOMAIN>/api/health` and the storefront and alerts you (for example UptimeRobot or Better Stack).
 - [ ] Backups: the managed database shows automatic backups, or a nightly `mysqldump` job copies off the server. Product images are covered by server snapshots or a regular copy of the uploads volume ([hosting.md](hosting.md#running-the-store)).
 - [ ] You've practiced a restore once (for example, restore yesterday's backup into a new managed database and look at it), so you know it works before you need it.

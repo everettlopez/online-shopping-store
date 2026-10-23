@@ -19,6 +19,9 @@ engine = create_engine(
     echo=sql_echo(),
     pool_pre_ping=True,
     pool_recycle=1800,
+    # Database errors are logged with tracebacks; leave the row values (customers'
+    # emails and addresses) out of their messages
+    hide_parameters=True,
 )
 
 SessionLocal = sessionmaker(

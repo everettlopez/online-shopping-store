@@ -70,3 +70,30 @@ def test_factories_share_the_test_database(user_client, user):
 @pytest.mark.parametrize("module", [m.name for m in pkgutil.walk_packages(app.__path__, "app.")])
 def test_every_module_imports(module):
     importlib.import_module(module)
+
+
+def test_server_errors_are_logged_and_alerted(monkeypatch, sent_emails, caplog):
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    monkeypatch.setenv("ALERT_EMAIL", "owner@shop.example")
+    broken_app = create_app()
+
+    @broken_app.get("/api/broken/{item_id}")
+    def broken(item_id: int):
+        raise RuntimeError("bug in the code")
+
+    client = TestClient(broken_app)
+    origin = {"Origin": "http://localhost:5173"}
+    responses = [client.get(f"/api/broken/{n}", headers=origin) for n in (1, 2)]
+
+    assert [r.status_code for r in responses] == [500, 500]
+    assert responses[0].json() == {"detail": "Something went wrong on our end. Please try again."}
+    # The storefront can still read the error
+    assert responses[0].headers["access-control-allow-origin"] == "http://localhost:5173"
+    # One alert per route, not one per request
+    [alert] = sent_emails
+    assert alert.subject == "[Online Store alert] The store hit a server error"
+    assert "GET /api/broken/{item_id} failed with RuntimeError('bug in the code')" in alert.text
+    assert "unhandled error method=GET route=/api/broken/{item_id}" in caplog.text
+    assert "Traceback" in caplog.text

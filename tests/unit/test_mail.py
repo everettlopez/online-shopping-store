@@ -71,13 +71,17 @@ def test_printed_emails_show_the_sender(real_deliver, monkeypatch, capsys):
     assert "from Shop <support@shop.example> to pat@example.com" in capsys.readouterr().out
 
 
-def test_send_failures_are_logged_not_raised(monkeypatch, capsys):
+def test_send_failures_are_logged_not_raised(monkeypatch, caplog):
     def fail(message):
         raise RuntimeError("provider down")
     monkeypatch.setattr(mail, "deliver", fail)
 
     assert send_email(MESSAGE) is False
-    assert "provider down" in capsys.readouterr().out
+    [record] = [r for r in caplog.records if r.name == "app.mail"]
+    assert record.levelname == "ERROR"
+    assert "provider down" in record.getMessage()
+    # Customers' addresses stay out of the logs
+    assert MESSAGE.to not in caplog.text
 
 
 def make_order(**fields):

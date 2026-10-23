@@ -31,6 +31,8 @@ os.environ["ORDERS_EMAIL_FROM"] = ""
 os.environ["ACCOUNT_EMAIL_FROM"] = ""
 os.environ["EMAIL_REPLY_TO"] = ""
 os.environ["PASSWORD_RESET_MINUTES"] = "30"
+os.environ["ALERT_EMAIL"] = ""
+os.environ["LOG_LEVEL"] = "INFO"
 
 import itertools
 from datetime import datetime, timedelta
@@ -46,6 +48,7 @@ from app.main import app
 from app.db.session import get_session
 from app.auth.core import create_access_token, hash_password
 from app.rate_limit import reset_rate_limits
+from app.alerts import reset_alerts
 from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401  (registers every table)
 from app.models.user import User
 from app.models.category import Category
@@ -100,6 +103,14 @@ def fresh_rate_limits():
     reset_rate_limits()
     yield
     reset_rate_limits()
+
+
+@pytest.fixture(autouse=True)
+def fresh_alerts():
+    """Every test starts with no alerts held back as repeats."""
+    reset_alerts()
+    yield
+    reset_alerts()
 
 
 @pytest.fixture(autouse=True)

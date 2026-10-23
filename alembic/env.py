@@ -17,7 +17,8 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep the app's loggers working when migrations run inside the app's process (tests)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Same connection string the app uses. An already-set DATABASE_URL wins over .env,
 # so a one-off database can be targeted with: DATABASE_URL=... alembic upgrade head

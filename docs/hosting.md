@@ -120,6 +120,7 @@ If you use a managed database, save its CA certificate as `deploy/certs/db-ca.cr
 | `ENABLE_DOCS` | `false` |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO` | From step 4, for example `Your Store <orders@example.com>` |
 | `SHIPPING_FLAT_RATE`, `FREE_SHIPPING_THRESHOLD` | Your shipping prices |
+| `ALERT_EMAIL` | An inbox you read. The store emails it when something needs you: an item sold twice, a failed Stripe webhook, checkout or a refund failing, or a server error |
 
 Leave `UPLOAD_DIR` out; the kit sets it. Both files stay on the server; git ignores them.
 
@@ -181,7 +182,9 @@ sh deploy/check.sh
   ```
 - Keep a copy of `deploy/.env` and `deploy/.env.api` somewhere safe (a password manager), since they aren't in git.
 
-**Logs:** `docker compose -f deploy/docker-compose.yml logs --tail 200 api` (or `web`, `caddy`). Logs rotate automatically.
+**Logs:** `docker compose -f deploy/docker-compose.yml logs --tail 200 api` (or `web`, `caddy`). Logs rotate automatically. Each API line reads `time level logger message`, with details as `key=value`, so `... logs api | grep ERROR` or `grep order_id=42` finds things. `LOG_LEVEL=DEBUG` in `deploy/.env.api` shows more.
+
+**Alerts:** with `ALERT_EMAIL` set, the store emails you about problems that need a person, at most once per problem every 15 minutes. Send a test with `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts`. The email names what happened; the logs around that time have the details.
 
 ### MySQL on the server
 
@@ -213,6 +216,7 @@ To put Cloudflare's proxy (orange cloud) in front of the server:
 - **Logging in doesn't stick:** `CORS_ORIGINS` must list the storefront's exact address (with `https://`), `COOKIE_SAMESITE` should be `lax`, and both sites must share a domain.
 - **Checkout fails:** the API logs say why. Common causes: Stripe Tax isn't set up (or set `STRIPE_AUTOMATIC_TAX=false`), or a test key is used with live mode.
 - **Orders don't appear after payment:** check the webhook's recent deliveries in Stripe. A 400 means `STRIPE_WEBHOOK_SECRET` doesn't match that endpoint. The success page also creates the order, so customers who return to the store are covered either way.
+- **No alert emails:** `ALERT_EMAIL` must be set in `deploy/.env.api` (restart the API after changing it), and alerts are sent through Resend like the store's other email. Run `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts`; it says whether sending failed.
 - **Emails don't arrive:** without `RESEND_API_KEY` the API only prints them in its logs. Check that the domain is verified in Resend and the sender addresses use it. Resend's dashboard shows each email's delivery.
 - **Start here:** `sh deploy/check.sh` points at most setup mistakes (a FAIL line names what's wrong).
 - **"Too many attempts":** the rate limits (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`) reset after a minute. If every visitor hits them together, the API isn't seeing real addresses; see *Real visitor addresses* in the [launch checklist](launch-checklist.md) and [Behind Cloudflare's proxy](#behind-cloudflares-proxy).

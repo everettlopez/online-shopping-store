@@ -4,6 +4,7 @@ Messages are built while the request still has the database (build_* functions)
 and sent afterwards with send_email, usually from a BackgroundTask so the
 customer and Stripe's webhook don't wait on the email provider.
 """
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from html import escape
@@ -22,6 +23,8 @@ from app.settings import (
     store_name,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class EmailMessage:
@@ -39,7 +42,8 @@ def send_email(message: EmailMessage) -> bool:
         deliver(message)
         return True
     except Exception as e:
-        print("Failed to send email:", message.subject, "to", message.to, e)
+        # Not alerted: an alert would go through the same email provider
+        logger.error("email failed subject=%r error=%s", message.subject, e)
         return False
 
 
@@ -48,8 +52,9 @@ def deliver(message: EmailMessage):
     sender = message.sender or email_from()
     reply_to = email_reply_to()
 
-    # Local development: show the email instead of sending it. Flushed so it shows
-    # right away even when output is piped (a preview pane, Docker logs)
+    # Local development: show the email instead of sending it. Printed rather than
+    # logged, since it's the whole message. Flushed so it shows right away even when
+    # output is piped (a preview pane, Docker logs)
     if not api_key:
         print(
             f"--- Email from {sender} to {message.to}: {message.subject} ---\n{message.text}\n--- End of email ---",
@@ -233,3 +238,10 @@ def build_refund_email(to: str, order: Order, amount: Decimal) -> EmailMessage:
     ))
     return EmailMessage(to=to, subject=f"Your {store_name()} refund for order {order.order_number}", text=text, html=html,
                         sender=orders_email_from())
+
+
+def build_alert_email(to: str, subject: str, details: list[str]) -> EmailMessage:
+    """A plain note to the store owner about something that needs a person."""
+    text = "\n".join([*details, "", "Sent by your store's API. Repeats of this alert are held back for 15 minutes."])
+    html = html_page(subject, "".join(f"<p>{escape(line)}</p>" for line in details if line))
+    return EmailMessage(to=to, subject=f"[{store_name()} alert] {subject}", text=text, html=html, sender=orders_email_from())
