@@ -100,10 +100,32 @@ def test_password_reset_email_links_to_the_frontend():
     assert "30 minutes" in message.text
 
 
+def test_emails_carry_the_store_name(monkeypatch):
+    monkeypatch.setenv("STORE_NAME", "Corner Shop")
+
+    reset = build_password_reset_email("pat@example.com", "Pat", "tok123", 30)
+    confirmation = build_order_confirmation_email("pat@example.com", make_order(), [("Shirt", 1, Decimal("1"), Decimal("1"))])
+
+    assert reset.subject == "Reset your Corner Shop password"
+    assert "your Corner Shop account" in reset.text
+    assert confirmation.subject == "Corner Shop order confirmation abc12345"
+    assert confirmation.text.endswith("Corner Shop")
+    assert "Corner Shop" in confirmation.html
+
+
+def test_store_name_is_escaped_in_html(monkeypatch):
+    monkeypatch.setenv("STORE_NAME", "<b>Shop</b>")
+
+    html = build_password_reset_email("pat@example.com", "Pat", "tok123", 30).html
+
+    assert "<b>Shop</b>" not in html
+    assert "&lt;b&gt;Shop&lt;/b&gt;" in html
+
+
 def test_order_confirmation_lists_items_and_totals():
     message = build_order_confirmation_email("pat@example.com", make_order(), [("Shirt", 2, Decimal("500"), Decimal("1000"))])
 
-    assert message.subject == "Order confirmation abc12345"
+    assert message.subject == "Online Store order confirmation abc12345"
     assert "2 x Shirt @ $500.00 = $1,000.00" in message.text
     for line in ("Subtotal: $1,000.00", "Shipping: $6.95", "Tax: $50.00", "Total: $1,056.95"):
         assert line in message.text
@@ -124,7 +146,7 @@ def test_shipping_notice_has_tracking_details():
 
     message = build_shipping_notice_email("pat@example.com", order)
 
-    assert message.subject == "Your order abc12345 has shipped"
+    assert message.subject == "Your Online Store order abc12345 has shipped"
     assert "UPS" in message.text and "1Z999" in message.text
     assert 'href="https://ups.com/1Z999"' in message.html
 

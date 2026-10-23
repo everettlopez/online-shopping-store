@@ -28,6 +28,7 @@ from app.schemas.address import OrderAddress, address_snapshot
 from app.routes.order import build_order_reads
 from app.models.user import User
 from app.mail import build_order_confirmation_email, send_email
+from app.rate_limit import rate_limit
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -153,7 +154,7 @@ def price_items(session: Session, items) -> tuple[list, list, int]:
     return snapshot, line_items, subtotal_cents
 
 
-@router.post("/create-checkout-session")
+@router.post("/create-checkout-session", dependencies=[rate_limit("checkout")])
 def create_checkout_session(data: CheckoutRequest, user: OptionalUser, session: Session = Depends(get_session)):
     if user:
         # 1. Logged in: the account cart, sent to their saved addresses

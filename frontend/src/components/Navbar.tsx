@@ -2,6 +2,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useCategories } from "../context/CategoriesContext";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { store } from "../config/store";
 
 // "New Arrivals" is a fixed link to the newest products, so hide any leftover
 // category with that name to avoid showing it twice
@@ -50,7 +51,7 @@ export default function Navbar({ className = "" }: NavbarProps) {
             </div>
 
             {/* Logo */}
-            <Link to="/"><h1 className="text-6xl">KILLJOY</h1></Link>
+            <Link to="/"><h1 className="text-6xl">{store.logoText}</h1></Link>
 
             {/* Navigation */}
             <nav className="flex flex-wrap justify-center gap-x-12 gap-y-2">

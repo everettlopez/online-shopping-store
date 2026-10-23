@@ -13,6 +13,7 @@ from app.database.products import database_get_product_reads
 from app.auth.dependencies import admin_required
 from app.models.user import User
 from app.mail import build_shipping_notice_email, send_email
+from app.rate_limit import rate_limit
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -67,7 +68,7 @@ def same_secret(expected: str, given: str) -> bool:
     """Constant-time comparison. On bytes, because compare_digest raises on non-ASCII strings"""
     return secrets.compare_digest(expected.encode(), given.encode())
 
-@router.get("/track/{order_number}", response_model=OrderRead)
+@router.get("/track/{order_number}", response_model=OrderRead, dependencies=[rate_limit("lookup")])
 def track_order(order_number: str, token: str = "", session: Session = Depends(get_session)):
     """The order behind an emailed tracking link, with no login needed (guests have no
     account). The token is a long random secret kept on the order"""
@@ -78,7 +79,7 @@ def track_order(order_number: str, token: str = "", session: Session = Depends(g
 
     return build_order_reads(session, [order])[0]
 
-@router.post("/lookup", response_model=OrderTrackingLink)
+@router.post("/lookup", response_model=OrderTrackingLink, dependencies=[rate_limit("lookup")])
 def look_up_order(data: OrderLookup, session: Session = Depends(get_session)):
     """Find the tracking link for an order from its number and the email it was placed
     with. Either one being wrong gives the same 404, so neither can be probed alone"""

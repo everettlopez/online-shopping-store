@@ -7,11 +7,7 @@ import { apiErrorMessage } from "../api/errors";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-
-interface ShippingRates {
-  flat_rate: number;
-  free_shipping_threshold: number;
-}
+import { getShippingRates, type ShippingRates } from "../api/shipping";
 
 export default function Checkout() {
   const location = useLocation();
@@ -21,8 +17,8 @@ export default function Checkout() {
   const [shippingRates, setShippingRates] = useState<ShippingRates | null>(null);
 
   useEffect(() => {
-    axiosClient.get("/payments/shipping")
-      .then((res) => setShippingRates(res.data))
+    getShippingRates()
+      .then(setShippingRates)
       .catch((err) => console.error("Failed to load shipping rates:", err));
   }, []);
 

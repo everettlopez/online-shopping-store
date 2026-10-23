@@ -20,6 +20,11 @@ import OrderDetailPage from "../pages/orders/OrderDetail";
 import AdminOrdersPage from "../pages/admin/Orders";
 import TrackOrderPage from "../pages/TrackOrder";
 import TrackedOrderPage from "../pages/TrackedOrder";
+import PrivacyPolicy from "../pages/legal/PrivacyPolicy";
+import Terms from "../pages/legal/Terms";
+import ShippingReturns from "../pages/legal/ShippingReturns";
+import Contact from "../pages/legal/Contact";
+import Footer from "../components/Footer";
 
 // TODO: Add routes as needed
 
@@ -38,7 +43,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // Where to go after logging in: the page that sent the shopper to log in, if it's one of ours
 function returnPath(state: unknown): string {
     const from = (state as { from?: unknown } | null)?.from;
-    return typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/products";
+    // Browsers read "/\evil.com" like "//evil.com" (another site), so refuse backslashes too
+    return typeof from === "string" && from.startsWith("/") && !from.startsWith("//") && !from.includes("\\") ? from : "/products";
 }
 
 function PublicOnlyRoute({children}: {children: React.ReactNode }) {
@@ -118,6 +124,12 @@ export default function AppRouter() {
             {/* Shopping and order tracking: open to everyone */}
             <Route path="/track" element={<TrackOrderPage />} />
             <Route path="/track/:order_number" element={<TrackedOrderPage />} />
+
+            {/* Store policies and contact details, filled in from src/config/store.ts */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/shipping-returns" element={<ShippingReturns />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* Products, cart, checkout and the success page are open to guests; account and admin pages need a login */}
             <Route 
@@ -218,6 +230,7 @@ export default function AppRouter() {
                 }/>
 
         </Routes>
+        <Footer />
         </BrowserRouter>
     );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Link, useLocation } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
+import { apiErrorMessage } from "../api/errors";
 
 console.log("DEBUG: Login component loaded");
 
@@ -23,7 +24,8 @@ function Login() {
             setMessage("Login Successful");
         }
         catch (err: any){
-            setMessage("Login failed.");
+            // e.g. "Invalid credentials", or the rate limit's "Too many attempts"
+            setMessage(apiErrorMessage(err, "Login failed."));
             console.error(err);
         }
     };
@@ -50,7 +52,7 @@ function Login() {
                         <div className="flex flex-col gap-2">
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
                                 <label className="text-sm">Email</label>
-                                <input type="text" placeholder="everett@gmail.com"
+                                <input type="text" placeholder="you@example.com"
                                     value={email}
                                     onChange = {(e) => setEmail(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />

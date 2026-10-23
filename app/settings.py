@@ -15,9 +15,10 @@ MIN_JWT_SECRET_LENGTH = 32
 DEFAULT_SHIPPING_FLAT_RATE = "6.95"
 DEFAULT_FREE_SHIPPING_THRESHOLD = "75"
 DEFAULT_PRODUCT_TAX_CODE = "txcd_30011000"
+DEFAULT_STORE_NAME = "Online Store"
 DEFAULT_EMAIL_FROM = "Online Store <onboarding@resend.dev>"
 DEFAULT_PASSWORD_RESET_MINUTES = 30
-DEFAULT_UPLOAD_DIR =os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+DEFAULT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -25,6 +26,11 @@ def env_bool(name: str, default: bool) -> bool:
     if value is None or value.strip() == "":
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def store_name() -> str:
+    """The store's name as customers see it, used in emails."""
+    return os.getenv("STORE_NAME", "").strip() or DEFAULT_STORE_NAME
 
 
 def frontend_url() -> str:
@@ -123,6 +129,17 @@ def password_reset_minutes() -> int:
     return int(os.getenv("PASSWORD_RESET_MINUTES") or DEFAULT_PASSWORD_RESET_MINUTES)
 
 
+# Requests per minute each client may make to a group of endpoints (app/rate_limit.py).
+# AUTH: login, register, forgot and reset password. LOOKUP: finding orders without an
+# account. CHECKOUT: opening Stripe Checkout sessions. 0 turns a limit off.
+DEFAULT_RATE_LIMITS = {"auth": 10, "lookup": 20, "checkout": 20}
+
+
+def rate_limit_per_minute(group: str) -> int:
+    value = os.getenv(f"{group.upper()}_RATE_LIMIT_PER_MINUTE", "").strip()
+    return int(value) if value else DEFAULT_RATE_LIMITS[group]
+
+
 def check_required_settings():
     """Stop startup with a clear message instead of running with secrets that
     are missing or too weak to be safe."""
@@ -150,6 +167,14 @@ def check_required_settings():
             problems.append("PASSWORD_RESET_MINUTES must be positive")
     except ValueError:
         problems.append("PASSWORD_RESET_MINUTES must be a whole number of minutes")
+
+    for group in DEFAULT_RATE_LIMITS:
+        name = f"{group.upper()}_RATE_LIMIT_PER_MINUTE"
+        try:
+            if rate_limit_per_minute(group) < 0:
+                problems.append(f"{name} can't be negative")
+        except ValueError:
+            problems.append(f"{name} must be a whole number of requests (0 turns the limit off)")
 
     if problems:
         raise RuntimeError("Invalid configuration: " + "; ".join(problems) + ". See .env.example.")
