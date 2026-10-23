@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# Jobs only read the repository; a job that needs more asks for it itself
+permissions:
+  contents: read
+
+# A new push to a pull request makes its earlier run pointless
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -18,6 +27,38 @@ jobs:
       - run: pip install -r requirements-dev.txt
       # No database, .env or network needed: tests use in-memory SQLite and mock Stripe
       - run: python -m pytest
+      # Known vulnerabilities in the pinned Python packages (every one is pinned, so
+      # nothing needs resolving)
+      - run: pip install pip-audit && pip-audit -r requirements-dev.txt --no-deps --disable-pip
+
+  # The migrations against the database production runs; the tests only use SQLite
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: shop
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: mysql+pymysql://root:ci-root-password@127.0.0.1:3306/shop
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.15"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      # The models match what the migrations built (a model changed without a migration fails here)
+      - run: alembic check
+      # Every migration can be rolled back, which a bad deploy may need
+      - run: alembic downgrade base && alembic upgrade head
 
   frontend:
     runs-on: ubuntu-latest
@@ -35,6 +76,8 @@ jobs:
       - run: npm run lint
       # Also the type check (tsc -b)
       - run: npm run build
+      # Known vulnerabilities in what ships to browsers (build tools are left out)
+      - run: npm audit --omit=dev --audit-level=high
 
   docker:
     runs-on: ubuntu-latest
@@ -42,11 +85,43 @@ jobs:
       - uses: actions/checkout@v7
       - run: docker build -t shop-api .
       - run: docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web frontend
+      # Known vulnerabilities in the images' system packages and libraries, where a
+      # fixed version exists to move to
+      - name: Scan the API image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: shop-api
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan the storefront image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: shop-web
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
       # The production stack's compose file and Caddyfile parse with the example settings
       - run: cp deploy/.env.example deploy/.env && touch deploy/.env.api
       - run: docker compose -f deploy/docker-compose.yml config --quiet
-      - run: sh -n deploy/check.sh
+      - run: shellcheck docker/start-api.sh deploy/check.sh
       - run: >
           docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro"
           -e STORE_DOMAIN=shop.example.com -e API_DOMAIN=api.shop.example.com -e ACME_EMAIL=you@example.com
           caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+  # Keys, tokens and passwords committed anywhere in the history
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # the action lists a pull request's commits to scan them
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Findings show in the job's log; commenting on the PR would need write access
+          GITLEAKS_ENABLE_COMMENTS: "false"
