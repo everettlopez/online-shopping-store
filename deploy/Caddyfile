@@ -1,5 +1,5 @@
 # Caddy serves both sites over HTTPS, getting and renewing certificates by itself.
-# STORE_DOMAIN, API_DOMAIN, ACME_EMAIL, CSP_HEADER and TRUSTED_PROXIES come from deploy/.env
+# STORE_DOMAIN, API_DOMAIN, ACME_EMAIL, CSP_HEADER, TRUSTED_PROXIES and HSTS_INCLUDE_SUBDOMAINS come from deploy/.env
 # (passed in by deploy/docker-compose.yml).
 {
 	# Let's Encrypt writes here about problems with the certificates
@@ -16,9 +16,15 @@
 }
 
 (security_headers) {
+	# Browsers use only HTTPS for this site for a year. HSTS_INCLUDE_SUBDOMAINS=true
+	# extends that to every subdomain of the site's domain, so set it only when all of
+	# them serve HTTPS
+	map {env.HSTS_INCLUDE_SUBDOMAINS} {hsts} {
+		~(?i)^(true|1|yes|on)$ "max-age=31536000; includeSubDomains"
+		default "max-age=31536000"
+	}
 	header {
-		# Browsers use only HTTPS for this site for a year
-		Strict-Transport-Security "max-age=31536000"
+		Strict-Transport-Security {hsts}
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# No other site may show these pages in a frame (clickjacking)

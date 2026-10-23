@@ -93,6 +93,18 @@ for site in storefront API; do
         if echo "$h" | grep -qi "^$name:"; then pass "$site sends $name"; else fail "$site is missing $name"; fi
     done
 done
+# HSTS_INCLUDE_SUBDOMAINS=true must reach browsers; otherwise it must not be there
+hsts_subdomains=$(setting HSTS_INCLUDE_SUBDOMAINS | tr '[:upper:]' '[:lower:]')
+if echo "$store_headers" | grep -i '^Strict-Transport-Security:' | grep -qi 'includeSubDomains'; then
+    case "$hsts_subdomains" in
+        true|1|yes|on) pass "HSTS covers subdomains (HSTS_INCLUDE_SUBDOMAINS)" ;;
+        *) fail "HSTS covers subdomains although HSTS_INCLUDE_SUBDOMAINS is off" ;;
+    esac
+else
+    case "$hsts_subdomains" in
+        true|1|yes|on) fail "HSTS_INCLUDE_SUBDOMAINS is on but browsers don't get includeSubDomains (run up -d)" ;;
+    esac
+fi
 if echo "$store_headers" | grep -qi '^Content-Security-Policy:'; then
     pass "storefront enforces its content security policy"
 elif echo "$store_headers" | grep -qi '^Content-Security-Policy-Report-Only:'; then

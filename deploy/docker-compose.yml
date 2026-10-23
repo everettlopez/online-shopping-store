@@ -83,6 +83,7 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in deploy/.env}
       CSP_HEADER: ${CSP_HEADER:-Content-Security-Policy-Report-Only}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32}
+      HSTS_INCLUDE_SUBDOMAINS: ${HSTS_INCLUDE_SUBDOMAINS:-false}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates; losing them means asking Let's Encrypt again, which is rate limited

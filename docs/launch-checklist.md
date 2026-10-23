@@ -13,7 +13,8 @@ Tip: copy this file into a GitHub issue or a note so you can tick the boxes as y
 - [ ] Every sender address (`ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO`) receives mail.
 - [ ] Products, categories, prices and stock are entered.
 - [ ] Copies of `deploy/.env` and `deploy/.env.api` are stored somewhere safe, such as a password manager.
-- [ ] `ALLOW_STRIPE_TEST_MODE` is not in `deploy/.env.api`, and `STRIPE_SECRET_KEY` is the live key (`sk_live_...`). The API refuses a test key in production unless that setting allows it.
+- [ ] `ALLOW_STRIPE_TEST_MODE` is not in `deploy/.env.api`, and `STRIPE_SECRET_KEY` is the live key (`sk_live_...`). The API refuses a test key in production unless that setting allows it. After a trial run on test keys, follow [Going live with Stripe](hosting.md#going-live-with-stripe).
+- [ ] `HSTS_INCLUDE_SUBDOMAINS` in `deploy/.env` is `false`, or every subdomain of your domain serves HTTPS.
 
 ## 1. Deploy
 
@@ -89,8 +90,8 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 
 - [ ] `ALERT_EMAIL` is set in `deploy/.env.api`, and `docker compose -f deploy/docker-compose.yml exec api python -m app.alerts` delivers a test alert to that inbox.
 - [ ] An uptime monitor checks `https://<API_DOMAIN>/api/health` and the storefront and alerts you (for example UptimeRobot or Better Stack).
-- [ ] Backups: `sh deploy/backup.sh` succeeds, `BACKUP_REMOTE` copies each backup off the server (check the bucket), and the nightly cron job is in `crontab -l` ([hosting.md](hosting.md#running-the-store)). A managed database also shows its own automatic backups.
-- [ ] A failed backup reaches you: with `ALERT_EMAIL` set, temporarily set `BACKUP_REMOTE=missing:nowhere` in `deploy/.env`, run `sh deploy/backup.sh`, and check that the "Backup failed" alert arrives. Then put the setting back.
+- [ ] Backups: `sh deploy/backup.sh` succeeds and its last lines say `copied to <your BACKUP_REMOTE>`. In the bucket's own web page (or `rclone ls <BACKUP_REMOTE>`), both new files are there with the same sizes as in `deploy/backups`. The nightly cron job is in `crontab -l` ([hosting.md](hosting.md#running-the-store)), and a managed database also shows its own automatic backups.
+- [ ] A failed backup reaches you: with `ALERT_EMAIL` set, temporarily set `BACKUP_REMOTE=missing:nowhere` in `deploy/.env` and run `sh deploy/backup.sh`. It should end with `Backup failed: couldn't copy the backup to missing:nowhere`, and an email with the subject "Backup failed" should reach `ALERT_EMAIL` within a few minutes (check spam, then Resend's email log if it doesn't). Put the setting back afterwards.
 - [ ] You've practiced a restore once, before you have customers: `sh deploy/backup.sh --restore <date_time>` with the backup you just made, then look around the store. Products, images and accounts should be as they were.
 - [ ] You know where to look when something goes wrong: `docker compose -f deploy/docker-compose.yml logs`, Stripe's webhook deliveries, Resend's email log, and [Troubleshooting](hosting.md#troubleshooting).
 
@@ -111,11 +112,18 @@ The store is live.
 If an update breaks the store and a quick fix isn't obvious, go back to the last good version:
 
 1. Find it: `git tag --list 'deploy-*'` (or `git log --oneline`).
-2. Run it:
+2. **If the update added database migrations, undo them first, while the newer code is still checked out.** The older version refuses to start on a database it doesn't recognize (its log says `Can't locate revision`). Count the update's migrations, then step the database back that many:
+   ```bash
+   git diff --name-only --diff-filter=A <tag> HEAD -- alembic/versions   # one line per migration
+   sh deploy/backup.sh                                                   # in case the downgrade goes wrong
+   docker compose -f deploy/docker-compose.yml run --rm --no-deps api alembic downgrade -<number of lines>
+   ```
+   Undoing a migration removes what it added, such as a new column and anything stored in it since the update. CI checks that every migration can be undone. If the list is empty, skip this step.
+3. Run the older version:
    ```bash
    git checkout <tag>
    docker compose -f deploy/docker-compose.yml up -d --build
    sh deploy/check.sh
    ```
-3. The database normally stays as it is. Migrations so far only add tables and columns, which older code ignores. Restore the backup from before the update (`sh deploy/backup.sh --restore <date_time>`) only if the update damaged data. A restore loses orders placed since the backup, so check Stripe for payments made in between.
-4. Fix the problem on a branch, then deploy again with the checklist above. Run `git checkout main` before pulling new versions.
+4. Restore the backup from before the update (`sh deploy/backup.sh --restore <date_time>`) only if the update damaged data. A restore loses orders placed since the backup, so check Stripe for payments made in between.
+5. Fix the problem on a branch, then deploy again with the checklist above. Run `git checkout main` before pulling new versions.

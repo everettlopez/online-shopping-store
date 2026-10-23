@@ -1,7 +1,7 @@
 import pytest
 
 import app.rate_limit as rate_limit
-from app.rate_limit import check_rate_limit
+from app.rate_limit import check_rate_limit, client_key
 
 from conftest import TEST_PASSWORD
 
@@ -107,3 +107,28 @@ def test_idle_clients_are_forgotten(monkeypatch):
     check_rate_limit("auth", "10.0.0.2")
 
     assert ("auth", "10.0.0.1") not in rate_limit._hits
+
+
+@pytest.mark.parametrize("host, key", [
+    ("203.0.113.5", "203.0.113.5"),
+    # Every address in an IPv6 /64 is one client: they all belong to one home or server
+    ("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64"),
+    ("2001:db8:1:2::1", "2001:db8:1:2::/64"),
+    ("2001:db8:1:3::1", "2001:db8:1:3::/64"),
+    # An IPv4 visitor seen through an IPv6 socket is still that IPv4 address
+    ("::ffff:203.0.113.5", "203.0.113.5"),
+    ("testclient", "testclient"),
+])
+def test_client_key(host, key):
+    assert client_key(host) == key
+
+
+def test_rotating_ipv6_addresses_share_one_allowance(client, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv("AUTH_RATE_LIMIT_PER_MINUTE", "2")
+    # Three addresses from one /64, as a client taking a new address per request would
+    clients = [TestClient(client.app, client=(f"2001:db8:1:2::{n}", 50000)) for n in (1, 2, 3)]
+
+    assert [bad_login(c).status_code for c in clients] == [400, 400, 429]
+    # Another network has its own allowance
+    assert bad_login(TestClient(client.app, client=("2001:db8:9:9::1", 50000))).status_code == 400
