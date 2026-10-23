@@ -80,8 +80,8 @@ Do this in **live mode** (test mode is for development).
 1. Activate your account: business details and the bank account for payouts.
 2. In the public business details and branding settings, set the name customers see on their card statement (statement descriptor), your support email, and your logo and colors for the Checkout page.
 3. **Stripe Tax:** enter your business address and add a registration for every state where you collect sales tax (at least your home state). Checkout asks Stripe Tax for the tax and fails if Stripe Tax isn't set up. To launch before that, set `STRIPE_AUTOMATIC_TAX=false` and charge no tax, if that's right for your business.
-4. In the payment methods settings, **turn off methods that take days to settle** (ACH Direct Debit and other bank debits). The store creates an order when Checkout completes, and with those methods the money hasn't arrived yet.
-5. Add a **webhook endpoint** for `https://api.shop.example.com/api/payments/webhook` with the event `checkout.session.completed`. Copy its signing secret (`whsec_...`).
+4. In the payment methods settings, **turn off methods that take days to settle** (ACH Direct Debit and other bank debits). The store handles them correctly (the order waits as pending until the money arrives, and a failed payment cancels it and returns its stock), but the item is held for days and may never be paid for.
+5. Add a **webhook endpoint** for `https://api.shop.example.com/api/payments/webhook` with these four events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` and `charge.refunded` (the last one keeps refunds you make in the Stripe Dashboard in step with the store). Copy its signing secret (`whsec_...`).
 6. Copy your live **secret key** (`sk_live_...`).
 
 ## 6. Get the code and fill in the settings

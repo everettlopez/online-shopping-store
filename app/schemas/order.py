@@ -33,6 +33,8 @@ class OrderRead(BaseModel):
     subtotal_amount: float | None = None
     shipping_amount: float | None = None
     tax_amount: float | None = None
+    refunded_amount: float = 0
+    refunded_at: datetime | None = None
 
     payment_intent_id: str | None = None
     stripe_session_id: str | None = None
@@ -60,6 +62,13 @@ class CheckoutOrderRead(OrderRead):
     """The order on the checkout success page, with the secret for its tracking link.
     Other order responses leave the token out."""
     access_token: str | None = None
+
+
+class RefundRequest(BaseModel):
+    # None refunds whatever hasn't been refunded yet
+    amount: float | None = Field(default=None, gt=0)
+    # Put the items back in stock; only a full refund restocks
+    restock: bool = True
 
 
 class OrderLookup(BaseModel):

@@ -83,7 +83,7 @@ Use a separate terminal for each, from the project root:
 ```bash
 venv\Scripts\python -m uvicorn app.main:app --reload    # Terminal 1: API
 npm --prefix frontend run dev                           # Terminal 2: frontend
-stripe listen --forward-to localhost:8000/api/payments/webhook --events checkout.session.completed    # Terminal 3: Stripe webhooks
+stripe listen --forward-to localhost:8000/api/payments/webhook --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,charge.refunded    # Terminal 3: Stripe webhooks
 ```
 Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SECRET`, and make sure the Stripe CLI is logged in to the same account as `STRIPE_SECRET_KEY`. Use your Stripe **test** keys locally, and pay with Stripe's test card `4242 4242 4242 4242`. Unless you've set up Stripe Tax in test mode, set `STRIPE_AUTOMATIC_TAX=false` in `.env`, or checkout fails.
 
@@ -151,9 +151,9 @@ docker compose -f deploy/docker-compose.yml exec api python -m app.create_admin 
 
 ### Production settings
 The API image runs `alembic upgrade head` and then uvicorn (`docker/start-api.sh`). Configure it with the environment variables from `.env.example`. For production:
-- Use live Stripe keys, and the `whsec_...` secret of a webhook endpoint registered in the Stripe Dashboard for `https://<api host>/api/payments/webhook`.
+- Use live Stripe keys, and the `whsec_...` secret of a webhook endpoint registered in the Stripe Dashboard for `https://<api host>/api/payments/webhook` with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` and `charge.refunded`.
 - Set up Stripe Tax in the live Dashboard (business address, and a registration for every state where you collect sales tax). Checkout asks Stripe Tax for the tax, and Stripe refuses the checkout if Stripe Tax isn't set up. Sales tax is charged only where you're registered.
-- In the Stripe Dashboard's payment method settings, turn off methods that take days to settle (ACH Direct Debit and other bank debits). The store creates an order when Checkout completes, and with those methods the payment hasn't cleared yet, so the order would stay pending.
+- In the Stripe Dashboard's payment method settings, turn off methods that take days to settle (ACH Direct Debit and other bank debits). The store handles them (the order waits as pending, then becomes placed when the money arrives, or cancelled with its stock returned when the payment fails), but the item is held for days and may never be paid for.
 - Set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to the real addresses, and set `ENABLE_DOCS=false`. Set `COOKIE_SAMESITE=lax` if the storefront and API share a site (for example `shop.example.com` and `api.example.com`).
 - Email goes through [Resend](https://resend.com). Add your domain in the Resend dashboard, create the DNS records it lists (SPF and DKIM) so mail isn't marked as spam, then set `RESEND_API_KEY` and `EMAIL_FROM` (for example `Your Store <orders@example.com>`). Optionally send order and shipping emails from `ORDERS_EMAIL_FROM` and password resets from `ACCOUNT_EMAIL_FROM`, and set `EMAIL_REPLY_TO` to an inbox people read, since Resend only sends and replies to an address with no mailbox bounce. The default sender, `onboarding@resend.dev`, only delivers to your own Resend account's email. Without `RESEND_API_KEY`, customers get no emails and reset links end up in the logs.
 - **Mount a persistent volume at `/data/uploads`** (the image sets `UPLOAD_DIR` to it; the deploy kit does this). Without one, product images are lost on every deploy.

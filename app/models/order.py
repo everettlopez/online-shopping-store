@@ -43,6 +43,14 @@ class Order(SQLModel, table=True):
     shipping_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
     tax_amount: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
 
+    # What has been refunded so far, from the admin's Refund button or Stripe's Dashboard.
+    # refunded_at is when the order was refunded in full
+    refunded_amount: Decimal = Field(default=Decimal("0.00"), max_digits=10, decimal_places=2)
+    refunded_at: datetime | None = Field(default=None)
+    # When the order's items went back into stock (a full refund, a failed payment or
+    # deleting an unpaid order), so they're never returned twice
+    restocked_at: datetime | None = Field(default=None)
+
     payment_intent_id: str | None = Field(default=None, index=True)
     stripe_session_id: str | None = Field(default=None, unique=True, index=True)
 

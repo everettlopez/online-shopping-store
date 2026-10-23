@@ -3,22 +3,58 @@ from sqlmodel import Session, select
 from app.db.session import get_session
 from datetime import datetime
 from app.auth.core import CurrentUser
-from app.schemas.order import OrderLookup, OrderRead, OrderItemRead, OrderTrackingLink
+from app.schemas.order import OrderLookup, OrderRead, OrderItemRead, OrderTrackingLink, RefundRequest
 from app.models.order import Order, OrderItem
-from sqlalchemy.orm import selectinload
+from decimal import Decimal
 import secrets
+import stripe
 
 from app.models.product import Product
 from app.database.products import database_get_product_reads
 from app.auth.dependencies import admin_required
 from app.models.user import User
-from app.mail import build_shipping_notice_email, send_email
+from app.mail import build_refund_email, build_shipping_notice_email, send_email
+from app.money import to_cents, to_decimal
 from app.rate_limit import rate_limit
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 ORDER_STATUSES = {"pending", "placed", "processing", "shipped", "delivered", "completed", "cancelled", "refunded"}
+# Set only by a refund (the Refund button or Stripe's Dashboard), never by hand
+REFUND_ONLY_STATUSES = {"refunded"}
+
+
+def restock_order_items(session: Session, order: Order):
+    """Put the order's items back in stock, once per order."""
+    if order.restocked_at:
+        return
+    for item in session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).all():
+        product = session.exec(select(Product).where(Product.product_id == item.product_id).with_for_update()).first()
+        if product:
+            product.stock_quantity += item.quantity
+            session.add(product)
+    order.restocked_at = datetime.utcnow()
+    session.add(order)
+
+
+def record_refund(session: Session, order: Order, refunded_total: Decimal, restock: bool):
+    """Record what Stripe has refunded on the order in total. The first time that
+    reaches the order's total, the order becomes refunded (and restocked if asked)."""
+    order.refunded_amount = refunded_total
+    order.updated_at = datetime.utcnow()
+    if refunded_total >= order.total_amount and order.status != "refunded":
+        order.status = "refunded"
+        order.refunded_at = datetime.utcnow()
+        if restock:
+            restock_order_items(session, order)
+    session.add(order)
+
+
+def was_paid(order: Order) -> bool:
+    """Whether money may have changed hands. Orders whose payment never went through
+    (pending, or cancelled after a failed payment) are the only ones safe to delete."""
+    return order.payment_status == "succeeded" or order.refunded_amount > 0 or order.status not in {"pending", "cancelled"}
 
 
 def build_order_reads(session: Session, orders) -> list[OrderRead]:
@@ -105,6 +141,8 @@ def get_order(order_number: str, user: CurrentUser, session: Session = Depends(g
 def update_order_status(order_id: int, status: str, session: Session = Depends(get_session)):
     if status not in ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid order status '{status}'")
+    if status in REFUND_ONLY_STATUSES:
+        raise HTTPException(status_code=400, detail="Use Refund to refund an order; it returns the money through Stripe")
 
     order = session.get(Order, order_id)
 
@@ -144,6 +182,48 @@ def update_tracking_information(order_id: int, tracking_number: str, tracking_ca
 
     return {"message": "Order tracking updated"}
 
+@router.post("/{order_id}/refund", response_model=OrderRead, dependencies=[Depends(admin_required)])
+def refund_order(order_id: int, data: RefundRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    """Refund some or all of an order through Stripe. Stripe's charge.refunded webhook
+    for it then finds the amount already recorded, so nothing is counted twice."""
+    # Locked until the refund is recorded, so the webhook can't record it at the same time
+    order = session.exec(select(Order).where(Order.order_id == order_id).with_for_update()).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if not order.payment_intent_id or order.status == "pending" or not was_paid(order):
+        raise HTTPException(status_code=400, detail="This order hasn't been paid, so there's nothing to refund")
+
+    remaining = order.total_amount - order.refunded_amount
+    if remaining <= 0:
+        raise HTTPException(status_code=400, detail="This order has already been refunded in full")
+
+    amount = remaining if data.amount is None else to_decimal(data.amount)
+    if amount > remaining:
+        raise HTTPException(status_code=400, detail=f"At most ${remaining:,.2f} is left to refund on this order")
+
+    try:
+        stripe.Refund.create(
+            payment_intent=order.payment_intent_id,
+            amount=to_cents(amount),
+            metadata={"order_id": order.order_id},
+            # A retried click refunds once; a later refund of the same amount is a new one
+            idempotency_key=f"refund-{order.order_id}-{to_cents(order.refunded_amount)}-{to_cents(amount)}",
+        )
+    except stripe.StripeError as e:
+        print("Failed to refund order:", order.order_id, e)
+        message = getattr(e, "user_message", None) or "Stripe couldn't make the refund. Please try again in a moment."
+        raise HTTPException(status_code=502, detail=message)
+
+    record_refund(session, order, order.refunded_amount + amount, data.restock)
+    session.commit()
+    session.refresh(order)
+
+    if order.email:
+        background_tasks.add_task(send_email, build_refund_email(order.email, order, amount))
+
+    return build_order_reads(session, [order])[0]
+
 @router.delete("/{order_id}", dependencies=[Depends(admin_required)])
 def delete_order(order_id: int, session: Session = Depends(get_session)):
     order = session.get(Order, order_id)
@@ -151,28 +231,18 @@ def delete_order(order_id: int, session: Session = Depends(get_session)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # 1. Load order items
-    order_items = session.exec(
-        select(OrderItem).where(OrderItem.order_id == order.order_id)
-    ).all()
+    # Paid orders are financial records; cancel or refund them instead
+    if was_paid(order):
+        raise HTTPException(status_code=409, detail="Paid orders can't be deleted. Cancel or refund the order instead.")
 
-    # 2. Restore product stock
-    for item in order_items:
-        product = session.get(Product, item.product_id)
-        if product:
-            product.stock_quantity += item.quantity
-            session.add(product)
+    # Unpaid orders still hold their stock (unless a failed payment already returned it)
+    restock_order_items(session, order)
 
-    # 3. Delete order items
-    for item in order_items:
+    for item in session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).all():
         session.delete(item)
-
     session.flush()
 
-    # 4. Delete order
     session.delete(order)
-
-    # 5. Commit
     session.commit()
 
     return {"message": "Order deleted and stock restored"}
