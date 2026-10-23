@@ -25,15 +25,15 @@ def bearer(token):
 
 def test_password_change_ends_other_sessions_but_not_this_one(client, user):
     phone = create_user_token(user)
-    laptop = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD}).json()["access_token"]
+    laptop = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD}).cookies["shop_token"]
 
     response = client.put("/api/auth/me/password", json={"old_password": TEST_PASSWORD, "new_password": NEW_PASSWORD},
                           headers=bearer(laptop))
 
     assert response.status_code == 200
     # The browser that changed it gets a new cookie and stays logged in
-    fresh = response.json()["access_token"]
-    assert response.cookies.get("shop_token") == fresh
+    fresh = response.cookies["shop_token"]
+    assert "access_token" not in response.json()
     assert me(client, fresh).status_code == 200
     # Every earlier login is over, this browser's old token included
     for old in (phone, laptop):
@@ -52,7 +52,7 @@ def test_password_reset_ends_every_session(client, session, user):
 
     assert me(client, stolen).status_code == 401
     login = client.post("/api/auth/login", json={"email": user.email, "password": NEW_PASSWORD})
-    assert me(client, login.json()["access_token"]).status_code == 200
+    assert me(client, login.cookies["shop_token"]).status_code == 200
 
 
 def test_admin_setting_a_password_ends_the_users_sessions(client, auth_headers, user, admin):
@@ -73,7 +73,7 @@ def test_admin_edits_without_a_password_keep_sessions(client, auth_headers, user
 
 def test_log_out_everywhere(client, user):
     phone = create_user_token(user)
-    laptop = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD}).json()["access_token"]
+    laptop = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD}).cookies["shop_token"]
 
     response = client.post("/api/auth/logout-all", headers=bearer(laptop))
 
@@ -84,7 +84,7 @@ def test_log_out_everywhere(client, user):
     assert me(client, phone).status_code == 401
     # Logging in again works as usual
     login = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
-    assert me(client, login.json()["access_token"]).status_code == 200
+    assert me(client, login.cookies["shop_token"]).status_code == 200
 
 
 def test_log_out_everywhere_needs_a_login(client):
