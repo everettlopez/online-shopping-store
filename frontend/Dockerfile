@@ -1,6 +1,6 @@
 # Storefront image. Build from frontend/:
 #   docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web .
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
