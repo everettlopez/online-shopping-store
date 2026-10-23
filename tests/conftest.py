@@ -24,6 +24,7 @@ os.environ["SHIPPING_FLAT_RATE"] = "6.95"
 os.environ["FREE_SHIPPING_THRESHOLD"] = "75"
 os.environ["STRIPE_AUTOMATIC_TAX"] = "true"
 os.environ["STRIPE_PRODUCT_TAX_CODE"] = "txcd_30011000"
+os.environ["STORE_NAME"] = "Online Store"
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = "Online Store <onboarding@resend.dev>"
 os.environ["ORDERS_EMAIL_FROM"] = ""
@@ -44,6 +45,7 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from app.main import app
 from app.db.session import get_session
 from app.auth.core import create_access_token, hash_password
+from app.rate_limit import reset_rate_limits
 from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401  (registers every table)
 from app.models.user import User
 from app.models.category import Category
@@ -90,6 +92,14 @@ def client(engine):
     # Not used as a context manager, so the startup migration check doesn't run
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limits():
+    """Every test starts with no requests counted against the rate limits."""
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
 
 
 @pytest.fixture(autouse=True)

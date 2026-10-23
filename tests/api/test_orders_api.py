@@ -73,7 +73,7 @@ def test_update_tracking_emails_the_buyer(admin_client, user, make_order, sent_e
 
     [message] = sent_emails
     assert message.to == user.email
-    assert message.subject == f"Your order {order.order_number} has shipped"
+    assert message.subject == f"Your Online Store order {order.order_number} has shipped"
     assert "1Z999" in message.text
 
 

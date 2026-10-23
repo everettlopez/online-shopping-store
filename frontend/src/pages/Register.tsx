@@ -76,7 +76,7 @@ function Register() {
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
                                 <label className="text-sm">Email</label>
-                                <input type="text" placeholder="everett@gmail.com"
+                                <input type="text" placeholder="you@example.com"
                                     value={email}
                                     onChange = {(e) => setEmail(e.target.value)}
                                     className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />

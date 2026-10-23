@@ -19,6 +19,7 @@ from app.settings import (
     frontend_url,
     orders_email_from,
     resend_api_key,
+    store_name,
 )
 
 
@@ -82,8 +83,14 @@ def money(amount) -> str:
 def html_page(heading: str, body: str) -> str:
     return (
         '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">'
-        f'<h1 style="font-size:22px">{escape(heading)}</h1>{body}</div>'
+        f'<h1 style="font-size:22px">{escape(heading)}</h1>{body}'
+        f'<p style="color:#666;font-size:13px">{escape(store_name())}</p></div>'
     )
+
+
+def signed(lines: list[str]) -> str:
+    """Plain-text body ending with the store's name."""
+    return "\n".join([*lines, "", store_name()])
 
 
 def html_button(url: str, label: str) -> str:
@@ -95,19 +102,24 @@ def html_button(url: str, label: str) -> str:
 
 def build_password_reset_email(to: str, first_name: str, token: str, minutes: int) -> EmailMessage:
     link = f"{frontend_url()}/reset-password?token={token}"
-    text = (
-        f"Hi {first_name},\n\n"
-        f"Someone asked to reset the password for your account. To choose a new one, open this link "
-        f"within {minutes} minutes:\n\n{link}\n\n"
-        "If you didn't ask for this, you can ignore this email; your password stays the same."
-    )
+    store = store_name()
+    text = signed([
+        f"Hi {first_name},",
+        "",
+        f"Someone asked to reset the password for your {store} account. To choose a new one, "
+        f"open this link within {minutes} minutes:",
+        "",
+        link,
+        "",
+        "If you didn't ask for this, you can ignore this email; your password stays the same.",
+    ])
     html = html_page("Reset your password", (
         f"<p>Hi {escape(first_name)},</p>"
-        f"<p>Someone asked to reset the password for your account. The link works for {minutes} minutes.</p>"
+        f"<p>Someone asked to reset the password for your {escape(store)} account. The link works for {minutes} minutes.</p>"
         + html_button(link, "Choose a new password")
         + "<p>If you didn't ask for this, you can ignore this email; your password stays the same.</p>"
     ))
-    return EmailMessage(to=to, subject="Reset your password", text=text, html=html, sender=account_email_from())
+    return EmailMessage(to=to, subject=f"Reset your {store} password", text=text, html=html, sender=account_email_from())
 
 
 def address_lines(address: dict | None) -> list[str]:
@@ -139,7 +151,7 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
     ]
     address = address_lines(order.shipping_address)
 
-    text = "\n".join([
+    text = signed([
         greeting(order),
         "",
         f"Thanks for your order! Order number: {order.order_number}",
@@ -170,13 +182,13 @@ def build_order_confirmation_email(to: str, order: Order, items: list[tuple[str,
         f"<p><strong>Shipping to</strong><br>{'<br>'.join(escape(line) for line in address)}</p>"
         + html_button(link, "View your order")
     ))
-    return EmailMessage(to=to, subject=f"Order confirmation {order.order_number}", text=text, html=html,
+    return EmailMessage(to=to, subject=f"{store_name()} order confirmation {order.order_number}", text=text, html=html,
                         sender=orders_email_from())
 
 
 def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
     link = order_link(order)
-    text = "\n".join([
+    text = signed([
         greeting(order),
         "",
         f"Your order {order.order_number} is on its way.",
@@ -194,5 +206,5 @@ def build_shipping_notice_email(to: str, order: Order) -> EmailMessage:
            if (order.tracking_url or "").lower().startswith(("https://", "http://")) else "")
         + f'<p><a href="{escape(link)}">View your order</a></p>'
     ))
-    return EmailMessage(to=to, subject=f"Your order {order.order_number} has shipped", text=text, html=html,
+    return EmailMessage(to=to, subject=f"Your {store_name()} order {order.order_number} has shipped", text=text, html=html,
                         sender=orders_email_from())

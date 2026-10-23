@@ -5,7 +5,9 @@ A full-stack, database-driven online shopping platform designed to demonstrate m
 1. [Overview](#overview)
 2. [Tech Stack](#tech-stack)
 3. [Development Setup](#development-setup)
-4. [Author](#author)
+4. [Make It Your Store](#make-it-your-store)
+5. [Deployment](#deployment)
+6. [Author](#author)
 
 ## Overview
 This application models a real‑world e‑commerce workflow, including product browsing, dynamic filtering, a cart, Stripe Checkout, order tracking, user accounts, and administrative management. The system is built with a modular architecture that supports future expansion into analytics and user‑centric features.
@@ -61,7 +63,7 @@ JWT_SECRET_KEY=<at least 32 random characters>
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
-`JWT_SECRET_KEY` must be at least 32 characters (generate one with `venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"`), and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists optional deployment settings (`FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`) the shipping and tax settings (`SHIPPING_FLAT_RATE`, `FREE_SHIPPING_THRESHOLD`, `STRIPE_AUTOMATIC_TAX`, `STRIPE_PRODUCT_TAX_CODE`) and the email settings (`RESEND_API_KEY`, `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO`, `PASSWORD_RESET_MINUTES`); their defaults suit local development. Without `RESEND_API_KEY`, the API prints emails (password reset links, order confirmations, shipping notices) in its terminal instead of sending them. For production, set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to your real addresses, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
+`JWT_SECRET_KEY` must be at least 32 characters (generate one with `venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"`), and both Stripe keys must be set, or the API refuses to start. `.env.example` also lists the store's name for emails (`STORE_NAME`), optional deployment settings (`FRONTEND_URL`, `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `ENABLE_DOCS`, `SQL_ECHO`) the shipping and tax settings (`SHIPPING_FLAT_RATE`, `FREE_SHIPPING_THRESHOLD`, `STRIPE_AUTOMATIC_TAX`, `STRIPE_PRODUCT_TAX_CODE`) and the email settings (`RESEND_API_KEY`, `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO`, `PASSWORD_RESET_MINUTES`) and the rate limits (`AUTH_RATE_LIMIT_PER_MINUTE`, `LOOKUP_RATE_LIMIT_PER_MINUTE`, `CHECKOUT_RATE_LIMIT_PER_MINUTE`); their defaults suit local development. Without `RESEND_API_KEY`, the API prints emails (password reset links, order confirmations, shipping notices) in its terminal instead of sending them. For production, set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to your real addresses, `ENABLE_DOCS=false`, and `COOKIE_SAMESITE=lax` if the frontend and API share a site.
 
 `.env` is gitignored, so never commit real keys. Percent-encode special characters in the DB password (for example, `@` becomes `%40`).
 
@@ -100,6 +102,12 @@ Copy the `whsec_...` secret that `stripe listen` prints into `STRIPE_WEBHOOK_SEC
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/api (docs at http://localhost:8000/docs)
 
+To use the admin pages, register an account on the storefront, then make it an admin from the project root:
+```bash
+venv\Scripts\python -m app.create_admin you@example.com
+```
+After that, admins can make other users admins from the admin **Users** page.
+
 ### 6. Run the tests
 The backend test suite lives in `tests/`. It runs against a throwaway in-memory SQLite database and mocks Stripe, so it doesn't need MySQL, a `.env` file or network access. From the project root:
 ```bash
@@ -107,6 +115,16 @@ venv\Scripts\pip install -r requirements-dev.txt
 venv\Scripts\python -m pytest
 ```
 Add `-x` to stop at the first failure, or pass a path to run part of the suite (for example `venv\Scripts\python -m pytest tests/api/test_cart_api.py`). Shared fixtures and test-data factories are in `tests/conftest.py`.
+
+## Make It Your Store
+Everything that identifies a store is a setting, so you run your own store without changing any code.
+
+- **Storefront** (`frontend/.env.example`, set at build time): `VITE_STORE_NAME` (page title, footer and policy pages), `VITE_STORE_LOGO_TEXT` (the wordmark at the top, default the name in capitals), `VITE_STORE_DESCRIPTION` (meta description), `VITE_SUPPORT_EMAIL`, and for the policy pages `VITE_BUSINESS_NAME`, `VITE_BUSINESS_ADDRESS`, `VITE_BUSINESS_STATE` and `VITE_RETURN_DAYS`. Locally, put them in `frontend/.env.local`.
+- **Emails** (`.env.example`): `STORE_NAME` appears in email subjects and signatures. The senders are `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM` and `EMAIL_REPLY_TO`.
+- **Shipping:** `SHIPPING_FLAT_RATE` and `FREE_SHIPPING_THRESHOLD` set what checkout charges, and the Shipping & Returns page shows the same numbers.
+
+### Policy pages
+The storefront has Privacy Policy, Terms of Service, Shipping & Returns and Contact pages (`/privacy`, `/terms`, `/shipping-returns`, `/contact`), linked from the footer and filled in from the settings above. **Their wording is a general starting point, not legal advice.** Read them and have them reviewed for your business before you take real orders. If you have your own policies (from a lawyer or a policy service), set `VITE_PRIVACY_POLICY_URL`, `VITE_TERMS_URL` and `VITE_SHIPPING_POLICY_URL`, and the footer links there instead. Stripe expects a live store to show a refund policy and a way to contact you.
 
 ## Deployment
 The API and the storefront deploy separately, each as its own Docker image. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and builds both images on every push and pull request.
@@ -122,6 +140,8 @@ The image runs `alembic upgrade head` and then uvicorn (`docker/start-api.sh`). 
 - Email goes through [Resend](https://resend.com). Add your domain in the Resend dashboard, create the DNS records it lists (SPF and DKIM) so mail isn't marked as spam, then set `RESEND_API_KEY` and `EMAIL_FROM` (for example `Your Store <orders@example.com>`). Optionally send order and shipping emails from `ORDERS_EMAIL_FROM` and password resets from `ACCOUNT_EMAIL_FROM`, and set `EMAIL_REPLY_TO` to an inbox people read, since Resend only sends and replies to an address with no mailbox bounce. The default sender, `onboarding@resend.dev`, only delivers to your own Resend account's email. Without `RESEND_API_KEY`, customers get no emails and reset links end up in the logs.
 - **Mount a persistent volume at `/data/uploads`** (the image sets `UPLOAD_DIR` to it). Without one, product images are lost on every deploy.
 - Use a managed MySQL with automated backups.
+- Create the first admin once the API is running: register on the storefront, then run `python -m app.create_admin you@example.com` inside the API container (for example `docker exec <container> python -m app.create_admin you@example.com`).
+- Login, registration, password reset, order lookup and checkout are rate limited per visitor IP (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`). The counts live in each worker's memory, so they suit a single server. The limits need the visitor's real IP, so keep `--proxy-headers` and trust only your proxy in `FORWARDED_ALLOW_IPS` if the API port is reachable from anywhere else.
 - Optional: `PORT` (default 8000), `WEB_CONCURRENCY` (worker processes, default 2) and `FORWARDED_ALLOW_IPS` (proxies trusted for `X-Forwarded-*`, default all). With several replicas, set `RUN_MIGRATIONS=false` on all but one, or run `alembic upgrade head` as a release step.
 
 The host should terminate HTTPS. `GET /api/health` returns 200 when the database is reachable and 503 when it isn't, for health checks and uptime monitors.
@@ -130,7 +150,7 @@ The host should terminate HTTPS. `GET /api/health` returns 200 when the database
 ```bash
 docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web frontend
 ```
-`VITE_API_URL` is baked into the bundle at build time (see `frontend/.env.example`). The image serves the built site with nginx (`frontend/nginx.conf`), sending every unknown path to `index.html` so links like `/orders/abc` work. If you use a static host (Netlify, Vercel, Cloudflare Pages) instead, run `npm run build` with `VITE_API_URL` set, publish `frontend/dist`, and add the host's single-page-app rewrite to `/index.html`.
+`VITE_API_URL` is baked into the bundle at build time (see `frontend/.env.example`), as are the store's name and policy details: pass them as more build arguments, for example `--build-arg VITE_STORE_NAME="Your Store" --build-arg VITE_SUPPORT_EMAIL=support@example.com`. The image serves the built site with nginx (`frontend/nginx.conf`), sending every unknown path to `index.html` so links like `/orders/abc` work. If you use a static host (Netlify, Vercel, Cloudflare Pages) instead, run `npm run build` with `VITE_API_URL` set, publish `frontend/dist`, and add the host's single-page-app rewrite to `/index.html`.
 
 ## Author
 Everett Lopez

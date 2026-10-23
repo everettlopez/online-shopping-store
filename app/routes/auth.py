@@ -17,6 +17,7 @@ from app.auth.core import CurrentUser
 from app.models.password_reset import PasswordResetToken
 from app.mail import build_password_reset_email, send_email
 from app.settings import password_reset_minutes
+from app.rate_limit import rate_limit
 import hashlib
 import secrets
 
@@ -31,7 +32,7 @@ FORGOT_PASSWORD_MESSAGE = "If an account uses that email, we've sent it a link t
 def hash_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
-@router.post("/register")
+@router.post("/register", dependencies=[rate_limit("auth")])
 def register(user: UserCreate, session: Session = Depends(get_session)):
     statement = select(User).where(User.email == user.email)       # SQL Query Statement
     existing = session.exec(statement).first()                     # Database Lookup
@@ -53,7 +54,7 @@ def register(user: UserCreate, session: Session = Depends(get_session)):
 
     return {"message": "User registered successfully"}
 
-@router.post("/login")
+@router.post("/login", dependencies=[rate_limit("auth")])
 def login(data: UserLogin, response: Response, session: Session = Depends(get_session)):
     statement = select(User).where(User.email == data.email)
     user = session.exec(statement).first()
@@ -129,7 +130,7 @@ def update_password(
     return {"message": "Password updated successfully"}
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", dependencies=[rate_limit("auth")])
 def forgot_password(data: ForgotPasswordRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     # Same answer whether or not the account exists, so this can't be used to find accounts
     user = session.exec(select(User).where(User.email == data.email)).first()
@@ -159,7 +160,7 @@ def forgot_password(data: ForgotPasswordRequest, background_tasks: BackgroundTas
 
     return {"message": FORGOT_PASSWORD_MESSAGE}
 
-@router.post("/reset-password")
+@router.post("/reset-password", dependencies=[rate_limit("auth")])
 def reset_password(data: PasswordReset, session: Session = Depends(get_session)):
     # Locked so two requests with the same link can't both use it
     reset = session.exec(

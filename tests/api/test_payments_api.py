@@ -651,7 +651,7 @@ def test_completed_checkout_emails_a_confirmation(send_webhook, session, shopper
     order_number = session.exec(select(Order)).one().order_number
     [message] = sent_emails
     assert message.to == user.email
-    assert message.subject == f"Order confirmation {order_number}"
+    assert message.subject == f"Online Store order confirmation {order_number}"
     assert "2 x Shirt @ $20.00 = $40.00" in message.text
     assert "Shipping: $6.95" in message.text and "Total: $46.95" in message.text
 

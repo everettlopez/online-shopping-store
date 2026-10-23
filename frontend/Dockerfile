@@ -9,6 +9,18 @@ RUN npm ci
 COPY . .
 # Vite bakes the API address into the bundle, so it's a build argument, not a runtime setting
 ARG VITE_API_URL
+# The store's identity (all optional; see .env.example)
+ARG VITE_STORE_NAME
+ARG VITE_STORE_LOGO_TEXT
+ARG VITE_STORE_DESCRIPTION
+ARG VITE_SUPPORT_EMAIL
+ARG VITE_BUSINESS_NAME
+ARG VITE_BUSINESS_ADDRESS
+ARG VITE_BUSINESS_STATE
+ARG VITE_RETURN_DAYS
+ARG VITE_PRIVACY_POLICY_URL
+ARG VITE_TERMS_URL
+ARG VITE_SHIPPING_POLICY_URL
 RUN test -n "$VITE_API_URL" || (echo "Pass --build-arg VITE_API_URL=https://<api host>/api" && exit 1)
 RUN npm run build
 

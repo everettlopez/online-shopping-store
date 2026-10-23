@@ -123,6 +123,8 @@ def test_valid_settings_pass():
     ("FREE_SHIPPING_THRESHOLD", "free", "FREE_SHIPPING_THRESHOLD"),
     ("PASSWORD_RESET_MINUTES", "0", "PASSWORD_RESET_MINUTES"),
     ("PASSWORD_RESET_MINUTES", "half an hour", "PASSWORD_RESET_MINUTES"),
+    ("AUTH_RATE_LIMIT_PER_MINUTE", "-1", "AUTH_RATE_LIMIT_PER_MINUTE"),
+    ("LOOKUP_RATE_LIMIT_PER_MINUTE", "lots", "LOOKUP_RATE_LIMIT_PER_MINUTE"),
 ])
 def test_bad_settings_stop_startup(monkeypatch, name, value, problem):
     monkeypatch.setenv(name, value)
