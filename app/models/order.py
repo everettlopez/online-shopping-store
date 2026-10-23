@@ -3,7 +3,6 @@ from sqlmodel import SQLModel, Field
 from sqlalchemy import Column, JSON
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 
 class Order(SQLModel, table=True):

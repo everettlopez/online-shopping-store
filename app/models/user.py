@@ -4,8 +4,6 @@ from sqlmodel import Field, SQLModel
 from datetime import datetime
 from pydantic import EmailStr
 
-from typing import List, Optional
-from sqlmodel import Relationship
 
 class User(SQLModel, table=True):
     __tablename__ = "users"

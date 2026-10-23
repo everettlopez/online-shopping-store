@@ -255,7 +255,7 @@ def create_checkout_session(data: CheckoutRequest, user: OptionalUser, session: 
             f"Stripe said: {e}",
             "Common causes: Stripe Tax isn't set up (or set STRIPE_AUTOMATIC_TAX=false), or the secret key is wrong.",
         ])   # sent now: background tasks don't run after an error response
-        raise HTTPException(status_code=502, detail="We couldn't start checkout. Please try again in a moment.")
+        raise HTTPException(status_code=502, detail="We couldn't start checkout. Please try again in a moment.") from e
 
     return {"checkoutUrl": stripe_session.url}
 
@@ -347,7 +347,7 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
     except Exception as e:
         # Non-2xx so Stripe retries and the failure shows in the CLI/Dashboard
         logger.warning("webhook signature failed error=%s", e)
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        raise HTTPException(status_code=400, detail="Invalid webhook signature") from e
 
     event_type = event["type"]
     stripe_object = event["data"]["object"]
@@ -371,7 +371,7 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
             "Stripe retries it automatically. If the order or refund doesn't show up in the admin pages, "
             "check the API's logs and the webhook's deliveries in the Stripe Dashboard.",
         ])
-        raise HTTPException(status_code=500, detail="Webhook processing failed")
+        raise HTTPException(status_code=500, detail="Webhook processing failed") from e
 
     return {"received": True}
 

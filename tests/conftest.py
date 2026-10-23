@@ -51,7 +51,7 @@ from app.db.session import get_session
 from app.auth.core import create_user_token, hash_password
 from app.rate_limit import reset_rate_limits
 from app.alerts import reset_alerts
-from app.models import address, cart, category, order, password_reset, product, user  # noqa: F401  (registers every table)
+from app.models import password_reset  # noqa: F401  (registers its table; the other models are imported below)
 from app.models.user import User
 from app.models.category import Category
 from app.models.product import Product

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.session import get_session
 from datetime import datetime
@@ -13,7 +13,6 @@ import stripe
 from app.models.product import Product
 from app.database.products import database_get_product_reads
 from app.auth.dependencies import admin_required
-from app.models.user import User
 from app.mail import build_refund_email, build_shipping_notice_email, send_email
 from app.money import to_cents, to_decimal
 from app.rate_limit import rate_limit
@@ -230,7 +229,7 @@ def refund_order(order_id: int, data: RefundRequest, background_tasks: Backgroun
             "Check the payment in the Stripe Dashboard, then try again.",
         ])   # sent now: background tasks don't run after an error response
         message = getattr(e, "user_message", None) or "Stripe couldn't make the refund. Please try again in a moment."
-        raise HTTPException(status_code=502, detail=message)
+        raise HTTPException(status_code=502, detail=message) from e
 
     record_refund(session, order, order.refunded_amount + amount, data.restock)
     session.commit()

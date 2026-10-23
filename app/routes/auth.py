@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlmodel import Session, select, delete
 from app.db.session import get_session
 from app.models.user import User
@@ -72,7 +72,8 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
     token = create_user_token(user)
     set_auth_cookie(response, token)
 
-    return {"access_token": token, "token_type": "bearer"}
+    # The token travels only in the httponly cookie, out of reach of the page's scripts
+    return {"message": "Logged in"}
 
 @router.post("/logout")
 def logout(response: Response):
@@ -163,7 +164,7 @@ def update_password(
     token = create_user_token(user)
     set_auth_cookie(response, token)
 
-    return {"message": "Password updated successfully", "access_token": token, "token_type": "bearer"}
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/forgot-password", dependencies=[rate_limit("auth")])

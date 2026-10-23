@@ -11,8 +11,9 @@ def test_register_then_login(client):
     response = client.post("/api/auth/login", json={"email": NEW_USER["email"], "password": NEW_USER["password"]})
 
     assert response.status_code == 200
-    assert response.json()["token_type"] == "bearer"
     assert "shop_token" in response.headers["set-cookie"]
+    # Only the httponly cookie carries the token, out of reach of the page's scripts
+    assert response.json() == {"message": "Logged in"}
 
 
 def test_register_duplicate_email(client, user):

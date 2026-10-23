@@ -20,7 +20,6 @@ from app.routes.category import router as category_router
 from app.routes.admin import router as admin_router
 from app.routes.payments import router as payment_router
 from app.routes.csp import router as csp_router
-from fastapi.openapi.utils import get_openapi
 
 from fastapi.staticfiles import StaticFiles
 

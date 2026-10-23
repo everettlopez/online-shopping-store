@@ -30,6 +30,8 @@ venv\Scripts\python -m pytest tests/api/test_cart_api.py::test_clear_cart  # one
 venv\Scripts\python -m pytest -k checkout -x                               # by name, stop at first failure
 ```
 
+Python lint: `venv\Scripts\ruff check .` (rules in `ruff.toml`: unused or undefined names and likely bugs, not style; it must pass, and CI runs it). `--fix` removes unused imports.
+
 Frontend: `npm --prefix frontend run lint` (ESLint; it must report no problems, and CI runs it) and `npm --prefix frontend run build` (runs `tsc -b`, so it is also the type check). The frontend has no test runner.
 
 `.claude/launch.json` defines the `api` and `dev` preview servers, and `preview`, which serves the last `npm run build` on port 5173 in place of `dev` (stop `dev` first; the local API only allows that origin), for checking the production bundle or running Lighthouse.
@@ -59,7 +61,7 @@ The functions in `app/settings.py` read the environment each time they're called
   - The schema is owned by Alembic (`alembic/versions/`, whose `env.py` imports every model). Never add `create_all` to the app.
 - **Response shapes:** `ProductRead` nests the full `category`, so build products with `database_get_product_reads()` (`app/database/products.py`) instead of returning `Product` rows. Orders are built with `build_order_reads()` in `app/routes/order.py`.
 - **Auth:**
-  - Login sets an httponly `shop_token` JWT cookie (PyJWT, HS256, 60 minutes) through `set_auth_cookie`/`clear_auth_cookie` in `app/auth/core.py`. Use these helpers so the cookie attributes match. A `Bearer` header also works.
+  - Login sets an httponly `shop_token` JWT cookie (PyJWT, HS256, 60 minutes) through `set_auth_cookie`/`clear_auth_cookie` in `app/auth/core.py`. Use these helpers so the cookie attributes match. The token is never in a response body (login answers `{"message": "Logged in"}`), so the page's scripts can't read it. A `Bearer` header also works.
   - Passwords are hashed with bcrypt itself (`hash_password`/`verify_password` in `app/auth/core.py`; no passlib), using a password's first 72 bytes as bcrypt always has, so hashes made before still verify.
   - Make login tokens with `create_user_token(user)`, which adds the user's `token_version` as the `ver` claim; `user_from_token()` rejects a token whose `ver` doesn't match (a missing `ver` counts as 0) with a 401. `revoke_sessions(user)` raises the version, ending every session the user has; the caller commits. It runs when the user changes their password (`PUT /auth/me/password`, which then sets a fresh cookie so that browser stays logged in), when a reset link is used, when an admin sets the user's password, and on `POST /auth/logout-all`.
   - Routes that check the current password (`PUT /auth/me/email`, `PUT /auth/me/password`, and `DELETE /auth/me`, which takes `current_password` in its body) are rate limited like login, so a stolen session can't guess it. Login checks a dummy hash for unknown emails, so its timing doesn't reveal which emails have accounts. A token for a deleted user is a 401.
@@ -105,7 +107,7 @@ The functions in `app/settings.py` read the environment each time they're called
 - **Setup:** `tests/conftest.py` sets every environment variable before importing `app`. Each test gets a fresh in-memory SQLite database with foreign keys enforced (to behave like MySQL), wired in by overriding `get_session`. `TestClient` is not used as a context manager, so the startup checks don't run.
 - **Fixtures:**
   - Factories: `make_user`, `make_category`, `make_product`, `make_address`, `add_to_cart` and `make_order` (`make_order(None)` makes a guest order with an email and address copies but no saved addresses; every order gets an `access_token`).
-  - Clients: `user_client` and `admin_client` share a single `client`. For tests with several users, use `client` with `auth_headers(user)`. The auth cookie is `Secure` and the test client talks plain http, so it never sends back a cookie a response set; authenticate with a token instead (`create_user_token(user)` or the login response's `access_token`).
+  - Clients: `user_client` and `admin_client` share a single `client`. For tests with several users, use `client` with `auth_headers(user)`. The auth cookie is `Secure` and the test client talks plain http, so it never sends back a cookie a response set; authenticate with a token instead (`create_user_token(user)`, or the token in the cookie a response sets: `response.cookies["shop_token"]`).
   - `upload_dir` redirects uploads to a temp folder.
 - **Rate limits and alerts:** the autouse `fresh_rate_limits` and `fresh_alerts` fixtures clear the counts and the held-back alerts around every test. Alerts are off unless a test sets `ALERT_EMAIL`; they arrive in `sent_emails` like other email. Log lines are checked with `caplog`. Tests of a limit set it low with `monkeypatch.setenv("AUTH_RATE_LIMIT_PER_MINUTE", "3")`.
 - **Email:** the autouse `sent_emails` fixture replaces `app.mail.deliver` and returns the list of `EmailMessage`s the app sent.
