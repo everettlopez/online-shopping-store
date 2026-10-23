@@ -4,8 +4,6 @@ import { apiErrorMessage } from "../api/errors";
 import { useNavigate, useLocation, Link } from  "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 
-console.log("DEBUG: Register component loaded");
-
 
 function Register() {
     const navigate = useNavigate();
@@ -31,7 +29,7 @@ function Register() {
 
             setMessage("Registration successful. Redirecting to login...");
             setTimeout(() => navigate("/login", { state }), 800);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
             setMessage(apiErrorMessage(err, "Registration failed."));
         }

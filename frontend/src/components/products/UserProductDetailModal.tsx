@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { cartErrorMessage, useCart } from "../../context/CartContext";
+import { useCart } from "../../context/useCart";
+import { cartErrorMessage } from "../../context/guestCart";
 
 
 type Product = {

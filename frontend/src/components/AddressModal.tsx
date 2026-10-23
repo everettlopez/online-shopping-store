@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import axiosClient from "../api/axiosClient";
 
 interface Address {
@@ -36,59 +36,40 @@ const emptyForm = {
   address_type: "shipping",
 };
 
-export default function AddressModal({
-  isOpen,
+// Mounted only while open, so every opening starts from a fresh form
+export default function AddressModal(props: AddressModalProps) {
+  if (!props.isOpen) return null;
+  return <AddressDialog {...props} />;
+}
+
+function AddressDialog({
   onClose,
   onSaved,
   addresses = [],
 }: AddressModalProps) {
-  // Saved addresses, newest first (includes ones added in this modal)
-  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  // Addresses saved in this dialog; the list from the page may also arrive after it opens
+  const [created, setCreated] = useState<Address[]>([]);
+
+  // Every saved address, newest first
+  const savedAddresses = useMemo(() => {
+    const byId = new Map([...addresses, ...created].map((a) => [a.address_id, a]));
+    return [...byId.values()].sort((a, b) => b.address_id - a.address_id);
+  }, [addresses, created]);
+  const newestId = savedAddresses.length > 0 ? String(savedAddresses[0].address_id) : "";
 
   // Mode: select or create
-  const [mode, setMode] = useState<"select" | "create">("create");
+  const [mode, setMode] = useState<"select" | "create">(addresses.length > 0 ? "select" : "create");
 
-  const [shippingAddressId, setShippingAddressId] = useState<string>("");
-  const [billingAddressId, setBillingAddressId] = useState<string>("");
+  // What the shopper picked; until they pick, the newest address
+  const [shippingChoice, setShippingAddressId] = useState<string>("");
+  const [billingChoice, setBillingAddressId] = useState<string>("");
+  const shippingAddressId = shippingChoice || newestId;
+  const billingAddressId = billingChoice || newestId;
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
   const [error, setError] = useState("");
 
   // Create form
   const [form, setForm] = useState(emptyForm);
-
-  // Reset each time the modal opens (not when the address list refreshes)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const sorted = [...addresses].sort((a, b) => b.address_id - a.address_id);
-    const newestId = sorted.length > 0 ? String(sorted[0].address_id) : "";
-
-    setSavedAddresses(sorted);
-    setMode(sorted.length > 0 ? "select" : "create");
-    setShippingAddressId(newestId);
-    setBillingAddressId(newestId);
-    setBillingSameAsShipping(true);
-    setError("");
-    setForm(emptyForm);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-running on `addresses` would wipe in-progress input
-  }, [isOpen]);
-
-  // A refreshed address list arrived while open: add new entries, keep the user's mode and form
-  useEffect(() => {
-    if (addresses.length === 0) return;
-
-    const newestId = String(Math.max(...addresses.map((a) => a.address_id)));
-
-    setSavedAddresses((prev) => {
-      const known = new Set(prev.map((a) => a.address_id));
-      const added = addresses.filter((a) => !known.has(a.address_id));
-      return added.length > 0 ? [...prev, ...added].sort((a, b) => b.address_id - a.address_id) : prev;
-    });
-    setShippingAddressId((prev) => prev || newestId);
-    setBillingAddressId((prev) => prev || newestId);
-  }, [addresses]);
-
-  if (!isOpen) return null;
 
   type FormState = typeof form;
   type FormKey = keyof FormState;
@@ -116,7 +97,7 @@ export default function AddressModal({
       const newAddress: Address = res.data;
       const newId = String(newAddress.address_id);
 
-      setSavedAddresses((prev) => [newAddress, ...prev]);
+      setCreated((prev) => [newAddress, ...prev]);
       setShippingAddressId(newId);
       if (billingSameAsShipping || !billingAddressId) {
         setBillingAddressId(newId);

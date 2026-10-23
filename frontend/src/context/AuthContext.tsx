@@ -1,25 +1,7 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { login as apiLogin, logout as apiLogout, getCurrentUser } from "../api/auth";
+import { AuthContext, type User } from "./useAuth";
 
-interface User {
-    id: number;
-    email: string;
-    first_name: string;
-    last_name: string;
-    is_admin: boolean;
-    created_at: string;
-}
-
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    isAuthenticated: boolean;
-    login: (email: string, password: string) => Promise<void>;
-    logout: () => Promise<void>;
-    refreshUser: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
@@ -69,8 +51,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
 
-    console.log("DEBUG: AuthProvider mounted");
-
     return (
         <AuthContext.Provider 
             value = {{
@@ -84,11 +64,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 {children}
             </AuthContext.Provider>
     );
-};
-
-// Hook
-export const useAuth = () => {
-    const ctx = useContext(AuthContext);
-    if(!ctx) throw new Error("useAuth must be inside AuthProvider");
-    return ctx;
 };

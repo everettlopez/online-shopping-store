@@ -31,7 +31,7 @@ venv/bin/python -m pytest                # Windows: venv\Scripts\python -m pytes
 npm --prefix frontend run build          # includes the TypeScript check
 npm --prefix frontend run lint
 ```
-All tests must pass and the build must succeed. The lint has some existing problems on `main`; don't add new ones. If you changed the deploy kit, run `docker compose -f deploy/docker-compose.yml config` with example settings (CI does this too).
+All tests must pass, the lint must report no problems, and the build must succeed (CI checks all three). If you changed the deploy kit, run `docker compose -f deploy/docker-compose.yml config` with example settings (CI does this too).
 
 ## Open a pull request
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { lookUpOrder, trackingPath } from "../api/orders";
 import { apiErrorMessage } from "../api/errors";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import Navbar from "../components/Navbar";
 
 // Find an order without an account, from its number and the email it was placed with

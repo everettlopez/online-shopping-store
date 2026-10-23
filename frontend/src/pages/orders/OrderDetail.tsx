@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosClient from "../../api/axiosClient";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 import Navbar from "../../components/Navbar";
 import OrderView, { type Order } from "../../components/orders/OrderView";

@@ -8,8 +8,6 @@ import CategoryIcon from "../../assets/tags-category-categories-labels-svgrepo-c
 import UserIcon from "../../assets/users-svgrepo-com.svg";
 import OrderIcon from "../../assets/orders-svgrepo-com.svg";
 
-console.log("DEBUG: Admin page component loaded");
-
 
 function Admin() {
 

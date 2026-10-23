@@ -1,10 +1,8 @@
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { Link, useLocation } from "react-router-dom";
 import backIcon from "../assets/backIcon.svg";
 import { apiErrorMessage } from "../api/errors";
-
-console.log("DEBUG: Login component loaded");
 
 
 function Login() {
@@ -23,7 +21,7 @@ function Login() {
             await login(email, password)
             setMessage("Login Successful");
         }
-        catch (err: any){
+        catch (err){
             // e.g. "Invalid credentials", or the rate limit's "Too many attempts"
             setMessage(apiErrorMessage(err, "Login failed."));
             console.error(err);
