@@ -164,6 +164,14 @@ def update_order_status(order_id: int, status: str, session: Session = Depends(g
 @router.put("/{order_id}/tracking", dependencies=[Depends(admin_required)])
 def update_tracking_information(order_id: int, tracking_number: str, tracking_carrier: str, tracking_url: str, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
 
+    # The link goes into emails and the order pages, so only a web address will do
+    # (one typed without https:// gets it, as the order pages always assumed)
+    tracking_url = tracking_url.strip()
+    if tracking_url and "://" not in tracking_url:
+        tracking_url = f"https://{tracking_url}"
+    if tracking_url and not tracking_url.lower().startswith(("https://", "http://")):
+        raise HTTPException(status_code=400, detail="The tracking link must be a web address starting with https://")
+
     order = session.get(Order, order_id)
 
     if not order:

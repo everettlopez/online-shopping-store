@@ -63,6 +63,15 @@ def create_app() -> FastAPI:
             return JSONResponse(status_code=500, content={"detail": "Something went wrong on our end. Please try again."})
 
     @app.middleware("http")
+    async def uploads_are_never_sniffed(request: Request, call_next):
+        # Uploads are served from the API's own address; the browser must treat each one
+        # as the image type its extension says, never guess it's a page
+        response = await call_next(request)
+        if request.url.path.startswith("/uploads/"):
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    @app.middleware("http")
     async def reject_cross_site_writes(request: Request, call_next):
         # The auth cookie is sent with cross-site requests, so another site could submit
         # a form to the API as the logged-in user. Browsers always send Origin on such

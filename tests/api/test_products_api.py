@@ -5,6 +5,7 @@ import pytest
 from sqlmodel import select
 
 from app.models.cart import CartItem
+from conftest import TEST_PNG
 
 
 def ids(response):
@@ -82,7 +83,7 @@ def test_create_product(admin_client, make_category, upload_dir):
     response = admin_client.post(
         "/api/products/",
         data={"category_id": category.category_id, "title": "Scarf", "price": "19.99", "stock_quantity": "5", "color": "red"},
-        files={"thumbnail": ("scarf.png", b"fake-image", "image/png")},
+        files={"thumbnail": ("scarf.png", TEST_PNG, "image/png")},
     )
 
     assert response.status_code == 200
@@ -95,7 +96,7 @@ def test_create_product(admin_client, make_category, upload_dir):
     assert body["thumbnail"].startswith("http://testserver/uploads/")
     saved_name = body["thumbnail"].rsplit("/uploads/", 1)[1]
     assert saved_name.endswith(".png") and saved_name != "scarf.png"
-    assert (upload_dir / saved_name).read_bytes() == b"fake-image"
+    assert (upload_dir / saved_name).read_bytes() == TEST_PNG
 
 
 def test_create_product_without_thumbnail(admin_client, make_category, upload_dir):
@@ -248,7 +249,7 @@ def test_update_product_merges_images(admin_client, make_product, upload_dir):
     response = admin_client.put(
         f"/api/products/{product.product_id}",
         data={"images_urls": json.dumps(["https://cdn.example.com/a.png"])},
-        files=[("images_files", ("new.png", b"img", "image/png"))],
+        files=[("images_files", ("new.png", TEST_PNG, "image/png"))],
     )
 
     assert response.status_code == 200
@@ -268,11 +269,11 @@ def test_image_links_use_public_api_url(admin_client, make_category, make_produc
     created = admin_client.post(
         "/api/products/",
         data={"category_id": category.category_id, "title": "Hat", "price": "5"},
-        files={"thumbnail": ("hat.png", b"img", "image/png")},
+        files={"thumbnail": ("hat.png", TEST_PNG, "image/png")},
     ).json()
     updated = admin_client.put(
         f"/api/products/{product.product_id}",
-        files=[("images_files", ("side.png", b"img", "image/png"))],
+        files=[("images_files", ("side.png", TEST_PNG, "image/png"))],
     ).json()
 
     assert created["thumbnail"].startswith("https://api.shop.example.com/uploads/")
@@ -285,7 +286,7 @@ def test_rejected_batch_leaves_no_files(admin_client, make_product, upload_dir):
     response = admin_client.put(
         f"/api/products/{product.product_id}",
         files=[
-            ("images_files", ("good.png", b"img", "image/png")),
+            ("images_files", ("good.png", TEST_PNG, "image/png")),
             ("images_files", ("bad.html", b"<script></script>", "text/html")),
         ],
     )
@@ -304,7 +305,7 @@ def test_upload_routes_do_not_block_the_event_loop():
     assert not inspect.iscoroutinefunction(update_product)
 
 
-@pytest.mark.parametrize("filename", ["../../main.py", "page.html", "script.svg", "no-extension"])
+@pytest.mark.parametrize("filename", ["../../main.py", "page.html", "script.svg", "no-extension", "page.png"])
 def test_upload_rejects_non_images(admin_client, make_category, upload_dir, filename):
     category = make_category()
 
@@ -323,7 +324,7 @@ def test_upload_cannot_escape_uploads_folder(admin_client, make_product, upload_
 
     response = admin_client.put(
         f"/api/products/{product.product_id}",
-        files=[("images_files", ("../../evil.png", b"img", "image/png"))],
+        files=[("images_files", ("../../evil.png", TEST_PNG, "image/png"))],
     )
 
     assert response.status_code == 200

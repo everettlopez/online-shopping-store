@@ -23,6 +23,7 @@ export default function AccountPage() {
   const [emailPassword, setEmailPassword] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
 
   const [emailMessage, setEmailMessage] = useState<FormMessage>(null);
   const [passwordMessage, setPasswordMessage] = useState<FormMessage>(null);
@@ -67,11 +68,12 @@ export default function AccountPage() {
     }
   }
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(e: React.FormEvent) {
+    e.preventDefault();
     if (!window.confirm("Delete your account? This can't be undone.")) return;
 
     try {
-      await deleteAccount();
+      await deleteAccount(deletePassword);
       window.location.href = "/login";
     } catch (err) {
       setDeleteMessage({ type: "error", text: apiErrorMessage(err, "Couldn't delete your account.") });
@@ -215,15 +217,29 @@ export default function AccountPage() {
           </form>
 
           {/* Delete Account */}
-          <div className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl text-center border border-gray-200">
+          <form
+            onSubmit={handleDeleteAccount}
+            className="bg-white shadow-xs p-5 sm:p-8 rounded-2xl border border-gray-200"
+          >
+            <h2 className="text-xl font-medium mb-6 tracking-tight">Delete Account</h2>
+
             <Message message={deleteMessage} />
-            <button
-              onClick={handleDeleteAccount}
-              className="bg-red-600 text-white px-6 py-2 rounded-full"
-            >
+
+            <input
+              type="password"
+              placeholder="Current password"
+              aria-label="Current password to delete your account"
+              className="border p-3 rounded-sm w-full mb-4"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+
+            <button className="bg-red-600 text-white px-6 py-2 rounded-full">
               Delete Account
             </button>
-          </div>
+          </form>
         </div>
 
       </div>

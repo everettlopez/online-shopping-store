@@ -37,8 +37,8 @@ export const getCurrentUser = async() => {
     return response.data;
 };
 
-export const deleteAccount = async() => {
-    const response = await axiosClient.delete("/auth/me");
+export const deleteAccount = async(currentPassword: string) => {
+    const response = await axiosClient.delete("/auth/me", { data: { current_password: currentPassword } });
     return response.data;
 };
 

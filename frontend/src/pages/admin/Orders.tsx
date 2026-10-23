@@ -389,7 +389,8 @@ export default function AdminOrders()
               <p className="tracking-wider">Shipping Carrier: {order.tracking_carrier}</p>
               <div className="flex gap-2">
                 <p className="tracking-wider">Tracking URL:</p>
-                <a href={order.tracking_url ?? undefined} className="tracking-wider">{order.tracking_url}</a>
+                {/* Only web links; older orders may hold anything an admin typed */}
+                <a href={/^https?:\/\//i.test(order.tracking_url ?? "") ? order.tracking_url! : undefined} className="tracking-wider">{order.tracking_url}</a>
               </div>
             </div>
 

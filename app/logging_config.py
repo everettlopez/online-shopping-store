@@ -3,12 +3,33 @@ event, with details written as key=value pairs so they're easy to search in
 `docker compose logs`. Log ids (order_id, product_id), not customers' emails or addresses.
 """
 import logging
+import re
 import sys
 
 from app.settings import DEFAULT_LOG_LEVEL, LOG_LEVELS, log_level
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+# Request paths that carry a secret: an order's tracking token, a Checkout Session id
+# (either one opens an order, with the buyer's name and address) and the tracking
+# details an admin sends as query parameters
+SECRET_QUERY = re.compile(r"([?&](?:token|tracking_number|tracking_url)=)[^&#]*")
+SECRET_PATH = re.compile(r"(/payments/session/)[^/?#]+")
+
+
+def redact_path(path: str) -> str:
+    return SECRET_PATH.sub(r"\1REDACTED", SECRET_QUERY.sub(r"\1REDACTED", path))
+
+
+class RedactSecrets(logging.Filter):
+    """Keeps tokens out of the access log, which records every request's full path."""
+
+    def filter(self, record):
+        # uvicorn.access logs (client, method, path, http version, status)
+        if isinstance(record.args, tuple) and len(record.args) == 5 and isinstance(record.args[2], str):
+            record.args = (*record.args[:2], redact_path(record.args[2]), *record.args[3:])
+        return True
 
 
 def configure_logging():
@@ -39,3 +60,7 @@ def configure_logging():
         uvicorn_logger.handlers.clear()
         uvicorn_logger.setLevel(logging.NOTSET)
         uvicorn_logger.propagate = True
+
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, RedactSecrets) for f in access_logger.filters):
+        access_logger.addFilter(RedactSecrets())

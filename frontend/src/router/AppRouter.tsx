@@ -64,11 +64,11 @@ function PublicOnlyRoute({children}: {children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
     const { user, isAuthenticated, loading } = useAuth();
+    const location = useLocation();
 
     if (loading) return <LoadingState page />;
-    if (!isAuthenticated) return <Navigate to="/login" />;
+    if (!isAuthenticated) return <Navigate to="/login" state={{ from: location.pathname + location.search }}/>;
 
-    // user.is_admin must come from your JWT payload
     if (!user?.is_admin) return <Navigate to="/" replace />;
 
     return children;
@@ -195,12 +195,7 @@ export default function AppRouter() {
                 }
             />
 
-            
-
-
-
-            {/* TODO: Add Accounts Route for Account Page */}
-            <Route 
+            <Route
                 path="/cart"
                 element = {
                     <CartPage />

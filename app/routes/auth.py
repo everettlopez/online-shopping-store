@@ -10,7 +10,7 @@ from app.auth.core import (
     set_auth_cookie,
     clear_auth_cookie
 )
-from app.schemas.user import UserCreate, UserLogin, UserRead, EmailUpdate, PasswordUpdate, ForgotPasswordRequest, PasswordReset
+from app.schemas.user import UserCreate, UserLogin, UserRead, AccountDelete, EmailUpdate, PasswordUpdate, ForgotPasswordRequest, PasswordReset
 from app.database.users import database_user_has_orders, database_delete_user
 from datetime import datetime, timedelta
 from app.auth.core import CurrentUser, OptionalUser
@@ -27,6 +27,10 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 # flooding their inbox (or using up the email provider's daily quota)
 RESET_EMAIL_COOLDOWN = timedelta(minutes=1)
 FORGOT_PASSWORD_MESSAGE = "If an account uses that email, we've sent it a link to reset the password"
+
+# Checked when no account has the email, so a failed login takes as long either way
+# and its timing doesn't tell which emails have accounts
+UNKNOWN_USER_HASH = hash_password(secrets.token_urlsafe(16))
 
 
 def hash_reset_token(token: str) -> str:
@@ -59,7 +63,10 @@ def login(data: UserLogin, response: Response, session: Session = Depends(get_se
     statement = select(User).where(User.email == data.email)
     user = session.exec(statement).first()
 
-    if not user or not verify_password(data.password, user.hashed_password):
+    if not user:
+        verify_password(data.password, UNKNOWN_USER_HASH)
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    if not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
     token = create_user_token(user)
@@ -94,8 +101,14 @@ def read_current_user(user: CurrentUser):
 def read_session(user: OptionalUser):
     return user
 
-@router.delete("/me")
-def delete_account(user: CurrentUser, response: Response, session: Session = Depends(get_session)):
+# The password checks below are rate limited, so a stolen session can't be used to guess
+# the password
+@router.delete("/me", dependencies=[rate_limit("auth")])
+def delete_account(data: AccountDelete, user: CurrentUser, response: Response, session: Session = Depends(get_session)):
+    # Takes the current password, so a stolen session can't delete the account
+    if not verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid Credentials")
+
     if database_user_has_orders(session, user.user_id):
         raise HTTPException(status_code=409, detail="Accounts with orders cannot be deleted")
 
@@ -105,7 +118,7 @@ def delete_account(user: CurrentUser, response: Response, session: Session = Dep
 
     return {"message": "Account deleted successfully"}
 
-@router.put("/me/email", response_model = UserRead)
+@router.put("/me/email", response_model = UserRead, dependencies=[rate_limit("auth")])
 def update_email(data: EmailUpdate, user: CurrentUser, session: Session = Depends(get_session)):
 
     # Changing the login email takes the current password, so a stolen session can't take over the account
@@ -125,7 +138,7 @@ def update_email(data: EmailUpdate, user: CurrentUser, session: Session = Depend
 
     return user
 
-@router.put("/me/password")
+@router.put("/me/password", dependencies=[rate_limit("auth")])
 def update_password(
     data: PasswordUpdate,
     user: CurrentUser,
@@ -168,6 +181,13 @@ def forgot_password(data: ForgotPasswordRequest, background_tasks: BackgroundTas
     ).first()
     if recent:
         return {"message": FORGOT_PASSWORD_MESSAGE}
+
+    # Links that can no longer be used are only clutter
+    session.exec(
+        delete(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.user_id)
+        .where((PasswordResetToken.used_at.is_not(None)) | (PasswordResetToken.expires_at < now))
+    )
 
     token = secrets.token_urlsafe(32)
     minutes = password_reset_minutes()
