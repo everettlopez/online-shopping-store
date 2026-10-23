@@ -104,6 +104,10 @@ If you use a managed database, save its CA certificate as `deploy/certs/db-ca.cr
 | `VITE_STORE_NAME`, `VITE_SUPPORT_EMAIL` | Shown in the header, title, footer and policy pages |
 | `VITE_BUSINESS_NAME`, `VITE_BUSINESS_ADDRESS`, `VITE_BUSINESS_STATE`, `VITE_RETURN_DAYS` | Used on the policy and contact pages |
 | `VITE_STORE_LOGO_TEXT`, `VITE_STORE_DESCRIPTION`, `VITE_*_URL` | Optional; see the comments in the file |
+| `CSP_HEADER` | Leave as `Content-Security-Policy-Report-Only` until step 4 of the [launch checklist](launch-checklist.md#4-lock-it-down) |
+| `HSTS_INCLUDE_SUBDOMAINS` | `false`. Set `true` only when every subdomain of your domain (mail, blog, and any you'll add) serves HTTPS: browsers then refuse plain HTTP on all of them for a year |
+| `TRUSTED_PROXIES` | Only behind Cloudflare's proxy; see [Behind Cloudflare's proxy](#behind-cloudflares-proxy) |
+| `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_REMOTE` | Optional; see [Backups](#running-the-store) |
 
 **`deploy/.env.api`** holds the API's secrets and settings (the comments in the file explain each one):
 
@@ -121,6 +125,19 @@ If you use a managed database, save its CA certificate as `deploy/certs/db-ca.cr
 | `RESEND_API_KEY`, `EMAIL_FROM`, `ORDERS_EMAIL_FROM`, `ACCOUNT_EMAIL_FROM`, `EMAIL_REPLY_TO` | From step 4, for example `Your Store <orders@example.com>` |
 | `SHIPPING_FLAT_RATE`, `FREE_SHIPPING_THRESHOLD` | Your shipping prices |
 | `ALERT_EMAIL` | An inbox you read. The store emails it when something needs you: an item sold twice, a failed Stripe webhook, checkout or a refund failing, or a server error |
+
+These have defaults that suit most stores; set one only to change it:
+
+| Setting | Default and when to change it |
+| --- | --- |
+| `STRIPE_AUTOMATIC_TAX` | `true`: Stripe Tax adds sales tax. Set `false` only if you deliberately charge none (step 5) |
+| `STRIPE_PRODUCT_TAX_CODE` | `txcd_30011000`, Stripe's code for **clothing**. If you sell something else, use your products' code from [Stripe's tax codes](https://docs.stripe.com/tax/tax-codes), or tax is worked out as if you sold clothes |
+| `COOKIE_SECURE` | `true`; production refuses `false` |
+| `PASSWORD_RESET_MINUTES` | `30`: how long a reset link works |
+| `LOG_LEVEL` | `INFO`; `DEBUG` shows more while you investigate something |
+| `AUTH_RATE_LIMIT_PER_MINUTE`, `LOOKUP_RATE_LIMIT_PER_MINUTE`, `CHECKOUT_RATE_LIMIT_PER_MINUTE`, `REPORTS_RATE_LIMIT_PER_MINUTE` | `10`, `20`, `20`, `30` requests a minute per visitor (an IPv6 visitor counts per /64 network). Each API worker counts separately, so a visitor gets up to twice that with the default two workers. `0` turns a limit off |
+| `SQL_ECHO` | `false`. Never turn it on in production: it logs every query, with customers' details |
+| `ALLOW_STRIPE_TEST_MODE` | Unset. `true` lets the store run on Stripe test keys for a trial run; see [Going live with Stripe](#going-live-with-stripe) |
 
 Leave `UPLOAD_DIR` and `ENVIRONMENT` out; the kit sets them. Both files stay on the server; git ignores them.
 
@@ -211,6 +228,25 @@ The kit can run MySQL 8.4 alongside the store:
 
 The database is stored in the `online-store_mysql` volume and isn't reachable from outside the server. Nothing backs it up for you: set up `deploy/backup.sh` with an off-site `BACKUP_REMOTE` and a nightly cron job (see [Backups](#running-the-store)). It works the same with this database.
 
+### Going live with Stripe
+
+If you tried the store with Stripe's test keys first (`ALLOW_STRIPE_TEST_MODE=true`), switch to live mode before you announce it. Settings made in test mode don't carry over to live mode.
+
+1. **Decide what happens to the trial's orders.** Paid orders can't be deleted (they're financial records), so test orders stay in the admin pages and the order numbers you saw. For a clean start, make a new empty database before launch, point `DATABASE_URL` at it, and enter the catalog again (or do the trial before you enter the real catalog). Otherwise, keep a note of the test orders' numbers. Customers' saved test-mode Stripe details are replaced on their next checkout without anything for you to do.
+2. **In the Stripe Dashboard, in live mode:**
+   - Business details, payouts, branding and the statement descriptor are done (step 5).
+   - **Stripe Tax:** add the business address and every registration again; test-mode registrations don't apply to live payments.
+   - Slow-settling payment methods are off.
+   - Add the **live webhook endpoint** for `https://<API_DOMAIN>/api/payments/webhook` with the four events from step 5, and copy its signing secret.
+3. **Delete the test-mode webhook endpoint** (in test mode), and stop any `stripe listen` you ran, so test events stop arriving.
+4. **On the server,** in `deploy/.env.api`: set `STRIPE_SECRET_KEY` to the live key (`sk_live_...`) and `STRIPE_WEBHOOK_SECRET` to the live endpoint's secret, and delete the `ALLOW_STRIPE_TEST_MODE` line. Then:
+   ```bash
+   docker compose -f deploy/docker-compose.yml up -d
+   sh deploy/check.sh
+   ```
+   With the line gone, the API refuses to start on a test key, so a key you forgot to change shows up now rather than as a checkout that takes no money.
+5. **Make one real purchase** with your own card, for the cheapest item. Check that the order appears, the confirmation email arrives, and the live webhook's recent deliveries show success (2xx). Then refund it from the order's admin page and check that the refund email arrives and the money shows as refunded in Stripe.
+
 ### Behind Cloudflare's proxy
 
 To put Cloudflare's proxy (orange cloud) in front of the server:
@@ -224,6 +260,7 @@ To put Cloudflare's proxy (orange cloud) in front of the server:
 
 - **No HTTPS certificate / "connection refused":** check that the DNS records point at the server (`dig +short shop.example.com`), that ports 80 and 443 are open, and look at `docker compose -f deploy/docker-compose.yml logs caddy`. Let's Encrypt limits repeated failures, so fix the cause before retrying many times.
 - **Nothing answers after `up -d`, but the containers exist:** Caddy starts only once the API and the storefront report healthy, so a broken API keeps the whole site offline. `docker compose -f deploy/docker-compose.yml ps` shows which one isn't healthy, and its logs say why.
+- **"Can't locate revision" in the API's logs after going back to an older version:** the database has a migration the older code doesn't know. Follow [Rolling back](launch-checklist.md#rolling-back), which undoes it first.
 - **The API keeps restarting:** `docker compose -f deploy/docker-compose.yml logs api` shows why. Usually it's a setting the API checks at startup: the log line starting `Invalid configuration:` names each one (see the production rules at the end of step 6). Otherwise it's the database: a wrong `DATABASE_URL`, the server not in the database's trusted sources, or a missing `deploy/certs/db-ca.crt`.
 - **Logging in doesn't stick:** `CORS_ORIGINS` must list the storefront's exact address (with `https://`), `COOKIE_SAMESITE` should be `lax`, and both sites must share a domain.
 - **Checkout fails:** the API logs say why. Common causes: Stripe Tax isn't set up (or set `STRIPE_AUTOMATIC_TAX=false`), or a test key is used with live mode.
