@@ -1,0 +1,50 @@
+# Caddy serves both sites over HTTPS, getting and renewing certificates by itself.
+# STORE_DOMAIN, API_DOMAIN, ACME_EMAIL and CSP_HEADER come from deploy/.env
+# (passed in by deploy/docker-compose.yml).
+
+{
+	# Let's Encrypt writes here about problems with the certificates
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		# Browsers use only HTTPS for this site for a year
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# No other site may show these pages in a frame (clickjacking)
+		X-Frame-Options "DENY"
+		-Server
+	}
+}
+
+# Caddy replaces any X-Forwarded-For a visitor sends with their real address, so the
+# API's rate limits can't be dodged with a fake header. If you put Cloudflare's proxy
+# (orange cloud) in front, add to the global options above:
+#     servers { trusted_proxies static <Cloudflare's IP ranges> }
+
+{$STORE_DOMAIN} {
+	import security_headers
+	# Which sources the storefront may load from. CSP_HEADER starts as
+	# Content-Security-Policy-Report-Only, so violations only show in the browser
+	# console; once the console is clean, set it to Content-Security-Policy in
+	# deploy/.env to enforce it. MUI adds inline styles, hence 'unsafe-inline' for styles.
+	header {$CSP_HEADER:Content-Security-Policy-Report-Only} "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://{$API_DOMAIN}; connect-src 'self' https://{$API_DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+	encode zstd gzip
+	reverse_proxy web:80
+}
+
+www.{$STORE_DOMAIN} {
+	redir https://{$STORE_DOMAIN}{uri} permanent
+}
+
+{$API_DOMAIN} {
+	import security_headers
+	# Product forms carry up to several 5 MB images; refuse anything far bigger
+	request_body {
+		max_size 30MB
+	}
+	encode zstd gzip
+	reverse_proxy api:8000
+}

@@ -127,26 +127,82 @@ Everything that identifies a store is a setting, so you run your own store witho
 The storefront has Privacy Policy, Terms of Service, Shipping & Returns and Contact pages (`/privacy`, `/terms`, `/shipping-returns`, `/contact`), linked from the footer and filled in from the settings above. **Their wording is a general starting point, not legal advice.** Read them and have them reviewed for your business before you take real orders. If you have your own policies (from a lawyer or a policy service), set `VITE_PRIVACY_POLICY_URL`, `VITE_TERMS_URL` and `VITE_SHIPPING_POLICY_URL`, and the footer links there instead. Stripe expects a live store to show a refund policy and a way to contact you.
 
 ## Deployment
-The API and the storefront deploy separately, each as its own Docker image. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and builds both images on every push and pull request.
+The quickest way to run a live store is the deploy kit in `deploy/`: one server running the API, the storefront and [Caddy](https://caddyserver.com) (which gets HTTPS certificates and adds security headers) with Docker Compose. CI (`.github/workflows/ci.yml`) runs the tests, builds the frontend and both images, and checks the kit's files on every push and pull request.
 
-### API
+### Host your store on a server
+You need a Linux server (any VPS with at least 2 GB of RAM, for example a DigitalOcean droplet), a domain, a MySQL database, and Stripe and Resend accounts. The examples use `shop.example.com` for the storefront and `api.shop.example.com` for the API. Keeping both on one domain lets the login cookie work in every browser.
+
+1. **Prepare the server.** Install Docker Engine with the Compose plugin. Allow only SSH, HTTP and HTTPS through the firewall (for example `ufw allow OpenSSH`, `ufw allow 80,443/tcp`, `ufw allow 443/udp`, `ufw enable`), use SSH keys instead of passwords, and turn on automatic security updates.
+2. **Point DNS at it.** Create A records for `shop.example.com`, `www.shop.example.com` and `api.shop.example.com` with the server's IP address. On Cloudflare, leave them DNS only (grey cloud) so Caddy can get certificates and the API sees visitors' real addresses.
+3. **Set up the database.** A managed MySQL 8 (for example DigitalOcean Managed MySQL) gives you automatic backups. Create a database with the `utf8mb4` character set and a user for the store, allow connections from your server only, and use its TLS certificate, for example `DATABASE_URL=mysql+pymysql://store:<password>@<host>:25060/online_store?ssl_ca=/etc/ssl/certs/ca-certificates.crt`. To run MySQL on the same server instead, see [MySQL on the server](#mysql-on-the-server).
+4. **Get the code and fill in two settings files:**
+   ```bash
+   git clone https://github.com/<you>/online-shopping-store.git && cd online-shopping-store
+   cp deploy/.env.example deploy/.env    # domains, certificate email, storefront name and details
+   cp .env.example deploy/.env.api       # the API's secrets and settings
+   chmod 600 deploy/.env.api
+   ```
+   In `deploy/.env.api`, set at least:
+   - `DATABASE_URL` and a new `JWT_SECRET_KEY` (generate one with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`).
+   - Your live Stripe keys (see [Production settings](#production-settings) for the webhook secret).
+   - `STORE_NAME`.
+   - `FRONTEND_URL=https://shop.example.com`, `PUBLIC_API_URL=https://api.shop.example.com` and `CORS_ORIGINS=https://shop.example.com,https://www.shop.example.com`.
+   - `COOKIE_SAMESITE=lax` and `ENABLE_DOCS=false`.
+   - The Resend email settings.
+
+   Both files stay on the server; git ignores them.
+5. **Start everything:**
+   ```bash
+   docker compose -f deploy/docker-compose.yml up -d --build
+   ```
+   The API applies the database migrations before it starts. Check it with `curl https://api.shop.example.com/api/health`, and follow the logs with `docker compose -f deploy/docker-compose.yml logs -f`.
+6. **Make yourself the admin.** Register on the storefront, then run:
+   ```bash
+   docker compose -f deploy/docker-compose.yml exec api python -m app.create_admin you@example.com
+   ```
+7. **Turn on the content security policy.** It starts in report-only mode. Browse the store with the browser console open. If no `Content-Security-Policy` warnings appear, set `CSP_HEADER=Content-Security-Policy` in `deploy/.env` and run the `up -d` command again.
+
+**Updating:** `git pull`, then run the same `up -d --build` command. Take a database backup first whenever the update adds files to `alembic/versions/`.
+
+**Rolling back:** check out the previous version (`git checkout <tag or commit>`) and run `up -d --build` again. Migrations so far only add tables and columns, so older code keeps working with a newer database.
+
+**Backups:**
+- A managed database backs itself up.
+- Product images live in the `online-store_uploads` Docker volume. Back it up with the server's snapshots or copy it off the server, for example:
+  ```bash
+  docker run --rm -v online-store_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads.tgz -C /data .
+  ```
+
+#### MySQL on the server
+Without a managed database, the kit can run MySQL too:
+1. Set `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` (long random values) in `deploy/.env`.
+2. Point the API at it with `DATABASE_URL=mysql+pymysql://store:<MYSQL_PASSWORD>@db:3306/online_store`.
+3. Add `--profile mysql` to every `docker compose` command.
+
+You are then responsible for backups. A nightly dump copied off the server is the minimum:
 ```bash
-docker build -t shop-api .
+docker compose -f deploy/docker-compose.yml --profile mysql exec -T db sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction online_store' | gzip > backup-$(date +%F).sql.gz
 ```
-The image runs `alembic upgrade head` and then uvicorn (`docker/start-api.sh`). Configure it with the environment variables from `.env.example`. For production:
+
+### Production settings
+The API image runs `alembic upgrade head` and then uvicorn (`docker/start-api.sh`). Configure it with the environment variables from `.env.example`. For production:
 - Use live Stripe keys, and the `whsec_...` secret of a webhook endpoint registered in the Stripe Dashboard for `https://<api host>/api/payments/webhook`.
 - Set up Stripe Tax in the live Dashboard (business address, and a registration for every state where you collect sales tax). Checkout asks Stripe Tax for the tax, and Stripe refuses the checkout if Stripe Tax isn't set up. Sales tax is charged only where you're registered.
+- In the Stripe Dashboard's payment method settings, turn off methods that take days to settle (ACH Direct Debit and other bank debits). The store creates an order when Checkout completes, and with those methods the payment hasn't cleared yet, so the order would stay pending.
 - Set `FRONTEND_URL`, `PUBLIC_API_URL` and `CORS_ORIGINS` to the real addresses, and set `ENABLE_DOCS=false`. Set `COOKIE_SAMESITE=lax` if the storefront and API share a site (for example `shop.example.com` and `api.example.com`).
 - Email goes through [Resend](https://resend.com). Add your domain in the Resend dashboard, create the DNS records it lists (SPF and DKIM) so mail isn't marked as spam, then set `RESEND_API_KEY` and `EMAIL_FROM` (for example `Your Store <orders@example.com>`). Optionally send order and shipping emails from `ORDERS_EMAIL_FROM` and password resets from `ACCOUNT_EMAIL_FROM`, and set `EMAIL_REPLY_TO` to an inbox people read, since Resend only sends and replies to an address with no mailbox bounce. The default sender, `onboarding@resend.dev`, only delivers to your own Resend account's email. Without `RESEND_API_KEY`, customers get no emails and reset links end up in the logs.
-- **Mount a persistent volume at `/data/uploads`** (the image sets `UPLOAD_DIR` to it). Without one, product images are lost on every deploy.
+- **Mount a persistent volume at `/data/uploads`** (the image sets `UPLOAD_DIR` to it; the deploy kit does this). Without one, product images are lost on every deploy.
 - Use a managed MySQL with automated backups.
-- Create the first admin once the API is running: register on the storefront, then run `python -m app.create_admin you@example.com` inside the API container (for example `docker exec <container> python -m app.create_admin you@example.com`).
+- Create the first admin once the API is running: register on the storefront, then run `python -m app.create_admin you@example.com` inside the API container.
 - Login, registration, password reset, order lookup and checkout are rate limited per visitor IP (`AUTH_RATE_LIMIT_PER_MINUTE` and the others in `.env.example`). The counts live in each worker's memory, so they suit a single server. The limits need the visitor's real IP, so keep `--proxy-headers` and trust only your proxy in `FORWARDED_ALLOW_IPS` if the API port is reachable from anywhere else.
 - Optional: `PORT` (default 8000), `WEB_CONCURRENCY` (worker processes, default 2) and `FORWARDED_ALLOW_IPS` (proxies trusted for `X-Forwarded-*`, default all). With several replicas, set `RUN_MIGRATIONS=false` on all but one, or run `alembic upgrade head` as a release step.
 
-The host should terminate HTTPS. `GET /api/health` returns 200 when the database is reachable and 503 when it isn't, for health checks and uptime monitors.
+Outside the deploy kit, the host must terminate HTTPS. `GET /api/health` returns 200 when the database is reachable and 503 when it isn't, for health checks and uptime monitors.
 
-### Storefront
+### Other hosts
+The API and storefront are separate Docker images, so they also run on container platforms. Build the API image from the project root with `docker build -t shop-api .`, and give it the settings above.
+
+The storefront image is built with:
 ```bash
 docker build --build-arg VITE_API_URL=https://api.example.com/api -t shop-web frontend
 ```
