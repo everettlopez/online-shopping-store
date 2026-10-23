@@ -36,6 +36,8 @@ export default function ProductDetailModal({isOpen, onClose, product}: Props)
 
   const inCart = items.find((line) => line.product_id === product.product_id)?.quantity ?? 0;
   const shownError = errorFor === product.product_id ? error : "";
+  // Listings leave these out, but a modal opened before it sold out can still show one
+  const soldOut = !product.is_active || product.stock_quantity <= 0;
 
   async function handleAddToCart()
   {
@@ -74,16 +76,18 @@ export default function ProductDetailModal({isOpen, onClose, product}: Props)
           <div className="flex flex-col">
             <h1 className="text-4xl tracking-wide">{product.title.toUpperCase()}</h1>
             <p className="text-gray-400 text-lg py-2">${product.price.toFixed(2)}</p>
-            <p className="text-lg">{product.description}</p>
+            {product.size && <p className="tracking-wider text-gray-500">Size: {product.size}</p>}
+            {product.color && <p className="tracking-wider text-gray-500">Color: {product.color}</p>}
+            <p className="text-lg pt-2">{product.description}</p>
           </div>
 
           {/* Cart Button*/}
           <div className="flex flex-col h-full items-center justify-end gap-2 p-2">
             <button
               onClick={handleAddToCart}
-              disabled={adding}
+              disabled={adding || soldOut}
               className="border px-5 py-1 rounded-full transition-all duration-1000 hover:bg-gray-100 disabled:opacity-50">
-                {adding ? "Adding..." : "Add to Cart"}
+                {soldOut ? "Sold Out" : adding ? "Adding..." : "Add to Cart"}
             </button>
             {inCart > 0 && (
               <p className="text-sm text-gray-500">

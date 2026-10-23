@@ -8,6 +8,8 @@ import Switch from '@mui/material/Switch';
 import { InputLabel, MenuItem, Select } from '@mui/material';
 
 import ConfirmDeleteModal from "../ConfirmDeleteModal";
+import SizeField from "./SizeField";
+import ColorField from "./ColorField";
 import AdminSnackbar, { type AdminNotice } from "../AdminSnackbar";
 import { type Category } from "../../../api/admin";
 import { apiErrorMessage } from "../../../api/errors";
@@ -18,6 +20,7 @@ interface Props {
   onClose: () => void;
   product: ProductRead | null;
   categories: Category[];
+  usedColors: (string | null | undefined)[];
 }
 
 export interface CategoryRead {
@@ -44,7 +47,7 @@ export interface ProductRead {
   images?: string[] | null;
 }
 
-export default function ProductModal({ isOpen, onClose, product, categories }: Props) {
+export default function ProductModal({ isOpen, onClose, product, categories, usedColors }: Props) {
 
   // Edit Product Constants
   const [title, setTitle] = useState("");
@@ -172,19 +175,12 @@ export default function ProductModal({ isOpen, onClose, product, categories }: P
 
               <FormGroup>
                 <InputLabel>Size</InputLabel>
-                <Select value={size} onChange={(e) => {setSize(e.target.value); setChanges(true);}}>
-                  <MenuItem value="1SZ">1 Size</MenuItem>
-                  <MenuItem value="XS">X-Small</MenuItem>
-                  <MenuItem value="S">Small</MenuItem>
-                  <MenuItem value="M">Medium</MenuItem>
-                  <MenuItem value="L">Large</MenuItem>
-                  <MenuItem value="XL">X-Large</MenuItem>
-                </Select>
+                <SizeField value={size} onChange={(newValue) => {setSize(newValue); setChanges(true);}}/>
               </FormGroup>
 
-              <FormGroup className="w-40">
+              <FormGroup>
                 <InputLabel>Color</InputLabel>
-                <TextField value={color} onChange={(e) => {setColor(e.target.value); setChanges(true);}}/>
+                <ColorField value={color} usedColors={usedColors} onChange={(newValue) => {setColor(newValue); setChanges(true);}}/>
               </FormGroup>
 
               <FormGroup className="w-40">

@@ -1,4 +1,5 @@
 // Client-side filtering and sorting for the product grid on /products
+import { compareSizes } from "./productOptions";
 
 export type ProductSort = "featured" | "newest" | "price-asc" | "price-desc";
 
@@ -44,7 +45,9 @@ export function filterOptions<T extends FilterableProduct>(products: T[], field:
         if (!options.has(value)) options.set(value, label);
     }
 
-    return [...options].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    // Sizes in their natural order (S, M, L), colors A-Z
+    const compare = field === "size" ? compareSizes : (a: string, b: string) => a.localeCompare(b);
+    return [...options].map(([value, label]) => ({ value, label })).sort((a, b) => compare(a.label, b.label));
 }
 
 // Ticked values within a group match any of them; different groups must all match

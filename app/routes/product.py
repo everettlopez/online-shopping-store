@@ -48,6 +48,26 @@ def parse_form_bool(value: str | None, default: bool | None) -> bool | None:
     raise HTTPException(status_code=422, detail="is_active must be true or false")
 
 
+MAX_LABEL_LENGTH = 50
+
+
+def clean_label(value: str | None, name: str) -> str | None:
+    """Size and color are free text (32x30, US M 10.5, Black/White). Trim them, store
+    a blank one as None, and cap the length so a typo can't fill the storefront filters."""
+    if value is None:
+        return None
+    value = value.strip()
+    if len(value) > MAX_LABEL_LENGTH:
+        raise HTTPException(status_code=422, detail=f"{name} must be {MAX_LABEL_LENGTH} characters or fewer")
+    return value or None
+
+
+async def sent_form_fields(request: Request) -> set[str]:
+    """Names of the form fields the client sent. FastAPI reads a blank form field as
+    missing, so this is how an update tells "clear the size" from "leave it alone"."""
+    return set((await request.form()).keys())
+
+
 def save_uploads(request: Request, files: list[UploadFile]) -> list[str]:
     """Save uploaded images under random names and return their public URLs. The
     client's filename is only used for its extension, so it can't escape the uploads
@@ -98,6 +118,8 @@ def create_product(
     if not category_data:
         raise HTTPException(status_code=400, detail="Category not found")
 
+    size, color = clean_label(size, "Size"), clean_label(color, "Color")
+
     thumbnail_path = None
 
     if thumbnail:
@@ -127,7 +149,8 @@ def create_product(
 # -----------------------------------------
 # GET /products → list all products
 # -----------------------------------------
-@router.get("/", response_model=list[ProductRead])
+# Admins only: it includes inactive and sold-out products. The storefront uses /active
+@router.get("/", response_model=list[ProductRead], dependencies=[Depends(admin_required)])
 def list_products(session: Session = Depends(get_session)):
     products = session.exec(select(Product)).all()
     reads = database_get_product_reads(session, [p.product_id for p in products])
@@ -141,7 +164,8 @@ def list_active_products(
     limit: int | None = Query(None, ge=1, le=100),
     session: Session = Depends(get_session),
 ):
-    query = select(Product).where(Product.is_active == True)
+    # Sold-out products drop off the storefront and come back when restocked
+    query = select(Product).where(Product.is_active == True, Product.stock_quantity > 0)
 
     if category_id is not None:
         query = query.where(Product.category_id == category_id)
@@ -191,6 +215,7 @@ def update_product(
     images_files: list[UploadFile] = File(None),
     images_urls: str = Form("[]"),
 
+    sent_fields: set[str] = Depends(sent_form_fields),
     session: Session = Depends(get_session)
 ):
     product = session.exec(select(Product).where(Product.product_id == product_id)).first()
@@ -208,8 +233,9 @@ def update_product(
     if title is not None: product.title = title
     if description is not None: product.description = description
     if price is not None: product.price = price
-    if size is not None: product.size = size
-    if color is not None: product.color = color
+    # Left out keeps the current value; a blank one clears it
+    if "size" in sent_fields: product.size = clean_label(size, "Size")
+    if "color" in sent_fields: product.color = clean_label(color, "Color")
     if thumbnail is not None: product.thumbnail = thumbnail
     if stock_quantity is not None: product.stock_quantity = stock_quantity
     active = parse_form_bool(is_active, default=None)
