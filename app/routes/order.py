@@ -6,6 +6,7 @@ from app.auth.core import CurrentUser
 from app.schemas.order import OrderLookup, OrderRead, OrderItemRead, OrderTrackingLink, RefundRequest
 from app.models.order import Order, OrderItem
 from decimal import Decimal
+import logging
 import secrets
 import stripe
 
@@ -16,9 +17,12 @@ from app.models.user import User
 from app.mail import build_refund_email, build_shipping_notice_email, send_email
 from app.money import to_cents, to_decimal
 from app.rate_limit import rate_limit
+from app.alerts import alert_admin
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+logger = logging.getLogger(__name__)
 
 ORDER_STATUSES = {"pending", "placed", "processing", "shipped", "delivered", "completed", "cancelled", "refunded"}
 # Set only by a refund (the Refund button or Stripe's Dashboard), never by hand
@@ -211,7 +215,12 @@ def refund_order(order_id: int, data: RefundRequest, background_tasks: Backgroun
             idempotency_key=f"refund-{order.order_id}-{to_cents(order.refunded_amount)}-{to_cents(amount)}",
         )
     except stripe.StripeError as e:
-        print("Failed to refund order:", order.order_id, e)
+        logger.error("refund failed order_id=%s error=%s", order.order_id, e)
+        alert_admin("refund-stripe-error", "A refund failed", [
+            f"Stripe refused a refund for order {order.order_number} (id {order.order_id}).",
+            f"Stripe said: {e}",
+            "Check the payment in the Stripe Dashboard, then try again.",
+        ])   # sent now: background tasks don't run after an error response
         message = getattr(e, "user_message", None) or "Stripe couldn't make the refund. Please try again in a moment."
         raise HTTPException(status_code=502, detail=message)
 

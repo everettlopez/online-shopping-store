@@ -985,3 +985,82 @@ def test_refund_without_a_payment_intent_matches_no_order(send_webhook, session,
 
     session.expire_all()
     assert session.get(Order, order_id).refunded_amount == 0
+
+
+# -----------------------------------------
+# Alerts to the store owner
+# -----------------------------------------
+
+@pytest.fixture
+def owner(monkeypatch):
+    monkeypatch.setenv("ALERT_EMAIL", "owner@shop.example")
+
+
+def alerts_sent(sent_emails):
+    return [m for m in sent_emails if m.to == "owner@shop.example"]
+
+
+def test_oversold_items_alert_the_owner_once(send_webhook, session, shopper, make_product, owner, sent_emails, caplog):
+    user, shipping, billing = shopper
+    product = make_product(title="Denim Jacket", stock_quantity=1)
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 3)], session_id="cs_1"))
+    send_webhook(checkout_session(user, shipping, billing, items=[(product, 1)], session_id="cs_2"))
+
+    [alert] = alerts_sent(sent_emails)
+    assert alert.subject == "[Online Store alert] Oversold: Denim Jacket"
+    assert "paid for 3 of Denim Jacket" in alert.text and "only 1 were left" in alert.text
+    assert f"oversold product_id={product.product_id} stock=1" in caplog.text
+
+
+def test_deleted_product_in_a_paid_order_alerts_the_owner(send_webhook, session, shopper, owner, sent_emails):
+    user, shipping, billing = shopper
+    stripe_session = checkout_session(user, shipping, billing)
+    stripe_session.metadata["items"] = json.dumps([[999, 1, 1000]])
+
+    send_webhook(stripe_session)
+
+    [alert] = alerts_sent(sent_emails)
+    assert "no longer exists" in alert.subject
+    assert "product 999" in alert.text
+
+
+def test_failed_webhook_alerts_the_owner_and_asks_stripe_to_retry(send_webhook, shopper, make_product, owner, sent_emails, monkeypatch, caplog):
+    user, shipping, billing = shopper
+    def broken(*args, **kwargs):
+        raise RuntimeError("database went away")
+    monkeypatch.setattr("app.routes.payments.fulfill_checkout", broken)
+
+    response = send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    assert response.status_code == 500
+    [alert] = alerts_sent(sent_emails)
+    assert alert.subject == "[Online Store alert] A Stripe webhook failed"
+    assert "checkout.session.completed" in alert.text and "database went away" in alert.text
+    assert "webhook failed event=checkout.session.completed object=cs_test_1" in caplog.text
+
+
+def test_checkout_stripe_errors_alert_the_owner(user_client, shopper, make_product, add_to_cart, owner, sent_emails, monkeypatch):
+    user, shipping, billing = shopper
+    add_to_cart(user, make_product())
+    def refuse(**kwargs):
+        raise stripe.InvalidRequestError("You must have a valid head office address to enable automatic tax", None)
+    monkeypatch.setattr(stripe.checkout.Session, "create", refuse)
+
+    for _ in range(3):
+        assert user_client.post("/api/payments/create-checkout-session", json=checkout_body(shipping, billing)).status_code == 502
+
+    [alert] = alerts_sent(sent_emails)
+    assert alert.subject == "[Online Store alert] Checkout is failing"
+    assert "head office address" in alert.text
+
+
+def test_order_logs_leave_out_customer_details(send_webhook, shopper, make_product, caplog):
+    user, shipping, billing = shopper
+    caplog.set_level("INFO")
+
+    send_webhook(checkout_session(user, shipping, billing, items=[(make_product(), 1)]))
+
+    assert "order created order_id=" in caplog.text
+    assert user.email not in caplog.text
+    assert shipping.line1 not in caplog.text

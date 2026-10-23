@@ -5,6 +5,7 @@ import stripe
 import uuid
 import json
 import os
+import logging
 import secrets
 from datetime import datetime
 from decimal import Decimal
@@ -30,8 +31,11 @@ from app.routes.order import build_order_reads, record_refund, restock_order_ite
 from app.models.user import User
 from app.mail import build_order_confirmation_email, build_refund_email, send_email
 from app.rate_limit import rate_limit
+from app.alerts import alert_admin
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
+
+logger = logging.getLogger(__name__)
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
@@ -245,7 +249,12 @@ def create_checkout_session(data: CheckoutRequest, user: OptionalUser, session: 
     except stripe.StripeError as e:
         # Stripe is down, or the account isn't set up (e.g. Stripe Tax without a head
         # office address). The details are for us, not the shopper
-        print("Failed to create checkout session:", e)
+        logger.error("checkout session failed error=%s", e)
+        alert_admin("checkout-stripe-error", "Checkout is failing", [
+            "Stripe refused to start a checkout, so shoppers can't pay.",
+            f"Stripe said: {e}",
+            "Common causes: Stripe Tax isn't set up (or set STRIPE_AUTOMATIC_TAX=false), or the secret key is wrong.",
+        ])   # sent now: background tasks don't run after an error response
         raise HTTPException(status_code=502, detail="We couldn't start checkout. Please try again in a moment.")
 
     return {"checkoutUrl": stripe_session.url}
@@ -262,7 +271,7 @@ def get_order_from_session(session_id: str, user: OptionalUser, background_tasks
         try:
             stripe_session = stripe.checkout.Session.retrieve(session_id)
         except Exception as e:
-            print("Failed to load checkout session:", session_id, e)
+            logger.warning("checkout session lookup failed error=%s", e)
             stripe_session = None
 
         metadata = stripe_session.metadata.to_dict() if stripe_session and stripe_session.metadata else {}
@@ -318,7 +327,7 @@ def get_payment_details(payment_intent_id: str) -> dict:
             "receipt_url": charge.receipt_url
         }
     except Exception as e:
-        print("Failed to load payment details for:", payment_intent_id, e)
+        logger.warning("payment details lookup failed payment_intent=%s error=%s", payment_intent_id, e)
         return {}
 
 
@@ -329,25 +338,38 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
 
     # With an empty secret anyone could sign a fake event, so accept nothing
     if not WEBHOOK_SECRET:
-        print("Webhook rejected: STRIPE_WEBHOOK_SECRET is not set")
+        logger.error("webhook rejected: STRIPE_WEBHOOK_SECRET is not set")
         raise HTTPException(status_code=503, detail="Webhook is not configured")
 
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
         # Non-2xx so Stripe retries and the failure shows in the CLI/Dashboard
-        print("Webhook signature failed:", e)
+        logger.warning("webhook signature failed error=%s", e)
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    event_type = event["type"]
     stripe_object = event["data"]["object"]
-    if event["type"] == "checkout.session.completed":
-        fulfill_checkout(session, stripe_object, background_tasks)
-    elif event["type"] == "checkout.session.async_payment_succeeded":
-        settle_payment(session, stripe_object, background_tasks, succeeded=True)
-    elif event["type"] == "checkout.session.async_payment_failed":
-        settle_payment(session, stripe_object, background_tasks, succeeded=False)
-    elif event["type"] == "charge.refunded":
-        sync_refund(session, stripe_object, background_tasks)
+    try:
+        if event_type == "checkout.session.completed":
+            fulfill_checkout(session, stripe_object, background_tasks)
+        elif event_type == "checkout.session.async_payment_succeeded":
+            settle_payment(session, stripe_object, background_tasks, succeeded=True)
+        elif event_type == "checkout.session.async_payment_failed":
+            settle_payment(session, stripe_object, background_tasks, succeeded=False)
+        elif event_type == "charge.refunded":
+            sync_refund(session, stripe_object, background_tasks)
+    except Exception as e:
+        # A 500 makes Stripe retry for days; the owner hears about it now. Sent before
+        # the response, since background tasks don't run after an error
+        object_id = getattr(stripe_object, "id", None)
+        logger.exception("webhook failed event=%s object=%s", event_type, object_id)
+        alert_admin(f"webhook-{event_type}", "A Stripe webhook failed", [
+            f"The store couldn't process a {event_type} event ({object_id}): {e!r}",
+            "Stripe retries it automatically. If the order or refund doesn't show up in the admin pages, "
+            "check the API's logs and the webhook's deliveries in the Stripe Dashboard.",
+        ])
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
 
     return {"received": True}
 
@@ -376,7 +398,7 @@ def settle_payment(session: Session, stripe_session, background_tasks: Backgroun
     session.commit()
     session.refresh(order)
 
-    print("Settled order:", order.order_id, "status:", order.status)
+    logger.info("order settled order_id=%s status=%s", order.order_id, order.status)
 
     if succeeded and order.email:
         background_tasks.add_task(send_email, build_order_confirmation_email(order.email, order, confirmation_items(session, order)))
@@ -391,7 +413,7 @@ def sync_refund(session: Session, charge, background_tasks: BackgroundTasks):
         select(Order).where(Order.payment_intent_id == charge.payment_intent).with_for_update()
     ).first()
     if not order:
-        print("Refund for a payment with no order:", charge.payment_intent)
+        logger.info("refund for a payment with no order payment_intent=%s", charge.payment_intent)
         return
 
     refunded_total = from_cents(charge.amount_refunded or 0)
@@ -404,7 +426,7 @@ def sync_refund(session: Session, charge, background_tasks: BackgroundTasks):
     session.commit()
     session.refresh(order)
 
-    print("Recorded refund for order:", order.order_id, "refunded:", order.refunded_amount)
+    logger.info("refund recorded order_id=%s refunded=%s", order.order_id, order.refunded_amount)
 
     if order.email:
         background_tasks.add_task(send_email, build_refund_email(order.email, order, refunded_now))
@@ -445,7 +467,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
             shipping_id = int(metadata["shipping_address_id"])
             billing_id = int(metadata["billing_address_id"])
         except (KeyError, ValueError):
-            print("Skipping checkout session without order metadata:", stripe_session.id)
+            logger.info("checkout session without order metadata skipped session=%s", stripe_session.id)
             return None
 
     # Lock the user's cart so the webhook and the success page can't fulfill the same
@@ -477,7 +499,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         user_obj = session.exec(select(User).where(User.user_id == user_id)).first()
 
         if not user_obj:
-            print("ERROR: User not found: ", user_id)
+            logger.error("checkout for a missing user user_id=%s session=%s", user_id, stripe_session.id)
             return None
 
         email = user_obj.email
@@ -547,7 +569,11 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     for product_id, quantity, unit_cents in purchased:
         product = session.exec(select(Product).where(Product.product_id == product_id).with_for_update()).first()
         if not product:
-            print("WARNING: purchased product no longer exists:", product_id, "order:", order.order_id)
+            logger.warning("purchased product no longer exists product_id=%s order_id=%s", product_id, order.order_id)
+            alert_admin(f"missing-product-{product_id}", "An order has an item that no longer exists", [
+                f"Order {order.order_number} (id {order.order_id}) paid for product {product_id}, which has been deleted.",
+                "The order was saved without it. Refund that item, or contact the customer.",
+            ], background_tasks)
             continue
 
         session.add(OrderItem(
@@ -562,7 +588,14 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
         if product.stock_quantity >= quantity:
             product.stock_quantity -= quantity
         else:
-            print(f"OVERSOLD: product {product_id} had {product.stock_quantity}, order {order.order_id} needs {quantity}")
+            logger.warning("oversold product_id=%s stock=%s order_id=%s quantity=%s",
+                           product_id, product.stock_quantity, order.order_id, quantity)
+            alert_admin(f"oversold-{product_id}", f"Oversold: {product.title}", [
+                f"Order {order.order_number} (id {order.order_id}) paid for {quantity} of {product.title} "
+                f"(product {product_id}), but only {product.stock_quantity} were left.",
+                "Another shopper bought it at the same time. Refund the order (or the missing items), "
+                "or contact the customer.",
+            ], background_tasks)
             product.stock_quantity = 0
         session.add(product)
 
@@ -586,7 +619,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     session.refresh(order)
 
-    print("Created order:", order.order_id, "status:", order.status)
+    logger.info("order created order_id=%s status=%s", order.order_id, order.status)
 
     # Sent after the response, so neither Stripe nor the shopper waits on the email
     # provider. Unpaid (pending) orders get no confirmation

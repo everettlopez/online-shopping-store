@@ -89,14 +89,15 @@ def test_webhook_refuses_everything_without_a_secret(client, session, monkeypatc
 # Logs
 # -----------------------------------------
 
-def test_tokens_are_not_logged(client, user, auth_headers, capsys):
+def test_tokens_are_not_logged(client, user, auth_headers, capsys, caplog):
+    caplog.set_level("DEBUG")
     headers = auth_headers(user)
     client.cookies.set("shop_token", headers["Authorization"].removeprefix("Bearer "))
 
     client.get("/api/auth/me", headers=headers)
 
     output = capsys.readouterr()
-    assert headers["Authorization"].removeprefix("Bearer ") not in output.out + output.err
+    assert headers["Authorization"].removeprefix("Bearer ") not in output.out + output.err + caplog.text
 
 
 def test_sql_is_not_logged_by_default():
@@ -125,6 +126,7 @@ def test_valid_settings_pass():
     ("PASSWORD_RESET_MINUTES", "half an hour", "PASSWORD_RESET_MINUTES"),
     ("AUTH_RATE_LIMIT_PER_MINUTE", "-1", "AUTH_RATE_LIMIT_PER_MINUTE"),
     ("LOOKUP_RATE_LIMIT_PER_MINUTE", "lots", "LOOKUP_RATE_LIMIT_PER_MINUTE"),
+    ("LOG_LEVEL", "loud", "LOG_LEVEL"),
 ])
 def test_bad_settings_stop_startup(monkeypatch, name, value, problem):
     monkeypatch.setenv(name, value)

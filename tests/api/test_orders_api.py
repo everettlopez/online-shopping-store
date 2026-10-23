@@ -396,3 +396,18 @@ def test_order_item_must_belong_to_order(user_client, session, user, make_produc
 
 def order_item(session, order):
     return session.exec(select(OrderItem).where(OrderItem.order_id == order.order_id)).first()
+
+
+def test_failed_refund_alerts_the_owner(admin_client, paid, monkeypatch, sent_emails):
+    order, _ = paid
+    monkeypatch.setenv("ALERT_EMAIL", "owner@shop.example")
+    def refuse(**kwargs):
+        raise stripe.InvalidRequestError("Charge has been disputed", param=None)
+    monkeypatch.setattr(stripe.Refund, "create", refuse)
+
+    assert admin_client.post(f"/api/orders/{order.order_id}/refund", json={}).status_code == 502
+
+    [alert] = sent_emails
+    assert alert.to == "owner@shop.example"
+    assert alert.subject == "[Online Store alert] A refund failed"
+    assert order.order_number in alert.text and "disputed" in alert.text
