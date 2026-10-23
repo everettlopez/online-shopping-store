@@ -158,6 +158,13 @@ def test_look_up_order_needs_both_to_match(client, make_order):
     assert client.post("/api/orders/lookup", json={"order_number": "", "email": ""}).status_code == 422
 
 
+def test_tracking_rejects_non_ascii_input_with_404(client, make_order):
+    order = make_order(None)
+
+    assert client.get(f"/api/orders/track/{order.order_number}", params={"token": "tökén"}).status_code == 404
+    assert client.post("/api/orders/lookup", json={"order_number": order.order_number, "email": "jösé@example.com"}).status_code == 404
+
+
 def test_order_listings_leave_out_the_token(admin_client, user, make_order):
     make_order(user)
     make_order(None)

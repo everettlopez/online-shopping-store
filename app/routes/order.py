@@ -63,13 +63,17 @@ def list_my_orders(user: CurrentUser, order_status: str | None = None, session: 
     orders = session.exec(query).all()
     return build_order_reads(session, orders)
 
+def same_secret(expected: str, given: str) -> bool:
+    """Constant-time comparison. On bytes, because compare_digest raises on non-ASCII strings"""
+    return secrets.compare_digest(expected.encode(), given.encode())
+
 @router.get("/track/{order_number}", response_model=OrderRead)
 def track_order(order_number: str, token: str = "", session: Session = Depends(get_session)):
     """The order behind an emailed tracking link, with no login needed (guests have no
     account). The token is a long random secret kept on the order"""
     order = session.exec(select(Order).where(Order.order_number == order_number.lower())).first()
 
-    if not order or not order.access_token or not secrets.compare_digest(order.access_token, token):
+    if not order or not order.access_token or not same_secret(order.access_token, token):
         raise HTTPException(status_code=404, detail="Order not found")
 
     return build_order_reads(session, [order])[0]
@@ -81,7 +85,7 @@ def look_up_order(data: OrderLookup, session: Session = Depends(get_session)):
     order = session.exec(select(Order).where(Order.order_number == data.order_number.strip().lower())).first()
 
     email = data.email.strip().lower()
-    if not order or not order.email or not order.access_token or not secrets.compare_digest(order.email.lower(), email):
+    if not order or not order.email or not order.access_token or not same_secret(order.email.lower(), email):
         raise HTTPException(status_code=404, detail="We couldn't find an order with that number and email")
 
     return OrderTrackingLink(order_number=order.order_number, access_token=order.access_token)

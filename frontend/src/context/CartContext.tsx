@@ -7,8 +7,9 @@ import {
   type CartLine, type CartProduct, type StoredCartLine,
 } from "../api/cart";
 
-// Matches MAX_CART_QUANTITY on the server
+// Match MAX_CART_QUANTITY and MAX_CART_LINES on the server
 export const MAX_CART_QUANTITY = 99;
+const MAX_CART_LINES = 100;
 
 const GUEST_CART_KEY = "guest_cart";
 
@@ -18,7 +19,12 @@ function readGuestCart(): StoredCartLine[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(GUEST_CART_KEY) ?? "[]");
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((line) => Number.isInteger(line?.product_id) && Number.isInteger(line?.quantity) && line.quantity > 0);
+    // Keep it within what the server accepts, so old or edited data can't make checkout
+    // or the login merge fail every time
+    return parsed
+      .filter((line) => Number.isInteger(line?.product_id) && Number.isInteger(line?.quantity) && line.quantity > 0)
+      .slice(0, MAX_CART_LINES)
+      .map((line) => ({ product_id: line.product_id, quantity: Math.min(line.quantity, MAX_CART_QUANTITY) }));
   } catch {
     return [];
   }
@@ -77,9 +83,16 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         if (isAuthenticated) {
           const guestLines = readGuestCart();
-          const merged = guestLines.length ? await mergeCart(guestLines) : await getCart();
-          writeGuestCart([]);
-          if (!cancelled) setItems(merged);
+          let lines: CartLine[];
+          try {
+            lines = guestLines.length ? await mergeCart(guestLines) : await getCart();
+            writeGuestCart([]);
+          } catch (err) {
+            // Keep the guest cart to merge next time, and still show the account cart
+            console.error("Failed to merge the guest cart:", err);
+            lines = await getCart();
+          }
+          if (!cancelled) setItems(lines);
         } else {
           const lines = await loadGuestProducts(readGuestCart());
           if (!cancelled) setItems(lines);

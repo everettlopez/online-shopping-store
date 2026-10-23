@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import Session, select
 import stripe
 import uuid
@@ -344,8 +344,10 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks, se
 
 
 def already_fulfilled(session: Session, stripe_session_id: str) -> Order | None:
-    """A concurrent fulfillment of the same session committed its order first (guests
-    have no cart row to wait on). Drop ours, including its stock changes, and use that one."""
+    """A concurrent fulfillment of the same session got there first (guests have no cart
+    row to wait on): the unique stripe_session_id rejects our insert, or MySQL picks us
+    as the victim of the deadlock their gap locks cause. Drop ours, including its stock
+    changes, and use theirs (None if it hasn't committed yet; the success page retries)."""
     session.rollback()
     return session.exec(select(Order).where(Order.stripe_session_id == stripe_session_id)).first()
 
@@ -463,7 +465,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
     session.add(order)
     try:
         session.flush()  # assigns order.order_id; everything below commits together
-    except IntegrityError:
+    except (IntegrityError, OperationalError):
         return already_fulfilled(session, stripe_session.id)
 
     email_items = []  # (title, quantity, unit price, subtotal) for the confirmation email
@@ -506,7 +508,7 @@ def fulfill_checkout(session: Session, stripe_session, background_tasks: Backgro
 
     try:
         session.commit()
-    except IntegrityError:
+    except (IntegrityError, OperationalError):
         return already_fulfilled(session, stripe_session.id)
 
     session.refresh(order)

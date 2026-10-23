@@ -2,65 +2,25 @@ import { useSearchParams, Link} from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosClient from "../api/axiosClient";
 import { paymentCardSummary, paymentMethodLabel } from "../utils/payment";
-import OrderAddressLines, { type OrderAddress } from "../components/OrderAddressLines";
+import OrderAddressLines from "../components/OrderAddressLines";
 import OrderTotals from "../components/OrderTotals";
 import Navbar from "../components/Navbar";
+import type { Order } from "../components/orders/OrderView";
 import { removePurchasedFromGuestCart, useCart } from "../context/CartContext";
-
-export type OrderItem = {
-  order_item_id: number;
-  order_id: number;
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  // null when the product has since been removed from the catalog
-  product: {
-    product_id: number;
-    title: string;
-    price: number;
-    size: string | null;
-    thumbnail: string | null;
-    images?: string[] | null;
-  } | null;
-};
-
-export type Order = {
-  order_id: number;
-  order_number: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  order_date: string;
-  total_amount: number;
-  subtotal_amount: number | null;
-  shipping_amount: number | null;
-  tax_amount: number | null;
-  shipping_address: OrderAddress | null;
-  billing_address: OrderAddress | null;
-
-  // None for guest orders
-  user_id?: number | null;
-  email?: string | null;
-
-  payment_method_type: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
-  payment_status: string | null;
-  receipt_url: string | null;
-
-  items: OrderItem[];
-};
 
 // The checkout success page also gets the secret for the order's tracking link
 type CheckoutOrder = Order & { access_token: string | null };
 
+// Guest orders whose items were already taken out of the browser cart (the latest few)
+const CLEARED_ORDERS_KEY = "guest_cart_cleared_orders";
+
 // True if this order's items were already taken out of the browser cart; marks it if not
 function alreadyClearedFor(orderNumber: string): boolean {
-  const key = `cart_cleared_${orderNumber}`;
   try {
-    if (localStorage.getItem(key)) return true;
-    localStorage.setItem(key, "1");
+    const cleared: unknown = JSON.parse(localStorage.getItem(CLEARED_ORDERS_KEY) ?? "[]");
+    const orders = Array.isArray(cleared) ? cleared : [];
+    if (orders.includes(orderNumber)) return true;
+    localStorage.setItem(CLEARED_ORDERS_KEY, JSON.stringify([...orders, orderNumber].slice(-20)));
   } catch {
     // Storage blocked: the browser cart isn't saved either, so there's nothing to repeat
   }
