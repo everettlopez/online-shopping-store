@@ -13,7 +13,7 @@ from app.auth.core import (
 from app.schemas.user import UserCreate, UserLogin, UserRead, EmailUpdate, PasswordUpdate, ForgotPasswordRequest, PasswordReset
 from app.database.users import database_user_has_orders, database_delete_user
 from datetime import datetime, timedelta
-from app.auth.core import CurrentUser
+from app.auth.core import CurrentUser, OptionalUser
 from app.models.password_reset import PasswordResetToken
 from app.mail import build_password_reset_email, send_email
 from app.settings import password_reset_minutes
@@ -86,6 +86,12 @@ def logout_everywhere(user: CurrentUser, response: Response, session: Session = 
 
 @router.get("/me", response_model=UserRead)
 def read_current_user(user: CurrentUser):
+    return user
+
+# The storefront asks this on every page load to learn who's logged in. A guest gets
+# null with a 200, rather than /me's 401, so browsers don't log an error for every visitor
+@router.get("/session", response_model=UserRead | None)
+def read_session(user: OptionalUser):
     return user
 
 @router.delete("/me")

@@ -61,6 +61,10 @@ services:
         VITE_HERO_IMAGE_URL: ${VITE_HERO_IMAGE_URL:-}
         VITE_BANNER_IMAGE_URL: ${VITE_BANNER_IMAGE_URL:-}
         VITE_EVENTS_URL: ${VITE_EVENTS_URL:-}
+        VITE_FAVICON_URL: ${VITE_FAVICON_URL:-}
+        VITE_SHARE_IMAGE_URL: ${VITE_SHARE_IMAGE_URL:-}
+        # Link previews need the image's full address
+        VITE_SITE_URL: https://${STORE_DOMAIN:?Set STORE_DOMAIN in deploy/.env}
     restart: unless-stopped
     logging: *logging
 

@@ -6,6 +6,7 @@ import Drawer from "../components/Drawer";
 import Navbar from "../components/Navbar";
 import ProductCard from "../components/products/ProductCard";
 import ProductFilters from "../components/products/ProductFilters";
+import { ErrorState, LoadingState } from "../components/Status";
 import { activeFilterCount, applyProductFilters, defaultProductFilters, filterOptions, filtersFromParams, hasActiveFilters, paramsWithFilters, type ProductFilterState } from "../utils/productFilters";
 
 export interface Product {
@@ -29,7 +30,9 @@ export default function Products() {
 
     // Products are tagged with the URL query they were fetched for, so switching
     // categories never shows the previous category's products under the new heading
-    const [loaded, setLoaded] = useState<{ key: string; products: Product[] } | null>(null);
+    const [loaded, setLoaded] = useState<{ key: string; products: Product[]; failed?: boolean } | null>(null);
+    // Bumped by "Try again", which makes it a new fetch
+    const [attempt, setAttempt] = useState(0);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const closeFilters = useCallback(() => setFiltersOpen(false), []);
 
@@ -42,9 +45,10 @@ export default function Products() {
     const currentCategory = categories.find((category) => category.category_id === categoryId);
     const categoryNotFound = categoryParam !== null && !loadingCategories && !currentCategory;
 
-    const productsKey = `${categoryId ?? "all"}|${isNewArrivals ? "newest" : ""}`;
+    const productsKey = `${categoryId ?? "all"}|${isNewArrivals ? "newest" : ""}|${attempt}`;
     const loadingProducts = loaded?.key !== productsKey;
     const products = useMemo(() => (loaded?.key === productsKey ? loaded.products : []), [loaded, productsKey]);
+    const loadFailed = !loadingProducts && loaded?.failed === true;
 
     // Filters are kept in the URL query, so the header's links (which carry none) reset them
     // and coming back from a product page restores them. Replacing, not pushing, keeps each
@@ -78,7 +82,7 @@ export default function Products() {
             .then((response) => { if (!cancelled) setLoaded({ key: productsKey, products: response.data }); })
             .catch((err) => {
                 console.error("Failed to fetch products: ", err);
-                if (!cancelled) setLoaded({ key: productsKey, products: [] });
+                if (!cancelled) setLoaded({ key: productsKey, products: [], failed: true });
             });
 
         return () => { cancelled = true; };
@@ -88,6 +92,7 @@ export default function Products() {
         <>
         {/* Header */}
         <Navbar />
+        <main>
 
         {/* Main */}
         <div className="flex gap-6 px-4 pb-8 md:p-8">
@@ -121,12 +126,24 @@ export default function Products() {
                 <p className="tracking-wider text-gray-500">
                     This category no longer exists. <Link to="/products" className="underline">View all products</Link>
                 </p>
-            ) : !loadingProducts && products.length === 0 ? (
+            ) : loadingProducts ? (
+                <LoadingState label="Loading products" />
+            ) : loadFailed ? (
+                <ErrorState message="We couldn't load the products." onRetry={() => setAttempt((n) => n + 1)} />
+            ) : products.length === 0 ? (
                 <p className="tracking-wider text-gray-500">
                     {isNewArrivals ? "No new arrivals yet." : "No products in this category yet."}
                 </p>
-            ) : !loadingProducts && visibleProducts.length === 0 ? (
-                <p className="tracking-wider text-gray-500">No products match these filters.</p>
+            ) : visibleProducts.length === 0 ? (
+                <div className="flex flex-col items-start gap-3">
+                    <p className="tracking-wider text-gray-500">No products match these filters.</p>
+                    <button
+                        onClick={() => setFilters(defaultProductFilters(defaultSort))}
+                        className="border border-black rounded-full px-6 py-1.5 tracking-wider hover:bg-black hover:text-white transition"
+                    >
+                        Clear filters
+                    </button>
+                </div>
             ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {visibleProducts.map((product) => (
@@ -159,6 +176,7 @@ export default function Products() {
             />
         </Drawer>
 
+        </main>
         </>
     );
 }

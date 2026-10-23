@@ -12,7 +12,7 @@ export type OrderAddress = {
 };
 
 export default function OrderAddressLines({ address }: { address: OrderAddress | null }) {
-  if (!address) return <p className="text-gray-400">Not recorded</p>;
+  if (!address) return <p className="text-gray-500">Not recorded</p>;
 
   return (
     <>

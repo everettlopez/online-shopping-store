@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { resetPassword } from "../api/auth";
 import { apiErrorMessage } from "../api/errors";
+import { AuthCard, TextField } from "../components/AuthCard";
 
 function ResetPassword() {
     const [searchParams] = useSearchParams();
@@ -36,9 +37,7 @@ function ResetPassword() {
     };
 
     return (
-        <div className="min-h-screen flex justify-center items-center bg-gray-100">
-            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
-                <h1 className="text-4xl">Reset Password</h1>
+        <AuthCard title="Reset Password">
 
                 {!token ? (
                     <p className="text-sm">
@@ -53,33 +52,21 @@ function ResetPassword() {
                 ) : (
                     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                         <div className="flex flex-col gap-2">
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm" htmlFor="reset-password">New password</label>
-                                <input id="reset-password" type="password" required minLength={8} maxLength={72}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm" htmlFor="reset-confirm">Confirm new password</label>
-                                <input id="reset-confirm" type="password" required
-                                    value={confirm}
-                                    onChange={(e) => setConfirm(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
+                            <TextField label="New password" type="password" autoComplete="new-password" required minLength={8} maxLength={72}
+                                value={password} onChange={setPassword} />
+                            <TextField label="Confirm new password" type="password" autoComplete="new-password" required
+                                value={confirm} onChange={setConfirm} />
                         </div>
 
                         <button disabled={saving} className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full disabled:opacity-50">
                             {saving ? "Saving..." : "Set new password"}
                         </button>
-                        {message && <p className="text-center text-sm">{message}</p>}
+                        {message && <p role="status" className="text-center text-sm">{message}</p>}
 
                         <Link to="/forgot-password" className="text-center text-sm underline">Request a new link</Link>
                     </form>
                 )}
-            </div>
-        </div>
+        </AuthCard>
     );
 }
 

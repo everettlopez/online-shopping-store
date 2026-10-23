@@ -44,6 +44,7 @@ Use a normal browser window unless a step says otherwise. Keep the browser's con
 - [ ] The header, page title and footer show your store's name; the policy and contact pages show your details, with no `example.com` or blank spots.
 - [ ] Browse categories and products, filter and sort, and open a product page. Images load. Its back link returns to the same filters, and its address works when pasted into a new tab.
 - [ ] On a phone, the header menu and the products page's Filter button open and close, and nothing in the header overlaps.
+- [ ] The browser tab shows your icon, and pasting the store's address into a message (or a checker such as opengraph.xyz) previews its name, description and image.
 
 **Accounts**
 - [ ] Register a new customer account, log in, refresh the page, and you're still logged in. Do this in **Chrome and Safari** (Safari, including on an iPhone, is strictest about cookies).

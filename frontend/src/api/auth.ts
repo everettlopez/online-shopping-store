@@ -31,8 +31,9 @@ export const logout = async () => {
 };
 
 
+// The logged-in user, or null for a guest (a 200 either way, so guests' visits log no errors)
 export const getCurrentUser = async() => {
-    const response = await axiosClient.get("/auth/me");
+    const response = await axiosClient.get("/auth/session");
     return response.data;
 };
 

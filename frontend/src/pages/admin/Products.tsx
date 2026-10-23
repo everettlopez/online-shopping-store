@@ -66,7 +66,7 @@ export default function AdminProductsPage() {
     {field: "active", headerName: "Active", width: 100, resizable: false},
     {field: "category", headerName: "Category", width: 100, resizable: false,},
     {field: "thumbnail", headerName: "Thumbnail", width: 200, resizable: false, renderCell: (params) => (
-      <img src={params.value} alt="thumbnail" className="h-10 w-10 object-cover"/>
+      <img src={params.value} alt="" className="h-10 w-10 object-cover"/>
     ),},
     {field: "name", headerName: "Name", width: 300, resizable: false,},
     {field: "price", headerName: "Price ($)", width: 100, resizable: false,},
@@ -173,18 +173,28 @@ export default function AdminProductsPage() {
     <>
       <AdminNav />
 
-      <div className="p-10">
+            <div className="p-4 md:p-10">
 
         {/* Create Product */}
         <div className="flex flex-col gap-3">
-          <h1 className="text-4xl tracking-wider">CREATE NEW PRODUCT</h1>
-          
-          <div className="flex gap-2 border p-2">
+          <h1 className="text-2xl md:text-4xl tracking-wider">CREATE NEW PRODUCT</h1>
+
+          {/* The photo above the fields until 1024 px, beside them from there */}
+          <div className="flex flex-col lg:flex-row gap-2 border p-2">
 
             {/* Add Thumbnail Div */}
             <div
-              onClick={() => document.getElementById("thumbnail-input")?.click()} 
-              className="border flex flex-col border-gray-300 w-80 rounded-xl items-center justify-center hover:bg-gray-100 transition-all duration-500 ease-in-out cursor-pointer">
+              role="button"
+              tabIndex={0}
+              aria-label={thumbnail ? "Change thumbnail" : "Add thumbnail"}
+              onClick={() => document.getElementById("thumbnail-input")?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  document.getElementById("thumbnail-input")?.click();
+                }
+              }}
+              className="border flex flex-col border-gray-300 w-full h-48 lg:h-auto lg:w-80 shrink-0 rounded-xl items-center justify-center hover:bg-gray-100 transition-all duration-500 ease-in-out cursor-pointer">
               <input id="thumbnail-input" type="file" accept="image/*" className="hidden" onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file)
@@ -193,7 +203,7 @@ export default function AdminProductsPage() {
                 }
               }}/>
               {thumbnail ? (
-                <img src={URL.createObjectURL(thumbnail)} className="h-full w-full object-cover rounded-lg"/>
+                <img src={URL.createObjectURL(thumbnail)} alt="New thumbnail" className="h-full w-full object-cover rounded-lg"/>
               ) : (
                 <>
                 <AddCircleOutlinedIcon className="text-gray-300 h-20 w-20" />
@@ -202,7 +212,7 @@ export default function AdminProductsPage() {
               )}
             </div>
 
-            <div className="border w-full rounded-lg p-2 flex flex-col gap-3">
+            <div className="border w-full min-w-0 rounded-lg p-2 flex flex-col gap-3">
 
               {/* Title */}
               <FormGroup className="flex flex-col gap-2">
@@ -216,8 +226,8 @@ export default function AdminProductsPage() {
                 <TextField multiline minRows={1} maxRows={2} label="Description" value={description} onChange={(e) => setDescription(e.target.value)}/>
               </FormGroup>
 
-              {/* Multiple Field Inputs */}
-              <div className="flex items-center gap-2">
+              {/* Multiple Field Inputs: two to a row until 1280 px */}
+              <div className="grid grid-cols-2 xl:flex xl:items-center gap-2">
                 {/* Category Selection */}
                 <FormGroup className="flex flex-col gap-2">
                   <InputLabel required>Category</InputLabel>
@@ -254,7 +264,7 @@ export default function AdminProductsPage() {
                 </FormGroup>
 
                 <FormGroup className="h-full flex justify-center items-center">
-                  <FormControlLabel label="Acive" control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)}/>}/>
+                  <FormControlLabel label="Active" control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)}/>}/>
                 </FormGroup>              
               </div>
 
@@ -268,8 +278,8 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Product Table */}
-        <div className="flex flex-col">
-          <h1 className="text-4xl tracking-wider py-3">PRODUCTS</h1>
+        <div className="flex flex-col min-w-0">
+          <h1 className="text-2xl md:text-4xl tracking-wider py-3">PRODUCTS</h1>
           <DataGrid 
           rows={rows}
           columns={columns}

@@ -1,0 +1,9 @@
+# Search engines may index the store; account, checkout and admin pages are private
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /account
+Disallow: /orders
+Disallow: /checkout
+Disallow: /order-success
+Disallow: /track/

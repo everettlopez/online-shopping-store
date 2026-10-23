@@ -88,11 +88,11 @@ export default function AdminUsers() {
         <>
         <AdminNav />
 
-        <div className="p-10 flex flex-col gap-6">
+        <div className="p-4 md:p-10 flex flex-col gap-6">
 
             {/* Create User */}
             <div className="flex flex-col gap-3">
-                <h1 className="text-4xl tracking-wider">CREATE NEW USER</h1>
+                <h1 className="text-2xl md:text-4xl tracking-wider">CREATE NEW USER</h1>
                 <div className="flex flex-wrap gap-2 items-center border rounded-lg p-2">
                     <TextField required label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}/>
                     <TextField required label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}/>
@@ -120,12 +120,12 @@ export default function AdminUsers() {
                     <div className="text-center">{user.first_name}</div>
                     <div className="text-center">{user.last_name}</div>
                     <div className="text-center">{new Date(user.created_at).toLocaleString()}</div>
-                    <div className="text-center">{user.email}</div>
+                    <div className="text-center break-all">{user.email}</div>
                     <div className="text-center">{user.is_admin ? "Yes" : "No"}</div>
 
-                    <div className="flex justify-center gap-2">
-                        <button onClick={() => setEditingUser(user)} className="border rounded-[10px] px-8 py-1 hover:bg-gray-300">Update</button>
-                        <button onClick={() => setPendingDelete(user)} className="border rounded-[10px] px-8 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
+                    <div className="flex flex-wrap justify-center gap-2">
+                        <button onClick={() => setEditingUser(user)} className="border rounded-[10px] px-4 py-1 hover:bg-gray-300">Update</button>
+                        <button onClick={() => setPendingDelete(user)} className="border rounded-[10px] px-4 py-1 bg-red-500 text-white hover:bg-red-600">Delete</button>
                     </div>
                 </div>
                 ))}

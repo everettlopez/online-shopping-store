@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { getTrackedOrder } from "../api/orders";
 import Navbar from "../components/Navbar";
 import OrderView, { type Order } from "../components/orders/OrderView";
+import { LoadingState } from "../components/Status";
 
 // An order opened from the private link in its emails (or found on /track), no login needed
 export default function TrackedOrder() {
@@ -34,19 +35,21 @@ export default function TrackedOrder() {
     return (
         <>
         <Navbar />
-        <div className="flex flex-col h-fit gap-5 bg-gray-100 p-8">
+        <main>
+        <div className="flex flex-col h-fit gap-5 bg-gray-100 p-3 sm:p-8">
             {loading ? (
-                <p>Loading order...</p>
+                <LoadingState label="Loading order" />
             ) : order ? (
                 <OrderView order={order} />
             ) : (
-                <div className="flex flex-col items-center gap-3 bg-white border rounded-[10px] p-8">
+                <div className="flex flex-col items-center text-center gap-3 bg-white border rounded-[10px] p-6 sm:p-8">
                     <p className="text-lg">We couldn't find that order.</p>
                     <p className="text-gray-500">The link may be incomplete. You can look the order up with its number and your email instead.</p>
                     <Link to="/track" className="border py-2 px-5 rounded-[5px]">Find my order</Link>
                 </div>
             )}
         </div>
+        </main>
         </>
     );
 }

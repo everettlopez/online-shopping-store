@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import axiosClient from "../api/axiosClient";
+import { useDialog } from "./useDialog";
 
 interface Address {
   address_id: number;
@@ -47,6 +48,10 @@ function AddressDialog({
   onSaved,
   addresses = [],
 }: AddressModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(panelRef, true, onClose);
+
   // Addresses saved in this dialog; the list from the page may also arrive after it opens
   const [created, setCreated] = useState<Address[]>([]);
 
@@ -138,11 +143,19 @@ function AddressDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl relative">
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="bg-white p-6 rounded-lg w-full max-w-md max-h-full overflow-y-auto shadow-xl relative"
+      >
 
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-3 right-3 text-xl"
         >
           ×
@@ -151,7 +164,7 @@ function AddressDialog({
         {/* SELECT MODE */}
         {mode === "select" && (
           <div className="flex flex-col gap-6">
-            <h2 className="text-2xl font-semibold mb-2">Select Addresses</h2>
+            <h2 id={titleId} className="text-2xl font-semibold mb-2">Select Addresses</h2>
 
             {/* Shipping */}
             <div>
@@ -221,7 +234,7 @@ function AddressDialog({
         {/* CREATE MODE */}
         {mode === "create" && (
           <>
-            <h2 className="text-2xl font-semibold mb-4">Add Address</h2>
+            <h2 id={titleId} className="text-2xl font-semibold mb-4">Add Address</h2>
 
             <form onSubmit={handleCreate} className="space-y-3">
 

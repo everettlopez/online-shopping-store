@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from "react";
+import { useId, useRef } from "react";
+import { useDialog } from "./useDialog";
 
 interface DrawerProps {
     open: boolean;
@@ -10,28 +11,11 @@ interface DrawerProps {
 }
 
 // A panel that slides over the page on small screens (the header menu, the product filters).
-// Esc, the backdrop and the close button close it; focus moves into it and back again.
+// Esc, the backdrop and the close button close it; useDialog keeps focus inside it.
 export default function Drawer({ open, onClose, title, side = "left", children, footer }: DrawerProps) {
     const titleId = useId();
-    const closeRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        if (!open) return;
-
-        const opener = document.activeElement as HTMLElement | null;
-        const overflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        closeRef.current?.focus();
-
-        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-        document.addEventListener("keydown", onKey);
-
-        return () => {
-            document.removeEventListener("keydown", onKey);
-            document.body.style.overflow = overflow;
-            opener?.focus();
-        };
-    }, [open, onClose]);
+    const panelRef = useRef<HTMLDivElement>(null);
+    useDialog(panelRef, open, onClose);
 
     if (!open) return null;
 
@@ -40,14 +24,16 @@ export default function Drawer({ open, onClose, title, side = "left", children, 
             <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
 
             <div
+                ref={panelRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
+                tabIndex={-1}
                 className={`absolute top-0 bottom-0 ${side === "left" ? "left-0" : "right-0"} w-80 max-w-[85vw] bg-white flex flex-col shadow-lg`}
             >
                 <div className="flex items-center justify-between p-5 border-b">
                     <h2 id={titleId} className="text-lg tracking-widest">{title}</h2>
-                    <button ref={closeRef} onClick={onClose} aria-label="Close" className="text-2xl leading-none px-2">
+                    <button data-autofocus onClick={onClose} aria-label="Close" className="text-2xl leading-none px-2">
                         <i className="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
                 </div>

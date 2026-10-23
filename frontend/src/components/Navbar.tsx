@@ -100,6 +100,9 @@ export default function Navbar({ className = "" }: NavbarProps) {
                 </div>
             </div>
 
+            {/* Screen readers hear the cart count change when something is added or removed */}
+            <span className="sr-only" aria-live="polite">{`${count} ${count === 1 ? "item" : "items"} in your cart`}</span>
+
             {/* Navigation */}
             <nav className="hidden md:flex flex-wrap justify-center gap-x-12 gap-y-2">
                 {navLinks.map((link) => renderLink(link))}

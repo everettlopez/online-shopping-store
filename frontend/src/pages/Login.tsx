@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/useAuth";
 import { Link, useLocation } from "react-router-dom";
-import backIcon from "../assets/backIcon.svg";
+import { AuthCard, TextField } from "../components/AuthCard";
 import { apiErrorMessage } from "../api/errors";
 
 
@@ -29,60 +29,27 @@ function Login() {
     };
 
     return (
-        <>
-        {/* Login Frame */}
-        <div className="min-h-screen flex justify-center items-center bg-gray-100">
-            <div className="relative">
-                <div className="absolute right-full top-0 mr-6 p-5">
-                <Link to="/" className="flex items-center gap-2">
-                    <img src={backIcon} className="h-6 w-6"/>
-                    <p className="text-lg tracking-wider">BACK</p>
+        <AuthCard title="Sign In" backTo="/">
+            <form onSubmit={handleLogin} className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                    <TextField label="Email" type="email" placeholder="you@example.com" autoComplete="email" required
+                        value={email} onChange={setEmail} />
+                    <TextField label="Password" type="password" placeholder="password" autoComplete="current-password" required
+                        value={password} onChange={setPassword} />
+                    <Link to="/forgot-password" className="self-end text-sm underline">Forgot password?</Link>
+                </div>
+
+                <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Login</button>
+                {message && <p role="status" className="text-center text-sm">{message}</p>}
+                <Link
+                    to="/register"
+                    state={state}
+                    className="flex justify-center items-center px-5 py-2 rounded-full border hover:bg-gray-100 transition"
+                >
+                    Create new account
                 </Link>
-            </div>
-            
-            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
-                <h1 className="text-4xl">Sign In</h1>
-
-                <form onSubmit={handleLogin}>
-
-                    <div className="flex flex-col gap-5">
-
-                        <div className="flex flex-col gap-2">
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">Email</label>
-                                <input type="text" placeholder="you@example.com"
-                                    value={email}
-                                    onChange = {(e) => setEmail(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-
-                            <div className="flex flex-col border p-2 rounded-[10px] gap-1">
-                                <label className="text-sm">Password</label>
-                                <input type="password" placeholder="password"
-                                    value={password}
-                                    onChange = {(e) => setPassword(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
-                            </div>
-
-                            <Link to="/forgot-password" className="self-end text-sm underline">Forgot password?</Link>
-                        </div>
-
-                        <button className="flex justify-center items-center bg-black text-white px-5 py-2 rounded-full">Login</button>
-                        {message && <p className="text-center text-sm">{message}</p>}
-                        <Link
-                            to="/register"
-                            state={state}
-                            className="flex justify-center items-center px-5 py-2 rounded-full border hover:bg-gray-100 transition"
-                            >
-                            Create new account
-                            </Link>
-
-                    </div>
-                </form>
-            </div>
-            </div>
-        </div>
-        </>
+            </form>
+        </AuthCard>
     );
 }
 
