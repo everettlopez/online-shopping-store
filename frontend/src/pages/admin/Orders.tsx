@@ -618,8 +618,8 @@ export default function AdminOrders()
                           <div key={item.order_item_id} className="flex justify-between w-full p-3 items-center rounded-[10px]">
                             <div className="flex gap-4">
                               {item.product?.thumbnail
-                                ? <img src={item.product.thumbnail} className="w-20 h-20 object-cover border rounded"/>
-                                : <div className="w-20 h-20 border rounded bg-gray-100"/>}
+                                ? <img src={item.product.thumbnail} className="w-20 h-20 object-cover border rounded-sm"/>
+                                : <div className="w-20 h-20 border rounded-sm bg-gray-100"/>}
                               <div className="flex flex-col">
                                 <p className="text-lg tracking-wider">{item.product?.title ?? "Product no longer available"}</p>
                                 <p className="text-gray-400 tracking-wider">${item.unit_price.toFixed(2)}</p>

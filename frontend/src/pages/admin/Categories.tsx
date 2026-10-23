@@ -141,7 +141,7 @@ export default function AdminCategories() {
             </div>
 
             {/* Categories Table */}
-            <div className="p-6 border rounded-lg bg-white shadow-sm flex flex-col gap-4">
+            <div className="p-6 border rounded-lg bg-white shadow-xs flex flex-col gap-4">
 
                 <div className="grid grid-cols-5 gap-4 text-sm font-semibold text-gray-500 border-b pb-2">
                     <div className="text-center tracking-wider">NAV ORDER</div>

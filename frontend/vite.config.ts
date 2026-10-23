@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // Store identity used in index.html and src/config/store.ts when the owner hasn't
 // set it (see .env.example). Filled in here so the page title never shows a raw
@@ -16,7 +17,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       dedupe: ["react", "react-dom"]
     },

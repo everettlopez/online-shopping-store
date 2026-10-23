@@ -48,7 +48,7 @@ function Register() {
                 </Link>
                 </div>
 
-            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow">
+            <div className="flex flex-col justify-center border w-[400px] p-10 gap-6 bg-white rounded-[20px] shadow-sm">
                 <h1 className="text-4xl">Create New Account</h1>
 
                 <form onSubmit={handleRegister}>
@@ -61,7 +61,7 @@ function Register() {
                                 <input type="text" placeholder="Jane"
                                     value={firstName}
                                     onChange = {(e) => setFirstName(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0"/>
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0"/>
                             </div>
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
@@ -69,7 +69,7 @@ function Register() {
                                 <input type="text" placeholder="Doe"
                                     value={lastName}
                                     onChange = {(e) => setLastName(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                             </div>
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
@@ -77,7 +77,7 @@ function Register() {
                                 <input type="text" placeholder="you@example.com"
                                     value={email}
                                     onChange = {(e) => setEmail(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                             </div>
 
                             <div className="flex flex-col border p-2 rounded-[10px] gap-1">
@@ -87,7 +87,7 @@ function Register() {
                                     minLength={8}
                                     required
                                     onChange = {(e) => setPassword(e.target.value)}
-                                    className="h-[32px] text-[24px] border-none focus:outline-none focus:ring-0" />
+                                    className="h-[32px] text-[24px] border-none focus:outline-hidden focus:ring-0" />
                             </div>
                         </div>
 

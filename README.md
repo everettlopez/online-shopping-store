@@ -23,7 +23,7 @@ An open-source online store you can host yourself: a FastAPI + MySQL backend, a 
 
 ## Tech Stack
 - **Backend:** FastAPI, SQLModel/SQLAlchemy, Pydantic, Alembic migrations, JWT cookie auth, Stripe, Resend, pytest.
-- **Frontend:** React, TypeScript, Vite, React Router, Tailwind CSS, MUI (admin pages), Axios.
+- **Frontend:** React, TypeScript, Vite, React Router, Tailwind CSS 4, MUI (admin pages), Axios. The storefront supports current browsers: Safari 16.4+, Chrome and Edge 111+, Firefox 128+ (Tailwind 4's minimum).
 - **Database:** MySQL 8.
 - **Deployment:** Docker, Docker Compose, Caddy, nginx, GitHub Actions CI.
 

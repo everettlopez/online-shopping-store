@@ -25,6 +25,28 @@ def test_hash_and_verify_password():
     assert not verify_password("wrong", hashed)
 
 
+# Made by passlib (which the store used before), so existing accounts keep working
+@pytest.mark.parametrize("password, hashed", [
+    ("correct horse battery staple", "$2b$12$kRI4Cv1qYZWxqc4s7maoTOSDeIle7DiA1dquiuV7qu7Kvyo.ItuZO"),
+    ("ü" * 40, "$2b$12$BgqukusdI01HAE0yuuh5QOD2Oub25u93YHfBRAFryTyK8AUg9THUq"),   # 80 bytes, cut to 72
+    ("x" * 80, "$2b$12$Nelfc5HN8E1ojtN/uSD9KeOufpF0QW7WGC9tZgnBDL4WId/g3/C3y"),
+], ids=["plain", "non-ascii-over-72-bytes", "over-72-bytes"])
+def test_existing_hashes_still_verify(password, hashed):
+    assert verify_password(password, hashed)
+    assert not verify_password(password[:-10], hashed)
+
+
+def test_long_passwords_hash_by_their_first_72_bytes():
+    hashed = hash_password("y" * 100)
+
+    assert verify_password("y" * 72, hashed)
+    assert not verify_password("y" * 71, hashed)
+
+
+def test_a_damaged_hash_matches_nothing():
+    assert not verify_password("secret", "not-a-bcrypt-hash")
+
+
 def test_access_token_round_trip():
     token = create_access_token({"sub": "42"})
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
