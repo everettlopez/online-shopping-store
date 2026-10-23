@@ -88,7 +88,7 @@ export default function Checkout() {
                     return (
                         <div 
                             key={item.product_id} 
-                                                        className="flex items-center border w-full max-w-xl mx-auto p-3 sm:p-5 rounded-[10px] gap-4 sm:gap-5">
+                            className="flex items-center border w-full max-w-xl mx-auto p-3 sm:p-5 rounded-[10px] gap-4 sm:gap-5">
 
                                 <img src={mainImage} alt={item.product?.title ?? ""} loading="lazy" className="w-24 h-24 sm:w-40 sm:h-40 object-cover shrink-0"/>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { useAuth } from "../context/useAuth";
 import { Link, useLocation } from "react-router-dom";
 import { AuthCard, TextField } from "../components/AuthCard";
@@ -23,7 +24,7 @@ function Login() {
         }
         catch (err){
             // e.g. "Invalid credentials", or the rate limit's "Too many attempts"
-            setMessage(apiErrorMessage(err, "Login failed."));
+            setMessage(apiErrorMessage(err, err instanceof Error && !axios.isAxiosError(err) ? err.message : "Login failed."));
             console.error(err);
         }
     };

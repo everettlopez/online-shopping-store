@@ -17,7 +17,13 @@ interface NavbarProps {
 export default function Navbar({ className = "" }: NavbarProps) {
     const { categories } = useCategories();
     const { isAuthenticated } = useAuth();
-    const { count } = useCart();
+    const { count, loading: cartLoading } = useCart();
+    // The count once the cart has loaded; the live region below speaks only when it changes
+    // from that, so a page load doesn't announce the cart
+    const [loadedCount, setLoadedCount] = useState<number | null>(null);
+    const [countChanged, setCountChanged] = useState(false);
+    if (!cartLoading && loadedCount === null) setLoadedCount(count);
+    if (loadedCount !== null && !countChanged && count !== loadedCount) setCountChanged(true);
     const { pathname } = useLocation();
     const [searchParams] = useSearchParams();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -101,7 +107,7 @@ export default function Navbar({ className = "" }: NavbarProps) {
             </div>
 
             {/* Screen readers hear the cart count change when something is added or removed */}
-            <span className="sr-only" aria-live="polite">{`${count} ${count === 1 ? "item" : "items"} in your cart`}</span>
+            <span className="sr-only" aria-live="polite">{countChanged ? `${count} ${count === 1 ? "item" : "items"} in your cart` : ""}</span>
 
             {/* Navigation */}
             <nav className="hidden md:flex flex-wrap justify-center gap-x-12 gap-y-2">

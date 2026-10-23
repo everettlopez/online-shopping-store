@@ -16,7 +16,8 @@ const STORE_DEFAULTS: Record<string, string> = {
 // image needs a full address, so it's added only when VITE_SITE_URL is set. Vite escapes
 // attribute values but not the title's text, which is escaped here.
 function storeMeta(env: Record<string, string>): Plugin {
-  const setting = (name: string) => env[name]?.trim() || process.env[name]?.trim() || "";
+  // loadEnv has already merged in VITE_* variables from the environment (Docker build args)
+  const setting = (name: string) => env[name]?.trim() || "";
 
   return {
     name: "store-meta",

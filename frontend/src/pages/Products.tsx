@@ -57,6 +57,7 @@ export default function Products() {
     const filters = useMemo(() => filtersFromParams(searchParams, defaultSort), [searchParams, defaultSort]);
     const setFilters = (next: ProductFilterState) =>
         setSearchParams(paramsWithFilters(searchParams, next, defaultSort), { replace: true });
+    const clearFilters = () => setFilters(defaultProductFilters(defaultSort));
     const filterCount = activeFilterCount(filters);
 
     const sizeOptions = useMemo(() => filterOptions(products, "size"), [products]);
@@ -104,7 +105,7 @@ export default function Products() {
                 colorOptions={colorOptions}
                 canClear={hasActiveFilters(filters, defaultSort)}
                 onChange={setFilters}
-                onClear={() => setFilters(defaultProductFilters(defaultSort))}
+                onClear={clearFilters}
             />
 
             {/* Products Grid */}
@@ -138,7 +139,7 @@ export default function Products() {
                 <div className="flex flex-col items-start gap-3">
                     <p className="tracking-wider text-gray-500">No products match these filters.</p>
                     <button
-                        onClick={() => setFilters(defaultProductFilters(defaultSort))}
+                        onClick={clearFilters}
                         className="border border-black rounded-full px-6 py-1.5 tracking-wider hover:bg-black hover:text-white transition"
                     >
                         Clear filters
@@ -172,7 +173,7 @@ export default function Products() {
                 colorOptions={colorOptions}
                 canClear={hasActiveFilters(filters, defaultSort)}
                 onChange={setFilters}
-                onClear={() => setFilters(defaultProductFilters(defaultSort))}
+                onClear={clearFilters}
             />
         </Drawer>
 

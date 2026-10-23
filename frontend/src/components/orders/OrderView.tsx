@@ -154,8 +154,9 @@ const getStatusChipProps = (status: string): {
 const steps = ["Placed", "Processing", "Shipped", "Delivered"];
 const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
 
-function OrderStepper({order}: {order: Order}) {
-    const activeStep = stepIndexMap[order.status as OrderStatus];
+// The order's progress from placed to delivered; the account's order list uses it too
+export function OrderStepper({ status }: { status: string }) {
+    const activeStep = stepIndexMap[status as OrderStatus];
 
     return (
       <div className="py-4 sm:p-8">
@@ -185,7 +186,7 @@ export default function OrderView({ order }: { order: Order }) {
                   </div>
 
                   {order.status !== "completed" && (
-                      <OrderStepper order={order}/>
+                      <OrderStepper status={order.status}/>
                   )}
 
                   {/* Order Information: two columns on phones, four in a row from 768 px */}

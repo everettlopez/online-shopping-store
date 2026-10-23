@@ -8,7 +8,7 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { Chip, Step, StepLabel } from "@mui/material";
+import { Chip } from "@mui/material";
 
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
@@ -18,10 +18,10 @@ import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import NotInterestedRoundedIcon from '@mui/icons-material/NotInterestedRounded';
 
-import Stepper from '@mui/material/Stepper';
 import Navbar from "../../components/Navbar";
 import OrderAddressLines, { type OrderAddress } from "../../components/OrderAddressLines";
 import AccountNav from "../../components/AccountNav";
+import { OrderStepper } from "../../components/orders/OrderView";
 import { EmptyState, ErrorState, LoadingState } from "../../components/Status";
 
 export type OrderItem = {
@@ -89,8 +89,6 @@ type StatusColor =
   | "primary"
   | "secondary";
 
-type OrderStatus = "placed" | "processing" | "shipped" | "delivered";
-
 const getStatusChipProps = (status: string): {
     color: StatusColor;
     icon: ReactElement | undefined;
@@ -157,25 +155,7 @@ const getStatusChipProps = (status: string): {
     }
   };
 
-const steps = ["Placed", "Processing", "Shipped", "Delivered"];
-const stepIndexMap: Record<OrderStatus, number> = { placed: 0, processing: 1, shipped: 2, delivered: 3 };
 const FINISHED = ["cancelled", "completed", "refunded", "delivered"];
-
-function OrderStepper({ order }: { order: Order }) {
-    const activeStep = stepIndexMap[order.status as OrderStatus];
-
-    return (
-      <div className="py-4 sm:p-8">
-        <Stepper activeStep={activeStep} alternativeLabel>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel className="flex flex-col">{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </div>
-    );
-}
 
 const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -198,7 +178,7 @@ function OrderSummary({ order, current }: { order: Order; current: boolean }) {
             </AccordionSummary>
 
             <AccordionDetails>
-                {current && order.status !== "completed" && <OrderStepper order={order} />}
+                {current && <OrderStepper status={order.status} />}
 
                 {/* Two columns on phones, four in a row from 768 px */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 md:divide-x [&>div]:md:px-4">
@@ -225,7 +205,7 @@ function OrderSummary({ order, current }: { order: Order; current: boolean }) {
                     </div>
                 </div>
 
-                {current && order.status !== "placed" && order.status !== "processing" && (
+                {order.status === "shipped" && (
                     <div className="flex flex-col">
                         <p className="text-lg tracking-wider">TRACKING INFORMATION</p>
                         <div className="flex flex-col px-4 py-1">
