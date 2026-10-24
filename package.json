@@ -1,5 +1,6 @@
 {
   "name": "online-shopping-store",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "frontend": "npm --prefix frontend run dev"
