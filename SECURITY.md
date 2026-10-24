@@ -10,7 +10,7 @@ Include what you found, how to reproduce it, and what an attacker could do with 
 
 ## Supported versions
 
-Fixes go into the `main` branch. If you run a store from this project, update to the latest `main` regularly ([docs/launch-checklist.md](docs/launch-checklist.md#after-every-deploy) covers how).
+Security fixes go into the next [release](https://github.com/everettlopez/online-shopping-store/releases), and only the latest release is supported. If you run a store from this project, watch the repository's releases (**Watch → Custom → Releases**) and update when a new one comes out; [Updating to a new release](docs/hosting.md#updating-to-a-new-release) covers how. A release that fixes a security problem says so in its notes.
 
 ## Scope
 

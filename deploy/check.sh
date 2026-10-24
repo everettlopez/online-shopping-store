@@ -1,7 +1,7 @@
 #!/bin/sh
 # Checks a running store from the outside: HTTPS, redirects, security headers, the
 # API's health and production settings. Part of docs/launch-checklist.md; run it
-# after every deploy. It reads the domains from deploy/.env. From the project root:
+# after every update. It reads the domains from deploy/.env. From the project root:
 #
 #   sh deploy/check.sh                 # the checks
 #   sh deploy/check.sh --rate-limit    # also hits order lookup until it's refused
@@ -166,7 +166,7 @@ fi
 
 echo
 if [ "$FAILED" -gt 0 ]; then
-    echo "$FAILED check(s) failed. docs/hosting.md#troubleshooting covers the usual causes."
+    echo "$FAILED check(s) failed. docs/troubleshooting.md covers the usual causes."
     exit 1
 fi
 echo "All checks passed. Finish the manual steps in docs/launch-checklist.md."
