@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Help setting up or running a store
+    url: https://github.com/everettlopez/online-shopping-store/discussions/categories/q-a
+    about: Ask in Discussions. Check docs/troubleshooting.md first; it covers the common problems.
+  - name: Troubleshooting guide
+    url: https://github.com/everettlopez/online-shopping-store/blob/main/docs/troubleshooting.md
+    about: Common problems, their fixes, and what to collect before asking for help.
+  - name: Report a security vulnerability
+    url: https://github.com/everettlopez/online-shopping-store/security/advisories/new
+    about: Report it privately, never in a public issue. See SECURITY.md.

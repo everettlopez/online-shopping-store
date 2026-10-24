@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in the store or the deploy kit doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. **Security problems** (anything that could expose others' data, change what someone pays, or take over a store) must be reported privately: see [SECURITY.md](https://github.com/everettlopez/online-shopping-store/blob/main/SECURITY.md). Questions about setting up a store go to [Discussions](https://github.com/everettlopez/online-shopping-store/discussions).
+
+        **Never paste** `deploy/.env`, `deploy/.env.api`, API keys (`sk_live_`, `whsec_`, `re_`), passwords, `DATABASE_URL`, or customers' details.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you report
+      options:
+        - label: I searched the open and closed issues and this isn't reported yet.
+          required: true
+        - label: I read [docs/troubleshooting.md](https://github.com/everettlopez/online-shopping-store/blob/main/docs/troubleshooting.md).
+          required: true
+        - label: I removed secrets and customers' details from everything below.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Release
+      description: The output of `git describe --tags` on the server, or the commit if you're running from source.
+      placeholder: v1.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Storefront (browsing, cart, product pages)
+        - Checkout and payments
+        - Accounts and login
+        - Order tracking
+        - Admin pages
+        - Email
+        - Deploy kit (Docker, Caddy, check.sh, backup.sh)
+        - Documentation
+        - Local development
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, step by step, and what happened instead.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of check.sh, docker compose ps and the logs
+      description: For a store on a server, the commands in [Collect this before asking for help](https://github.com/everettlopez/online-shopping-store/blob/main/docs/troubleshooting.md#collect-this-before-asking-for-help). Check it for secrets first.
+      render: text
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, device and server
+      description: For a storefront problem, the browser and device. For a deploy problem, the server's OS and where the database runs.
+      placeholder: Safari on iPhone 15; Ubuntu 24.04 on DigitalOcean with managed MySQL
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, error messages from the browser's console (F12), or what you've already tried.

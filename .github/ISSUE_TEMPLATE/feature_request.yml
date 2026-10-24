@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest something the store should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Talking it through here first makes sure work on it fits the project before anyone spends time on it. For a question about how something works today, use [Discussions](https://github.com/everettlopez/online-shopping-store/discussions).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: Who runs into it (customers, store owners, admins) and when.
+      placeholder: As a store owner, I can't ...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Other ways to solve it, or how you work around it today.
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Fit with the project
+      description: The store is meant for anyone to host by changing settings, not code.
+      options:
+        - label: It would work for any store, with anything store-specific (names, prices, addresses, images) as a setting.
+        - label: I'd like to work on it myself.
