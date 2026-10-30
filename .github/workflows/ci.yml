@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
           cache: pip
@@ -50,7 +50,7 @@ jobs:
       DATABASE_URL: mysql+pymysql://root:ci-root-password@127.0.0.1:3306/shop
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
           cache: pip
